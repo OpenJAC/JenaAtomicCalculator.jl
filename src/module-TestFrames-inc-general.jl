@@ -818,7 +818,12 @@ end
             exactly one is non-zero, and the non-zero one carries the full magnitude. Both branches are
             needed, because the nu = L integrand is a.P * c.Q, LARGE component against SMALL;
         (2) besselPhiPsi, on which both radial kernels rest, reproduces the elementary closed forms
-            phi_0 = sin(x)/x, psi_0 = cos(x), phi_1 = 3(sin(x)/x - cos(x))/x^2, psi_1 = cos(x) + x sin(x);
+            phi_0 = sin(x)/x, psi_0 = cos(x), phi_1 = 3(sin(x)/x - cos(x))/x^2, psi_1 = cos(x) + x sin(x)
+            -- ACROSS BOTH OF ITS ROUTES AND OUT TO x = 200, which is the point of the range rather than a
+            flourish: the function joins a small-argument series to the exact functions at x = 2, and until
+            21-Oct-2026 it had no second route at all, so a check sampling x <= 2 could never see that the
+            series DIVERGES beyond it (wrong by 1.2e+25 at x = 100 while returning a plausible-looking
+            number).  The argument is omega r, which reaches the hundreds at high Z;
         (3) for four 2p_3/2 orbitals at L = 1 every other block is vetoed by its own parity guard, so
             X^1_Breit consists of exactly eight ('T', nu = 1) coefficients and must NOT vanish. This case
             isolates the dominant magnetic term, and it was EXACTLY ZERO during the defect above;
@@ -854,18 +859,30 @@ function testMethod_BreitInteraction(; short::Bool=true)
     end
     println("  (1) The even- and odd-parity reduced matrix elements are complementary.")
 
-    ## (2) besselPhiPsi carries both radial kernels; check it against the elementary closed forms.
-    worst = 0.
-    for  x  in  [0.05, 0.5, 1.0, 2.0]
+    ## (2) besselPhiPsi carries both radial kernels; check it against the elementary closed forms.  The closed
+    ##     forms hold for EVERY x, so they test the function without sharing any of its machinery -- and the
+    ##     range has to straddle the crossover at x = 2 where besselPhiPsi switches from its small-argument
+    ##     series to the exact functions.  THAT IS WHY THE LARGE-x POINTS ARE HERE: before 21-Oct-2026 there
+    ##     was no second route, and this block sampled x <= 2.0 only, so it passed throughout while the series
+    ##     diverged above x ~ 5 and returned 1e+25 times the right answer at x = 100 with no sign of trouble.
+    ##     A RELATIVE criterion is used because psi_1 = cos(x) + x sin(x) grows with x, so an absolute
+    ##     tolerance would silently loosen exactly where the defect lived.
+    worstBelow = 0.;    worstAbove = 0.
+    for  x  in  [0.05, 0.5, 1.0, 2.0, 2.5, 4.0, 8.0, 20.0, 60.0, 200.0]
         p0, q0 = InteractionStrength.besselPhiPsi(0, x)
         p1, q1 = InteractionStrength.besselPhiPsi(1, x)
-        worst  = max( worst, abs(p0 - sin(x)/x), abs(q0 - cos(x)),
-                             abs(p1 - 3*(sin(x)/x - cos(x))/x^2), abs(q1 - (cos(x) + x*sin(x))) )
+        exact  = ( sin(x)/x, cos(x), 3*(sin(x)/x - cos(x))/x^2, cos(x) + x*sin(x) )
+        given  = ( p0, q0, p1, q1 )
+        dev    = maximum( abs(given[i] - exact[i]) / max(abs(exact[i]), 1.0)  for i = 1:4 )
+        if  x <= 2.0    worstBelow = max(worstBelow, dev)    else    worstAbove = max(worstAbove, dev)    end
     end
-    println("  (2) besselPhiPsi against phi_0, psi_0, phi_1, psi_1:  worst deviation = $worst ")
-    if  worst > 1.0e-12
+    println("  (2) besselPhiPsi against phi_0, psi_0, phi_1, psi_1:  worst deviation = $worstBelow below the " *
+            "x = 2 crossover, $worstAbove above it (to x = 200) ")
+    if  worstBelow > 1.0e-12  ||  worstAbove > 1.0e-12
         success = false
-        println("  *** The normalised Bessel functions are wrong; both Breit radial kernels rest on them.")
+        println("  *** The normalised Bessel functions are wrong; both Breit radial kernels rest on them. " *
+                "If only the ABOVE figure is bad, the large-argument route is the one at fault -- the " *
+                "small-argument series alone cannot reach there, which is the 21-Oct-2026 defect returning.")
     end
 
     ## (3) and (4) need one converged orbital set; Ne-like Fe is small and gives a Breit term of usable size.
