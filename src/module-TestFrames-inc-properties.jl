@@ -449,8 +449,12 @@ function testModule_MultipolePolarizibility(; short::Bool=true)
     gMp   = generate(Representation("np perturbers", ni, grid,
                        [Configuration("2p"), Configuration("3p"), Configuration("4p")],
                        MeanFieldMultiplet(MeanFieldSettings(scf))), output=true)[ResultKeys.MeanFieldMultiplet]
+    ## `calcCore = true` is asked for here DELIBERATELY although hydrogen has no closed subshell: it exercises the
+    ## perform-route wiring of the core part and its open-subshell guard, and it CANNOT move the approved file,
+    ## because an outcome with no closed subshell carries no alphaCore and the core table then prints nothing at all.
     set   = MultipolePolarizibility.Settings(MultipolePolarizibility.Settings();
-                multipoles=[E1], gMultiplet=gMp, omegas=[0.], printBefore=false, levelSelection=LevelSelection())
+                multipoles=[E1], gMultiplet=gMp, omegas=[0.], printBefore=false, levelSelection=LevelSelection(),
+                calcCore=true)
     ## `asfSettings`, NOT `initialAsfSettings` (corrected 09-Aug-2026): Atomic.Computation carries BOTH, and the
     ## first pairs with `configs` while the second pairs with `initialConfigs`. Passing the wrong one is silent --
     ## the scField is simply ignored and the default DFS field runs instead, which for hydrogen gives a
@@ -499,6 +503,15 @@ function testModule_MultipolePolarizibility(; short::Bool=true)
             success = false
             println("** the omega = 0 entry of the general alphas table is $(outcome.alphas[iDy][4].Babushkin) " *
                     "while alpha0 is $(outcome.alpha0.Babushkin); the two paths must meet bit for bit at omega = 0")
+        end
+        ## THE OPEN-SUBSHELL GUARD OF THE CORE PART -- added 21-Oct-2026, item 92.  Hydrogen's 1s holds ONE electron,
+        ## so it is not a closed subshell and its response belongs to the sum over states above, not to the
+        ## complete-basis core route.  An alphaCore entry here would mean the core route had claimed a shell that is
+        ## the perturber sum's business, which would DOUBLE COUNT it.
+        if  !isempty(outcome.alphaCore)
+            success = false
+            println("** alphaCore is non-empty for hydrogen 1s, which is an OPEN subshell: " *
+                    "$(outcome.alphaCore).  The core route must decline a shell the perturber sum owns.")
         end
         ## A STATIC POLARIZABILITY HAS NO GAUGE FREEDOM, so the two columns must be identical, not merely close.
         if  outcome.alpha0.Coulomb != outcome.alpha0.Babushkin
@@ -658,6 +671,52 @@ function testModule_MultipolePolarizibility(; short::Bool=true)
             println("** allowedRanks($mpRk, J = $(twoJRk)/2) returned $ranksRk where K <= 2L, K <= 2J and K even " *
                     "together give $exactRk")
         end
+    end
+
+    ## THE CORE POLARIZABILITY AGAINST AN EXACT CLOSED FORM -- added 21-Oct-2026, item 92, and it needs no
+    ## reference data of any kind.  A 1s^2 subshell in the BARE NUCLEAR field is two INDEPENDENT hydrogenic
+    ## electrons, so its dipole polarizability is exactly 2 * 9/(2 Z^4);  at Z = 2 that is 0.5625 a.u.  The test
+    ## therefore asserts the whole assembly at once -- the occupation factor N_a/(2j_a+1), the angular factor
+    ## CL(a,1,t)^2 summed over both p channels, the 1/3 + 1/3 split of the two solves, the radial-drive correction
+    ## and the Pauli projection -- against a number that owes nothing to JAC.  It is computed DIRECTLY rather than
+    ## through perform, so that it writes nothing to the summary file the comparison below reads.
+    ##
+    ## AND THE SECOND ASSERTION IS THE FREQUENCY, which the first one cannot see at all: the two energy
+    ## denominators dE -+ omega give alpha(omega) = alpha(0) + S3 omega^2 + O(omega^4), so the enhancement at 2w
+    ## must be FOUR TIMES the enhancement at w.  A ratio of enhancements has every radial factor cancelled out of
+    ## it, so it needs no converged grid -- and it would fail outright if the two solves were made at the same
+    ## sign, which is the one mistake this prefactor invites.
+    niC   = Nuclear.Model(2.0, PointNucleus())
+    gridC = Radial.Grid(Radial.Grid(false), rnt=4.0e-6, h=5.0e-2, hp=5.0e-1, rbox=40.0)
+    asfC  = AsfSettings(AsfSettings(); scField=Basics.NuclearField(), gridStopper=false)
+    mpC   = redirect_stdout(devnull) do
+        SelfConsistent.performSCF([Configuration("1s^2")], niC, gridC, asfC; printout=false)   end
+    primC = Bsplines.generatePrimitives(gridC)
+    exactC = 2.0 * 4.5 / 2.0^4
+    aC, dEpsC = MultipolePolarizibility.computeCorePolarizability(mpC.levels[1], niC, gridC, primC, 0.0;
+                                                                  scField=Basics.NuclearField())
+    if  abs(aC/exactC - 1.0) > 2.0e-3
+        success = false
+        println("** the core polarizability of a hydrogenic 1s^2 shell at Z = 2 is $aC against the EXACT " *
+                "2 * 9/(2 Z^4) = $exactC, a relative difference of $(abs(aC/exactC - 1.0))")
+    end
+    if  dEpsC > 1.0e-6
+        success = false
+        println("** the core orbitals regenerated for that test differ from the stored ones by $dEpsC a.u.; " *
+                "the consistency guard of computeCorePolarizability should be silent in the bare nuclear field")
+    end
+    aC1, _ = MultipolePolarizibility.computeCorePolarizability(mpC.levels[1], niC, gridC, primC, 0.05;
+                                                               scField=Basics.NuclearField())
+    aC2, _ = MultipolePolarizibility.computeCorePolarizability(mpC.levels[1], niC, gridC, primC, 0.10;
+                                                               scField=Basics.NuclearField())
+    if  !(aC1 > aC  &&  aC2 > aC1)
+        success = false
+        println("** alpha_core must RISE with omega below the first excitation: $aC, $aC1, $aC2 at " *
+                "omega = 0, 0.05, 0.10")
+    elseif  abs( (aC2 - aC)/(aC1 - aC) / 4.0 - 1.0 ) > 2.0e-2
+        success = false
+        println("** the omega^2 law fails: the enhancement at omega = 0.10 is $((aC2-aC)/(aC1-aC)) times the " *
+                "one at 0.05, where the two energy denominators dE -+ omega demand 4")
     end
 
     ## AND the approved reference, restored 03-Sep-2026. The two exact invariants above cannot be fooled but they
