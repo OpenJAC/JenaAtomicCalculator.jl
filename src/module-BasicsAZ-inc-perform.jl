@@ -50,6 +50,7 @@ function  resultKeyStrings(T::Type)
     T === DispersionCoefficient.Settings    &&  return( ["Dispersion coefficient outcomes:"] )
     T === ReducedDensityMatrix.Settings     &&  return( ["RDM outcomes:"] )
     T === WeakInteractionEnhancement.Settings  &&  return( ["Weak-interaction enhancement outcomes:"] )
+    T === CrystalField.Settings             &&  return( ["Crystal-field splitting outcomes:"] )
     # --- the one process of the computation
     T === AutoIonization.Settings           &&  return( ["AutoIonization lines:", "autoionization lines:"] )
     T === RayleighCompton.Settings          &&  return( ["Rayleigh-Compton lines:"] )
@@ -200,7 +201,7 @@ function  allResultKeyTypes()
             Einstein.Settings, Hfs.Settings, LandeZeeman.Settings, StarkShift.Settings, StarkZeeman.Settings,
             IsotopeShift.Settings, AlphaVariation.Settings, FormFactor.Settings, DecayYield.Settings,
             MultipolePolarizibility.Settings, DispersionCoefficient.Settings, ReducedDensityMatrix.Settings,
-            WeakInteractionEnhancement.Settings,
+            WeakInteractionEnhancement.Settings, CrystalField.Settings,
             AutoIonization.Settings, RayleighCompton.Settings, ElectronCapture.Settings,
             DoubleAutoIonization.Settings, DielectronicRecombination.Settings, MultiPhotonTransition.Settings,
             PhotoIonization.Settings, PhotoDoubleIonization.Settings, PhotoExcitation.Settings,
@@ -385,6 +386,10 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
             elseif  typeof(settings) == WeakInteractionEnhancement.Settings
                 outcome = WeakInteractionEnhancement.computeOutcomes(multiplet, nModel, computation.grid, settings)
                 if output    results = Base.merge( results, Dict("Weak-interaction enhancement outcomes:" => outcome) )   end
+                #
+            elseif  typeof(settings) == CrystalField.Settings
+                outcome = CrystalField.computeOutcomes(multiplet, nModel, computation.grid, settings)
+                if output    results = Base.merge( results, Dict("Crystal-field splitting outcomes:" => outcome) )        end
                 #
             end
         end
