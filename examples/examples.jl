@@ -228,6 +228,11 @@ elseif  char == 'S'
     println("    Dimitrijevic & Konjevic's Simplified Modified Semiempirical (SMSE) method -- needs only the")
     println("    line's own two levels (effective quantum number, active subshell), no perturber search.")
     #
+elseif  char == 'T'
+    println("Ta) Apply & test the ThreeBodyRecombination module: the rate coefficient alpha^TBR(T_e) via the")
+    println("    Saha/Milne detailed-balance relation to electron-impact ionization, from JAC's own computed")
+    println("    level energies and a selectable ImpactIonization model (BEB/BED/relativistic/...).")
+    #
 else
     println("Unknown Letter; redo ...")
 end

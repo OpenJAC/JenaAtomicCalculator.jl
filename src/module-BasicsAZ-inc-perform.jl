@@ -56,6 +56,7 @@ function  resultKeyStrings(T::Type)
     T === AutoIonization.Settings           &&  return( ["AutoIonization lines:", "autoionization lines:"] )
     T === RayleighCompton.Settings          &&  return( ["Rayleigh-Compton lines:"] )
     T === ElectronCapture.Settings          &&  return( ["electron-capture lines:"] )
+    T === ThreeBodyRecombination.Settings   &&  return( ["three-body recombination lines:"] )
     T === DoubleAutoIonization.Settings     &&  return( ["Double-Auger lines:"] )
     T === DielectronicRecombination.Settings   &&
         return( ["dielectronic recombination lines:", "hyperfine-resolved dielectronic recombination lines:"] )
@@ -205,7 +206,8 @@ function  allResultKeyTypes()
             MultipolePolarizibility.Settings, DispersionCoefficient.Settings, ReducedDensityMatrix.Settings,
             WeakInteractionEnhancement.Settings, CrystalField.Settings, NuclearShielding.Settings,
             AutoIonization.Settings, RayleighCompton.Settings, ElectronCapture.Settings,
-            DoubleAutoIonization.Settings, DielectronicRecombination.Settings, MultiPhotonTransition.Settings,
+            DoubleAutoIonization.Settings, DielectronicRecombination.Settings, ThreeBodyRecombination.Settings,
+            MultiPhotonTransition.Settings,
             PhotoIonization.Settings, PhotoDoubleIonization.Settings, PhotoExcitation.Settings,
             StarkBroadening.Settings,
             PhotoExcitationAutoion.Settings, PhotoExcitationFluores.Settings, PhotoEmission.Settings,
@@ -430,6 +432,12 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
         elseif  typeof(computation.processSettings) == DoubleAutoIonization.Settings   
             outcome = DoubleAutoIonization.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid, computation.processSettings) 
             if output    results = Base.merge( results, Dict("Double-Auger lines:" => outcome) )                    end
+        elseif  typeof(computation.processSettings) == ThreeBodyRecombination.Settings
+            ## initialConfigs are the ion BEFORE capture (one electron fewer); finalConfigs the bound level the
+            ## two free electrons recombine into -- the same direction as ElectronCapture, above.
+            outcome = ThreeBodyRecombination.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid,
+                                                           computation.processSettings)
+            if output    results = Base.merge( results, Dict("three-body recombination lines:" => outcome) )        end
         elseif  typeof(computation.processSettings) == DielectronicRecombination.Settings
             ## settings.calcHyperfineResolved selects the hyperfine-resolved route, which builds the hyperfine
             ## multiplets itself from these same three ELECTRONIC multiplets and recouples the electronic

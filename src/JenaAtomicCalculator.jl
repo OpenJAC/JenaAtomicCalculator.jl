@@ -149,7 +149,7 @@ export AbstractComputeTheme, AbstractConfigurationRestriction, AbstractConfigura
        SphericalMesh, SphericalTensor, SpinAngularGaigalas, SpinAngular, SpinAngularTables, StarkBroadening, StarkShift, StarkZeeman, StartFromHydrogenic,
        StartFromPrevious, StartFromThomasFermi, StaticField,
        StaticQuantizationAxis, Statistical, StrongField, Subshell, SuperConfigurations,
-       tabulate, ThomasFermiField, ThreeParameterFermiNucleus, TimeHarmonicField, TotalAM,
+       tabulate, ThomasFermiField, ThreeBodyRecombination, ThreeParameterFermiNucleus, TimeHarmonicField, TotalAM,
        Triangle,
        TwoElectronOnePhoton,
        UncertaintyEstimate, UniformNucleus, UseBabushkin, UseCoulomb, UseGauge,
@@ -274,6 +274,7 @@ end
 
 # Functions/methods for semi-empirical estimations
 include("module-ImpactIonization.jl")
+include("module-ThreeBodyRecombination.jl")
 include("module-Semiempirical.jl")
 include("module-Empirical.jl");         using ..Empirical
 

@@ -375,6 +375,115 @@ end
 
 
 """
+`TestFrames.testModule_ThreeBodyRecombination(; short::Bool=true)`
+    ... tests module ThreeBodyRecombination on a small, cheap, REAL Li-like/Be-like carbon (Z=6) pair,
+        1s^2 2s (3 electrons) capturing into 1s^2 2s^2 (4 electrons): (i) the direct `computeLines` call
+        and the full `Atomic.Computation`/`perform()` route must agree on the number of lines and on every
+        line's own `rateCoefficient`; (ii) the Saha/Milne formula itself must be reproduced EXACTLY by
+        hand from the line's own stored `eiiRateCoefficient`, `bindingEnergy` and the two levels' own
+        statistical weights -- a regression check on the arithmetic and the unit conversion, not a
+        physics validation; (iii) the Maxwellian rate integral must be numerically CONVERGED: an
+        independently reduced (16-point) quadrature must agree with the module's own (32-point) default to
+        a tight relative tolerance; (iv) `alpha^TBR` must DECREASE as `T_e` increases, the qualitative
+        signature every three-body-recombination rate must show (favored at LOW temperature, the opposite
+        trend from its own inverse ionization process); (v) `ThreeBodyRecombination.capturedSubshell` must
+        RAISE for a pair not related by a single capture (here, TWO subshells changing occupation at once);
+        (vi) `computeLines` must SKIP (not raise on) a pair with the SAME electron count, since no capture
+        at all connects them. A success::Bool is returned.
+"""
+function testModule_ThreeBodyRecombination(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-ThreeBodyRecombination-new.sum")
+    printstyled("\n\nTest the module  ThreeBodyRecombination  ... \n", color=:cyan)
+    success = true
+
+    ni   = Nuclear.Model(6.)
+    grid = Radial.Grid(true)
+    asfSettings = AsfSettings()
+
+    wbI = SelfConsistent.performSCF([Configuration("1s^2 2s")],   ni, grid, asfSettings; printout=false)
+    wbF = SelfConsistent.performSCF([Configuration("1s^2 2s^2")], ni, grid, asfSettings; printout=false)
+    initialMp = Hamiltonian.performCI(wbI.levels[1].basis, ni, grid, asfSettings; printout=false)
+    finalMp   = Hamiltonian.performCI(wbF.levels[1].basis, ni, grid, asfSettings; printout=false)
+
+    tbrSettings = ThreeBodyRecombination.Settings(ThreeBodyRecombination.Settings();
+                      eiiModel=ImpactIonization.BEBmodel(), electronTemperature=20000.0)
+    lines = ThreeBodyRecombination.computeLines(finalMp, initialMp, ni, grid, tbrSettings; output=true)
+
+    if  isempty(lines)
+        success = false;   println("  ** no lines found at all for a genuine single-electron-capture pair")
+    end
+
+    # ALSO exercise the full Atomic.Computation/perform() route once, end to end, and check it agrees.
+    comp = Atomic.Computation(Atomic.Computation();
+               name            = "test ThreeBodyRecombination", grid = grid, nuclearModel = ni,
+               initialConfigs  = [Configuration("1s^2 2s")],   finalConfigs = [Configuration("1s^2 2s^2")],
+               processSettings = tbrSettings )
+    wb = perform(comp; output=true)
+    if  length(wb[ThreeBodyRecombination.Settings]) != length(lines)
+        success = false;   println("  ** perform() gave a different number of lines than the direct call")
+    elseif  any( abs(wb[ThreeBodyRecombination.Settings][k].rateCoefficient - lines[k].rateCoefficient) >
+                 1.0e-10*abs(lines[k].rateCoefficient)   for k = 1:length(lines) )
+        success = false;   println("  ** perform() gave a different rateCoefficient than the direct call")
+    end
+
+    # (ii) the Saha/Milne formula, reproduced BY HAND from the line's own stored ingredients -- a
+    # regression check on the arithmetic and the unit conversion, not a physics validation.
+    toCm3 = Defaults.convertUnits("length: from atomic to cm", 1.0)^3 / Defaults.convertUnits("time: from atomic to sec", 1.0)
+    toCm6 = Defaults.convertUnits("length: from atomic to cm", 1.0)^6 / Defaults.convertUnits("time: from atomic to sec", 1.0)
+    Te_au = Defaults.convertUnits("temperature: from Kelvin to (Hartree) units", tbrSettings.electronTemperature)
+    for  ln  in  lines
+        gRatio   = (Basics.twice(ln.finalLevel.J) + 1) / (2*(Basics.twice(ln.initialLevel.J) + 1))
+        kEII_au  = ln.eiiRateCoefficient / toCm3
+        expected = kEII_au * gRatio * (2*pi/Te_au)^1.5 * exp(ln.bindingEnergy/Te_au) * toCm6
+        if  abs(expected - ln.rateCoefficient) > 1.0e-8*abs(ln.rateCoefficient)
+            success = false;   println("  ** the Saha/Milne formula was not reproduced from the line's own stored quantities")
+        end
+    end
+
+    # (iii) quadrature convergence: an independently reduced (16-point) rule must agree with the module's
+    # own 32-point default to a tight relative tolerance.
+    for  ln  in  lines
+        k16 = ThreeBodyRecombination.eiiRateCoefficient(ln.capturedSubshell, finalMp.levels[1], ni, grid, tbrSettings; nPoints=16)
+        k32 = ThreeBodyRecombination.eiiRateCoefficient(ln.capturedSubshell, finalMp.levels[1], ni, grid, tbrSettings; nPoints=32)
+        if  abs(k16 - k32) > 1.0e-3*abs(k32)
+            success = false;   println("  ** the Maxwellian rate integral has not converged between 16 and 32 quadrature points")
+        end
+    end
+
+    # (iv) alpha^TBR must DECREASE as T_e increases -- the qualitative signature of three-body
+    # recombination, the opposite trend from its own inverse (electron-impact ionization).
+    hotSettings = ThreeBodyRecombination.Settings(tbrSettings; electronTemperature=40000.0)
+    hotLines    = ThreeBodyRecombination.computeLines(finalMp, initialMp, ni, grid, hotSettings; output=true)
+    if  length(hotLines) != length(lines)
+        success = false;   println("  ** the hotter run found a different number of lines")
+    elseif  any( hotLines[k].rateCoefficient >= lines[k].rateCoefficient   for k = 1:length(lines) )
+        success = false;   println("  ** alpha^TBR did not decrease when T_e was raised")
+    end
+
+    # (v) capturedSubshell's OWN scope guard: a pair with TWO subshells changing occupation at once (here,
+    # 2s emptied while 2p^2 fills) is not a single capture and must RAISE.
+    wbF2     = SelfConsistent.performSCF([Configuration("1s^2 2p^2")], ni, grid, asfSettings; printout=false)
+    finalMp2 = Hamiltonian.performCI(wbF2.levels[1].basis, ni, grid, asfSettings; printout=false)
+    try
+        ThreeBodyRecombination.capturedSubshell(initialMp.levels[1], finalMp2.levels[1])
+        success = false;   println("  ** capturedSubshell did not raise for a pair not related by a single capture")
+    catch e
+        !(e isa ErrorException)   &&   ( success = false;   println("  ** capturedSubshell raised the wrong exception type") )
+    end
+
+    # (vi) computeLines must SKIP (not raise on) a pair with the SAME electron count -- no capture at all
+    # connects "1s^2 2s" to itself.
+    sameLines = ThreeBodyRecombination.computeLines(initialMp, initialMp, ni, grid, tbrSettings; output=true)
+    if  !isempty(sameLines)
+        success = false;   println("  ** computeLines returned a line for a pair with no capture between them")
+    end
+
+    testPrint("testModule_ThreeBodyRecombination()::", success)
+    return(success)
+end
+
+
+"""
 `TestFrames.testModule_ImpactExcitation(; short::Bool=true)`  ... tests on module ImpactExcitation; a
     success::Bool is returned.
 """
