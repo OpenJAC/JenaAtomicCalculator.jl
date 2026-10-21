@@ -243,7 +243,7 @@ elseif false
     end
     #
 elseif false
-    # Last visit:  19-Oct-2026 (RAISED AS DESIGNED -- this branch is a guard test)
+    # Last visit:  20-Oct-2026 (RAISED AS DESIGNED -- this branch is a guard test, and BOTH its guards fired)
     # Last successful:  unknown ... (a guard test; the date is the maintainer's to set -- Rule 7)
     # Branch e: THE TWO GUARDS, AND THIS BRANCH IS SUPPOSED TO RAISE.  Completing it would be the defect.
     #

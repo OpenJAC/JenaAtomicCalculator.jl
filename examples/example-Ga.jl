@@ -14,7 +14,7 @@ if      false
     ## wa  = RacahAlgebra.recursionW3j(w3j, RacahAlgebra.RecursionW3jLouck())
     #
 elseif  false 
-    # Last visit:  18-Oct-2026
+    # Last visit:  20-Oct-2026
     # Last successful:  13May2024
     # Look for special value for Wigner 3j symbol 
     j   = Basic(:j);     m = Basic(:m)
@@ -43,7 +43,7 @@ elseif  true
     RacahAlgebra.evaluate(rex, special=true)
     #
 elseif  false    
-    # Last visit:  18-Oct-2026
+    # Last visit:  20-Oct-2026
     # Last successful:  unknown ...
     # Evaluate the recoupling coefficient for 3 angular momenta explicitly from Racah expression; from Racah-02.ps
     j1   = Basic(:j1);    j2 = Basic(:j2);    j3 = Basic(:j3);    J12 = Basic(:J12);    J23 = Basic(:J23);    J = Basic(:J)
@@ -92,6 +92,7 @@ elseif  false
     rex = RacahAlgebra.evaluate(rex, special=true);     println("rex-special value   = $rex")
     #
 elseif  false
+    # Last visit:  20-Oct-2026
     # Last successful:  unknown ...
     # Test for special values of the Wigner 6j symbols; selectW6j(1..22)
     w6j = RacahAlgebra.selectW6j(22);                   println("w6j-original        = $w6j")

@@ -2,6 +2,7 @@
 println("Ja) Apply & test the average-atom computations.")
 
 if  true
+    # Last visit:  20-Oct-2026 (FAILED -- MethodError, Plasma.AverageAtomScheme's 9-argument form now wants Vector{Float64})
     #
     # Last successful:  08-Oct-2026
     # Branch 1: Plasma.perform(Plasma.Computation(...; scheme=Plasma.AverageAtomScheme(...))) -- a finite-temperature

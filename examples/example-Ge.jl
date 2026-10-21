@@ -10,7 +10,7 @@ k   = Basic(:k);     q   = Basic(:q );    K   = Basic(:K);     Q   = Basic(:Q);
 kk  = Basic(:kk);    qq  = Basic(:qq);    KK  = Basic(:KK);    QQ  = Basic(:QQ);
 
 if  true
-    # Last visit:      01-Sep-2026
+    # Last visit:  20-Oct-2026
     # Last successful: 01-Sep-2026 -- the reductions were read and are as described below: the field components
     #                  come out separated from the electronic reduced matrix elements, with the 3-j symbols
     #                  collected into one Racah expression.

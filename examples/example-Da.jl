@@ -7,6 +7,7 @@ setDefaults("print summary: open", "zzz-radiative.sum")
 
 
 if  false
+    # Last visit:  20-Oct-2026
     # Last successful:  28-Aug-2026 -- RE-RUN UNCHANGED. Every number recorded below reproduces to all four
     # figures it was quoted to: 4.585787e12 / 4.755319e12 (Kalpha1, Coulomb/Babushkin), 2.305319e12 / 2.390639e12
     # (Kalpha2), at 849.9454 and 849.8406 eV. The three derived checks also hold: intensity ratio 1.9892, gauge
@@ -67,6 +68,7 @@ if  false
     perform(comp)
     #
 elseif false
+    # Last visit:  20-Oct-2026
     # Last successful:  1-Aug-2026
     # Branch 1: Fe X (Ne-like) [Ne]3s 3p^6 -> [Ne]3s^2 3p^5 ONLY (the simplest possible subset of the
     #   user's 20-year-old test case below) -- WITHOUT vs. WITH the bi-orthogonal transformation
@@ -183,7 +185,7 @@ elseif false
     wb = @time( perform(wa) )
     #
 elseif false
-    # Last visit:  18-Oct-2026
+    # Last visit:  20-Oct-2026
     # Last successful:  1-Aug-2026
     # Compute transition probabilities among low-lying levels of Li-like Mg^9+ ions
     # Test: Lifetimes for lithium-like ions; cf. Figure 8.1 in section 8.1.a
@@ -208,7 +210,7 @@ elseif false
     wb = @time( perform(wa) )
     #
 elseif true
-    # Last visit:  18-Oct-2026
+    # Last visit:  20-Oct-2026
     # Last successful:  18-Aug-2026
     # THE QUALITY INDICATORS, on a case chosen so that the two of them disagree.
     #

@@ -76,6 +76,7 @@ if  true
     setDefaults("print summary: close", "")
     #
 elseif  false
+    # Last visit:  20-Oct-2026 (NEEDS AN EARLIER BRANCH OF THIS FILE)
     # Last successful:  23-Aug-2026
     #   [PROVENANCE: as branch a.]  Seconds; no amplitude is recomputed.
     #   79 resonances.  Totals, energy-integrated and in atomic units:
@@ -277,6 +278,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
+    # Last visit:  20-Oct-2026 (NEEDS AN EARLIER BRANCH OF THIS FILE)
     # Last successful:  24-Aug-2026
     #   Seconds on top of branch a; no amplitude is recomputed.
     #

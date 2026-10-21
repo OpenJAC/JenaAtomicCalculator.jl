@@ -88,6 +88,7 @@ elseif false
     end
     #
 elseif true
+    # Last visit:  20-Oct-2026
     # Last successful:  01-Aug-2026
     # Branch c: hydrogen n=6 near-degenerate manifold, E parallel to z -- REVISED SCOPE. The original
     #   plan called for an alkali (Li/Na) Rydberg manifold at n~15 compared against Zimmerman, Littman,

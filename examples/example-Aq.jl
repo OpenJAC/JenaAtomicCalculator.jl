@@ -167,7 +167,7 @@ elseif  true
     end
     #
 elseif  true
-    # Last visit:      22-Aug-2026
+    # Last visit:  20-Oct-2026
     # Last successful:  22-Aug-2026
     #
     # Branch d (GENUINELY OPEN SHELLS, and the bug it found): carbon-like 1s^2 2s^2 2p^2, whose five CSFs carry two
@@ -1152,7 +1152,7 @@ elseif  true
     #
 
 elseif  true
-    # Last visit:  18-Oct-2026
+    # Last visit:  20-Oct-2026
     # Last successful:  24-Aug-2026
     #
     # Branch o (THE COMPLETE DIFFERENCE INVENTORY): the question this branch answers is the one that decides whether

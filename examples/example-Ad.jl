@@ -57,7 +57,7 @@ if  true
     println(">> [Branch 1] Timing ratio CI-only:  Breit/Coulomb = $(round(tBreitCI/tCoulombCI,digits=2))x,  Gaunt/Coulomb = $(round(tGauntCI/tCoulombCI,digits=2))x,  Gaunt/Breit = $(round(tGauntCI/tBreitCI,digits=2))x")
 
 elseif  false
-    # Last visit:  18-Oct-2026
+    # Last visit:  20-Oct-2026
     # Last reproduced:  18-Oct-2026 (2 of 3 to 1e-5, 1 more to 1e-3)
     # Last successful:  14-Aug-2026: E1(Coulomb) = -6331.333108 Ha, nlev=31; Delta E(Breit) = 5.246673 Ha,
     # Delta E(Gaunt) = 4.881829 Ha, Gaunt/Breit ratio = 0.930 (matches Branch 1 -- expected, correlating
@@ -136,7 +136,7 @@ elseif  false
     end
 
 elseif  false
-    # Last visit:  18-Oct-2026
+    # Last visit:  20-Oct-2026 (RAN, BUT ITS OWN LAW IS BROKEN -- see the note below)
     # Last successful:  14-Aug-2026: the correction is quadratic in `factor` to 0.04%. A two-term fit
     # A*f^2 + B*f^4 through the five points gives A = -6.386609e-02, B = +2.8208e-03 and reproduces every
     # one of them to ~2e-5 of the leading term, so the ratio drifts only from -0.063822 (f=0.125) to

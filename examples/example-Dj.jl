@@ -24,7 +24,7 @@ if  true
     wb          = generate(wa, output=true)
     #
 elseif true
-    # Last visit:  18-Oct-2026 (NEEDS AN EARLIER BRANCH OF THIS FILE)
+    # Last visit:  20-Oct-2026 (NEEDS AN EARLIER BRANCH OF THIS FILE)
     # Last successful:  unknown ...
     # Photo-double ionization of he-like Be: 1s^2   -->  4l + epsilon kappa: Computation of cross sections
     # `wb` is produced by an earlier branch of this file (line 21).

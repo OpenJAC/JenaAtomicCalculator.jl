@@ -87,7 +87,7 @@ grid = Radial.Grid(Radial.Grid(false); rnt = 4.0e-6, h = 5.0e-2, hp = 0.6e-2, rb
 
 
 if  true
-    # Last visit:      06-Aug-2026 ... ~49 s; 12 photo-ionization and 26 photo-excitation lines, written to
+    # Last visit:  20-Oct-2026
     #                  zzz-cascade-photoabsorption-computations-<date>.jld.  Left at "Last visit" because this
     #                  branch produces amplitudes rather than a comparable observable; it is verified through
     #                  branches b-d, which consume exactly this file.

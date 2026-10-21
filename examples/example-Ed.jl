@@ -6,6 +6,7 @@ setDefaults("method: continuum, Galerkin")
 setDefaults("method: normalization, pure sine")   ## setDefaults("method: normalization, pure Coulomb")    setDefaults("method: normalization, pure sine")
 
 if  true
+    # Last visit:  20-Oct-2026
     # Last successful:  15-Oct-2026
     # REWRITTEN 31-Aug-2026. It drove the retired PlasmaShift module -- PlasmaShift.PhotoSettings passed to an
     #   Atomic.Computation -- and PlasmaShift no longer exists anywhere in src/: it was folded into Plasma on

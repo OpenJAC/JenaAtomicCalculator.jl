@@ -189,6 +189,7 @@ elseif  false
     perform(wb)
     #
 elseif  false
+    # Last visit:  20-Oct-2026
     # Last successful:  06-Aug-2026
     # --- Branch c: the same for Li-like 229Th87+, whose unpaired electron is 2s_1/2 rather than 1s_1/2.
     #

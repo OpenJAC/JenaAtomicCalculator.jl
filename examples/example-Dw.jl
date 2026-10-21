@@ -10,6 +10,7 @@ println("    with it the full Bethe surface, the Bethe sum rule and the first-Bo
 println("    are not (yet) included.")
 
 if  true
+    # Last visit:  20-Oct-2026
     # Last reproduced:  16-Oct-2026 (2 of 9 to 1e-5, 7 more to 1e-3)
     # Last successful:  28-Aug-2026 -- AND THIS BRANCH CAUGHT A REAL REGRESSION, WHICH IS FIXED IN THE SAME COMMIT.
     #   WHAT WAS WRONG: f_2s(K) read EXACTLY TWICE the exact Bethe value at every momentum transfer -- JAC/exact =

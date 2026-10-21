@@ -27,7 +27,7 @@ grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.6e-2, rb
 
 
 if  false
-    # Last visit:  18-Oct-2026
+    # Last visit:  20-Oct-2026
     # Last successful: 23-Aug-2026
     #
     # Branch a: FAST reference case -- the K-shell hole of Mg^+ (1s^1 2s^2 2p^6 3s^2, 11 electrons), decaying
@@ -176,7 +176,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:      23-Aug-2026
+    # Last visit:  20-Oct-2026 (NEEDS AN EARLIER BRANCH OF THIS FILE)
     # Last successful: 23-Aug-2026
     #
     # Branch c: the SIMULATION half -- take the amplitudes computed by branch a (or b) and derive the final

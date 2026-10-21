@@ -124,7 +124,7 @@ if  true
                   [Configuration("1s^2 2s^2"), Configuration("1s^2 2p^2")], grid)
     #
 elseif  false
-    # Last visit:  18-Oct-2026
+    # Last visit:  20-Oct-2026
     # Last reproduced:  18-Oct-2026 (2 of 3 to 1e-5;  the third is EOL-AL, a difference of two near-equal totals)
     # Last successful:  01-Sep-2026 -- AL -34.74190845, EOL -34.74192244, EOL-AL -1.399e-05 Ha,
     #                   worst same-kappa overlap 2.8e-10 (the three-orbital kappa = -1 block).
@@ -138,7 +138,7 @@ elseif  false
                   [Configuration("1s^2 2s"), Configuration("1s^2 3s"), Configuration("1s^2 3d")], grid)
     #
 elseif  false
-    # Last visit:  01-Sep-2026
+    # Last visit:  20-Oct-2026
     # Last successful:  01-Sep-2026 -- AL -289.22410213, EOL -289.22692037, EOL-AL -0.00281824 Ha,
     #                   worst same-kappa overlap 4.4e-16; 27 s and 49 s, not the minutes noted below.
     #
@@ -151,7 +151,7 @@ elseif  false
                   [Configuration("1s^2 2s^2 2p^6 3s^2 3p"), Configuration("1s^2 2s^2 2p^6 3p^3")], grid)
     #
 elseif  false
-    # Last visit:  18-Oct-2026
+    # Last visit:  20-Oct-2026
     # Last successful:  01-Sep-2026 -- AL -288.66105540, EOL -288.66499124, EOL-AL -0.00393584 Ha,
     #                   mixing +0.9745 +0.1826 (AL) against +0.9740 +0.1835 (EOL); 26 s and 45 s.
     #

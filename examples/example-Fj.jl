@@ -61,7 +61,7 @@ grid = Radial.Grid(Radial.Grid(true); rnt = 4.0e-6, h = 5.0e-2, hp = 1.0e-2, rbo
 
 
 if  true
-    # Last visit:      08-Aug-2026
+    # Last visit:  20-Oct-2026
     # Last successful: 08-Aug-2026 ... 41 s.  14 steps; 38 PhotoEmission and 10 AutoIonization lines, written
     #                  to zzz-cascade-hollow-ion-computations-<date>.jld.  Both channels are open, which is the
     #                  whole point of the scheme and was not the case before the decayShells fix above.

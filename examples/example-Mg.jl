@@ -22,6 +22,7 @@ if  false
     computeResonanceStrength(theme, initialConfigs)
     #
 elseif  true
+    # Last visit:  20-Oct-2026
     # Last successful:  27Jun2026
     # DR resonance strengths for Li-like Sc^18+ with 2s --> 2p core excitation.
     # Initial: 1s^2 2s (Li-like Sc^18+);  core excited 2s --> 2p;  captured into n=12 only.

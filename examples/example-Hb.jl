@@ -34,6 +34,7 @@ if  false
     setDefaults("print summary: close", "")
     #
 elseif false
+    # Last visit:  20-Oct-2026
     #
     # Last successful:  14-Jul-2026
     # Calculate partial EII cross section for M1-M3 subshells (3s, 3p) of Kr XIX in different models.
@@ -120,6 +121,7 @@ elseif false
     setDefaults("print summary: close", "")
     #
 elseif false
+    # Last visit:  20-Oct-2026
     #
     # Last successful:  14-Jul-2026
     # Test DoubleExperimentModel on He I — verifies the NaN fix (c_gamma=0 guard)
@@ -165,7 +167,7 @@ elseif false
     #
 elseif true
     #
-    # Last visit:  10-Aug-2026
+    # Last visit:  20-Oct-2026
     # Last successful:  10-Aug-2026
     # EII of an OPEN-SHELL target: C I (1s^2 2s^2 2p^2) with the BEB model.
     #

@@ -2,7 +2,7 @@
 println("Cl) Apply & test the StarkShift module with ASF from an internally generated multiplet.")
 
 if  false
-    # Last visit:  18-Oct-2026
+    # Last visit:  20-Oct-2026
     # 16-Oct-2026: RUNS (exit 0) after the box was matched, and CANNOT BE DATED.
     #   H(1s) with np perturbers, n = 2..5: alpha_0 = 2.0699 a.u. in both gauges against the EXACT 4.5,
     #   i.e. 46 % of the right answer. alpha_2 = 0.0 exactly, correct for J = 1/2. This is the known
@@ -44,7 +44,7 @@ if  false
     end
     #
 elseif false
-    # Last visit:  30-Aug-2026 -- RUNS (exit 0) after its box was matched on 30-Aug; it was the fourth
+    # Last visit:  20-Oct-2026
     #   branch of this file and the one item 76 never named. Li: alpha_0 = 61.26 a.u. Not dated, for the
     #   same reason as the branch above -- the module's absolute scale is not trustworthy yet.
     # Last visit:  31-Jul-2026
@@ -120,7 +120,7 @@ elseif false
             " 6s8s 3S1: alpha_0=5.68(11), alpha_2=0.000(6)  [MHz/(kV/cm)^2]")
     #
 elseif false
-    # Last visit:  30-Aug-2026
+    # Last visit:  20-Oct-2026
     # Last successful:  unknown ... -- RUNS (exit 0) but STOPS SHORT TWICE. Ca 3d^2: the SCF reports
     #   "Maximum number of SCF iterations = 24 is reached at accuracy 5.04e-06 ... computations proceed",
     #   i.e. it hands on an UNCONVERGED field -- the AsfSettings() default ceiling of 24, the same trap

@@ -5,6 +5,7 @@ setDefaults("unit: energy", "eV")
 setDefaults("print summary: open", "zzz-Semiempirical.sum")
 
 if  false
+    # Last visit:  20-Oct-2026
     #
     # Last successful:  14-Jul-2026
     # Branch 1: Subshell binding energies -- compare all three tabulations for Ne (Z=10).
@@ -71,6 +72,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
+    # Last visit:  20-Oct-2026
     #
     # Last successful:  14-Jul-2026
     # Branch 3: Hydrogenic high-n binding energies via estimateBindingEnergies.
@@ -98,6 +100,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
+    # Last visit:  20-Oct-2026
     #
     # Last successful:  14-Jul-2026
     # Branch 5: estimateSlaterZeff -- Slater's (1930) empirical screening rules.
@@ -203,6 +206,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
+    # Last visit:  20-Oct-2026
     #
     # Last successful:  14-Jul-2026
     # Branch 4: Radial expectation values -- tests Bug 5 fix (effZ instead of bare Z).
@@ -224,6 +228,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
+    # Last visit:  20-Oct-2026
     #
     # Last successful:  15-Jul-2026
     # Branch 7: estimateBindingEnergies (l-dependent) -- M3 fix: Slater Zeff replaces broken formula.

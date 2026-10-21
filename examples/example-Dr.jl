@@ -5,7 +5,7 @@ setDefaults("print summary: open", "zzz-CoulombIonization.sum")
 
 
 if  true
-    # Last visit:  16-Oct-2026
+    # Last visit:  20-Oct-2026
     # Last successful:  unknown ...
     # Compute 
     wa = Atomic.Computation(Atomic.Computation(), name="xx", grid=JAC.Radial.Grid(true), nuclearModel=Nuclear.Model(36.), 

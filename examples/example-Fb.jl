@@ -64,7 +64,7 @@ if  false
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:      23-Aug-2026
+    # Last visit:  20-Oct-2026 (NEEDS AN EARLIER BRANCH OF THIS FILE)
     # Last successful: 23-Aug-2026
     #
     # Branch b: ION DISTRIBUTION -- how the population is shared between charge states once the cascade has

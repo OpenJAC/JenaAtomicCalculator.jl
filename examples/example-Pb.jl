@@ -342,7 +342,7 @@ elseif  false
     end
     #
 elseif  false
-    # Last visit:      22-Aug-2026
+    # Last visit:  20-Oct-2026
     # Last successful:  unknown ... this branch is a CALIBRATION, not a physics result; see the report.
     #
     # Branch d (CALIBRATING THE REDUCED DIPOLE): is MultipoleMoment.dipoleAmplitude the standard reduced

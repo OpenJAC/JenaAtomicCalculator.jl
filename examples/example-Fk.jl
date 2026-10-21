@@ -140,7 +140,7 @@ if  true
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:  18-Oct-2026
+    # Last visit:  20-Oct-2026
     # Last successful:  09-Aug-2026
     #
     # b) kappa_exp(lambda) at kilonova conditions:  t_exp = 1 day, T = 5000 K, rho = 1.5e-13 g/cm^3.
@@ -185,6 +185,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
+    # Last visit:  20-Oct-2026
     # Last successful:  09-Aug-2026
     #
     # c) THE MAIN INTERNAL CHECK: the two limits of (1 - exp(-tau)).  No external number is needed, because
@@ -511,7 +512,8 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:      18-Aug-2026
+    # Last visit:  20-Oct-2026
+    # Last reproduced:  20-Oct-2026 (3 of 3 numbers on the claim line)
     # Last successful: 18-Aug-2026 ... 4 min.  One bin centred at 4500 A, on the resonance doublet:
     #                      Delta-lambda [nm]     kappa [cm^2/g]      kappa * Delta-lambda
     #                             10.0            2.37271e-01           2.37271e+00

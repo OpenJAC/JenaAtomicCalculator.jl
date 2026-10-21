@@ -116,6 +116,7 @@ elseif  false
     println(">> ratio direct/explicit-sum       = $(directAmplitude/explicitSum)   (must be 1.000000 to within the solver's own accuracy)")
     #
 elseif  true
+    # Last visit:  20-Oct-2026
     # Last successful:  13-Oct-2026 -- THE PREFACTOR FIX (challenge S5) CLOSES THE GAP. Both gauges now give
     # 8.229061 /s (Coulomb 8.22906136, Babushkin 8.22906126 -- agree to 8 figures), matching Amaro et al.,
     # J. Phys. A 44, 245302 (2011)'s precise relativistic value 8.22906 /s almost exactly -- closer than to the

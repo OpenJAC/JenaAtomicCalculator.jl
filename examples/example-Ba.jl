@@ -2,7 +2,7 @@
 println("Ba) Apply & test the dipole, em multipole and momentum-transfer amplitudes.")
 
 if  true
-    # Last visit:  18-Oct-2026 (RAISED AS DESIGNED -- the module is parked under Rule 13)
+    # Last visit:  20-Oct-2026 (RAISED AS DESIGNED -- the module is parked under Rule 13)
     # Last successful:  28-Aug-2026 for the PhotoEmission section, which is what this file is used to check.
     #   REPAIRED TODAY: `PhotoEmission.amplitude` dispatches on a TYPE, not a string, and this file still passed
     #   "absorption". It had therefore been dead with `MethodError: no method matching amplitude(::String, ...)`.

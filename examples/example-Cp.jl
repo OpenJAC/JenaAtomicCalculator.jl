@@ -145,7 +145,7 @@ elseif  false
     #
 
 elseif  false
-    # Last visit:      04-Oct-2026
+    # Last visit:  20-Oct-2026
     # Last successful: 04-Oct-2026 -- THE OVERALL CONSTANT IS DERIVED, AND THIS BRANCH CHECKS EVERY LINK.
     #   `NuclearShielding.GAMMA_PREFACTOR` used to carry a factor of two and a sign that had been fixed by
     #   calibration against Sternheimer's ions, which is a poor state for the one constant that multiplies
@@ -216,7 +216,7 @@ elseif  false
     #
 
 elseif  false
-    # Last visit:  18-Oct-2026
+    # Last visit:  20-Oct-2026
     # Last successful: 06-Oct-2026 -- SELF-CONSISTENT SCREENING, AND THE SHELL THAT DECIDES ITS SIZE.
     #   The module's default response is UNCOUPLED: the induced field is not allowed to act back.  With
     #   selfConsistent = true it is, and the loop converges (spread below 0.01 over the last four of 16 steps at

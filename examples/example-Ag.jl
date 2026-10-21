@@ -68,6 +68,7 @@ elseif  false
     wb = perform(wa)
     #
 elseif  false
+    # Last visit:  20-Oct-2026
     # Last successful:  18-Aug-2026
     # Branch f: GROUND-LEVEL CLASSIFICATION of an open d-shell, Co^2+ (Co III) 3d^7, against NIST ASD.
     #   A d^7 shell is a control case: it is covered by the LS_jj_d_7 table that JAC has always carried, so
@@ -95,6 +96,7 @@ elseif  false
     wb = perform(wa)
     #
 elseif  true
+    # Last visit:  20-Oct-2026
     # Last successful:  18-Aug-2026
     # Branch g: GROUND-LEVEL CLASSIFICATION of an open f-shell, Dy^3+ (Dy IV) 4f^9, against NIST ASD.
     #   THIS BRANCH EXERCISES THE WORK OF 10-Aug-2026 and could not have been run before it. Two things had

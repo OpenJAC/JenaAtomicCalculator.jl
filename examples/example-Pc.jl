@@ -103,7 +103,7 @@ if  true
     wb = perform(wa; output=true)
     #
 elseif  false
-    # Last visit:  18-Oct-2026 (RAISED AS DESIGNED -- this branch is a guard test)
+    # Last visit:  20-Oct-2026 (RAISED AS DESIGNED -- this branch is a guard test)
     # Last successful:  unknown ... not yet run; it is a guard test, not a physics branch.
     #
     # Branch b (the zero-width refusal): the same computation with width = 0, to check that the module REFUSES

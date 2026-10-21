@@ -128,6 +128,7 @@ elseif  false
     println("\n>>> source: NIST ASD (L21139), O VII 1s2p 3P1/1P1 above the 1s^2 ground")
     #
 elseif  false
+    # Last visit:  20-Oct-2026
     # Last successful:  15-Oct-2026
     #
     # Branch c: C I (Z=6), neutral carbon, 2s^2 2p^2, J=0 even block (^3P0 ground, ^1S0) -- the MODERATE
@@ -163,6 +164,7 @@ elseif  false
     println("\n>>> source: ", fm.source)
     #
 elseif  true
+    # Last visit:  20-Oct-2026
     # Last successful:  15-Oct-2026 -- VERIFIED AS A MECHANISM DEMONSTRATION, not as a close numerical match;
     #   see the branch's own text for exactly what is and is not being claimed.
     #

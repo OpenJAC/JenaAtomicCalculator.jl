@@ -83,6 +83,8 @@ elseif  false
     wb = perform(wa)
     #
 elseif  false
+    # Last visit:  20-Oct-2026
+    # Last reproduced:  20-Oct-2026 (3 of 3 numbers on the claim line)
     # Last successful:  28-Aug-2026 -- REPRODUCES, INCLUDING THE EXACT ZERO. Level 1 width 8.322900e-02 eV against
     # the recorded 0.0833; levels 2 and 3 at 1.898168e-06 and 5.153823e-06 eV, i.e. the small p_1/2-coupled widths
     # the report describes; and level 4 (J = 5/2-) gives a rate of 0.000000e+00 EXACTLY, which is the selection-rule
@@ -120,7 +122,8 @@ elseif  false
     wb = perform(wa)
     #
 elseif  false
-    # Last reproduced:  17-Oct-2026 (2 of 2 widths on the claim line, to 0.3 %, on a MATCHED box)
+    # Last visit:  20-Oct-2026
+    # Last reproduced:  20-Oct-2026 (2 of 2 numbers on the claim line)
     # Last successful:  17-Oct-2026  ## widths 0.102017 and 0.101619 eV, box 33.1 a.u., 4s_1/2 at 0.797
     # Resonant L_23 - M_23 M_23 Auger spectrum of argon (2p-hole with a 4s Rydberg spectator, decaying via a
     # 3p-3p Coster-Kronig-like process while 4s watches): Comparison with Chen (PRA, 1991)
@@ -190,7 +193,7 @@ elseif  false
     wb = perform(wa)
     #
 elseif  true
-    # Last visit:  16-Oct-2026
+    # Last visit:  20-Oct-2026
     # Last successful:  unknown ...
     #
     # FURTHER WORK ON THIS BRANCH IS DELAYED, on the maintainer's decision of 03-Sep-2026, and the reason is a

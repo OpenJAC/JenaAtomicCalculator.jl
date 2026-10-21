@@ -51,7 +51,8 @@ setDefaults("unit: rate", "1/s")
 ## long-standing open question of its own and is NOT a high-Z gauge-convergence problem.
 
 if  true
-    # Last reproduced:  16-Oct-2026 (6 of 6 numbers on the claim line)
+    # Last visit:  20-Oct-2026
+    # Last reproduced:  20-Oct-2026 (6 of 6 numbers on the claim line)
     # Last successful:  28-Aug-2026 -- Coulomb/Babushkin 4911.864/4073.194, 1403.839/1139.254, 799.1763/643.5974
     # barn @ 10/30/50 eV. Unchanged from 14-Aug in the first five figures: this branch is Z=12 with E1 and M1 only,
     # so the 27-Aug parity correction described at the head of this file has almost nothing to act on.
@@ -138,6 +139,8 @@ elseif  false
     wb = perform(wa)
     #
 elseif  false
+    # Last visit:  20-Oct-2026
+    # Last reproduced:  20-Oct-2026 (10 of 10 numbers on the claim line)
     # Last successful:  28-Aug-2026 -- total (all 5 final shells summed) Coulomb/Babushkin 1.487028e6/1.440833e6,
     # 4.745413e4/4.596358e4, 2171.93/2099.70, 106.140/101.994, 2.44322/2.41439 barn @ 1/10/100/1000/10000 eV, i.e.
     # gauge agreement 3.1, 3.1, 3.3, 3.9, 1.2 %. THIS BRANCH HAD NEVER QUOTED BABUSHKIN AT ALL; those digits are new
@@ -164,6 +167,7 @@ elseif  false
     wb = perform(wa)
     #
 elseif  false
+    # Last visit:  20-Oct-2026
     # Last successful:  28-Aug-2026 -- Coulomb/Babushkin 1234.09/1237.48, 109.778/109.841, 6.49946/6.46310 barn
     # @ 1.196/11.96/119.6 keV; gauge agreement 0.27, 0.06, 0.56 %. Against the 9-Aug run (1117.8/1120.8, 109.24/
     # 109.30, 7.076/7.037) Coulomb moved +10.4 %, +0.5 % and -8.1 % -- the 27-Aug parity correction, see the head

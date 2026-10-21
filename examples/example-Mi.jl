@@ -17,6 +17,7 @@ if  false
     computeProperties(Basics.HyperfineStructure(AngularJ64(3//2)), configs, nuclearModel=nm)
     #
 elseif  true
+    # Last visit:  20-Oct-2026
     # Last successful:  18Aug2026
     # 1H 1s: the hyperfine splitting is the 21 cm line, A = 1420.405751 MHz.  JAC gives 1421.22 MHz, i.e.
     # 0.057 % -- and this is the case that shows why the field matters: with a screened (DFS) potential the

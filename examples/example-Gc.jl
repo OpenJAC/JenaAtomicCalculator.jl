@@ -67,6 +67,7 @@ elseif true
     wa       = RacahAlgebra.evaluate(leftCsq, rightCsq)   
     #
 elseif true
+    # Last visit:  20-Oct-2026
     # Last successful:  unknown ...
     # Compute 
     leftCsq  = RacahAlgebra.Csq( RacahAlgebra.Csq(j1,j2,j5), RacahAlgebra.Csq(j3,j4,j6), j7 )

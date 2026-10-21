@@ -90,6 +90,7 @@ if  true
     setDefaults("print summary: close", "")
     #
 elseif  false
+    # Last visit:  20-Oct-2026
     # Last successful:  20-Aug-2026
     #   [PROVENANCE: as branch a.]
     # Branch b: THE DR LIMIT, AND WITH IT THE CALIBRATION OF N.  The resonant amplitude carries one overall constant that
@@ -169,8 +170,8 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:  18-Oct-2026
-    # Last reproduced:  18-Oct-2026 (1 of 1 to 1e-5)
+    # Last visit:  20-Oct-2026
+    # Last reproduced:  20-Oct-2026 (1 of 1 numbers on the claim line)
     # Last successful:  20-Aug-2026
     #   [PROVENANCE: as branch a.]
     # Branch c: THE INTERFERENCE ITSELF, Li-like Fe23+ across one KLL resonance.  Both terms on, scanning the electron
@@ -262,6 +263,8 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
+    # Last visit:  20-Oct-2026
+    # Last reproduced:  20-Oct-2026 (1 of 1 numbers on the claim line)
     # Last successful:  20-Aug-2026
     #   [PROVENANCE: as branch a.]
     # Branch d: HIGH Z, where the two processes become comparable.  Li-like Xe51+ (Z = 54), the same KLL structure, now

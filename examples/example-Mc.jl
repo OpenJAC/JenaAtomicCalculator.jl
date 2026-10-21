@@ -15,6 +15,7 @@ if  false
     computeCrossSections(Basics.ForPhotoIonization(), initialConfigs, finalConfigs)
     #
 elseif  false
+    # Last visit:  20-Oct-2026
     # Last successful:  26Jun2026
     # Photoionization cross sections for neutral argon; 3s and 3p outer-shell channels.
     # Corresponds to Figure 3(b) of the pedestrian review article.

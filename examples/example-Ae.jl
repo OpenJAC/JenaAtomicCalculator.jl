@@ -44,8 +44,8 @@ if  true
     println(">> [Branch 1] QED(Petersburg)/E(Coulomb) = $(round(dPetersburg/mpNoneCI.levels[1].energy,digits=6))")
 
 elseif  false
-    # Last visit:  18-Oct-2026
-    # Last reproduced:  18-Oct-2026 (4 of 4 to 1e-5)
+    # Last visit:  20-Oct-2026
+    # Last reproduced:  20-Oct-2026 (4 of 4 numbers on the claim line)
     # Last successful:  29-Jul-2026: E1(Coulomb) = -3363.898765 Ha. Delta E(Breit) = 2.365959 Ha,
     # Delta E(QED, Petersburg) = 1.763950 Ha, Delta E(Breit+QED combined) = 4.129909 Ha -- EXACTLY additive
     # (residual = 0.0 Ha). Caveat: this [He] 2s system is a single-CSF case (no CI mixing), so exact

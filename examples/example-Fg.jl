@@ -151,7 +151,8 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:      06-Aug-2026 ... ~4.3 s.  alpha^RR [cm^3/s] against the grid:
+    # Last visit:  20-Oct-2026
+    # Last reproduced:  20-Oct-2026 (6 of 6 numbers on the claim line)
     #                      points  E_max      T = 1e5      T = 1e6      T = 1e7
     #                         4     500     1.7000e-15   3.1590e-15   6.4530e-16
     #                        16     500     6.3400e-16   2.4780e-15   6.3240e-16

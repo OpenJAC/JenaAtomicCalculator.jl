@@ -27,7 +27,7 @@ observable      = StrongField.SfaEnergyDistribution(pi/2, pi/2, 100, 10*omega)  
 
 
 if true
-    # Last visit:  16-Oct-2026
+    # Last visit:  20-Oct-2026
     # Last successful:  unknown ...
     # Prepare the atomic target
 	asfSettings      = AsfSettings(AsfSettings(), generateScf=true)

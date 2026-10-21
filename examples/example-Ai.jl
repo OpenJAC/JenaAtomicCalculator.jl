@@ -128,8 +128,8 @@ elseif  false
     wb = generate(wa, output=true)
     #
 elseif  false
-    # Last visit:  18-Oct-2026
-    # Last reproduced:  18-Oct-2026 (3 of 3 to 1e-5)
+    # Last visit:  20-Oct-2026
+    # Last reproduced:  20-Oct-2026 (3 of 3 numbers on the claim line)
     # Last successful:  01-Sep-2026 -- -14.570964036 / -14.605737784 / -14.616949323 Ha, total 0.6 s.
     #                   FASTER THAN THE EOL ROUTE BY A FACTOR OF THIRTY, as this branch expects -- and, less
     #                   expectedly, 2.2 mHa LOWER than it on the same three layers.  A field that optimizes a
@@ -187,7 +187,7 @@ elseif  false
     println(">> [DFS] total wall time = $(round(time()-t0, digits=1)) s")
     #
 elseif  false
-    # Last visit:  01-Sep-2026
+    # Last visit:  20-Oct-2026
     # Last successful:  01-Sep-2026 -- numbers below, produced by the run this branch performs.
     #
     # d) A HIGH-Z FOUR-LAYER REFERENCE: Be-like at Z = 92, the 2s^2 (0+) -> 2s2p (1-) resonance line.
@@ -452,6 +452,8 @@ elseif  false
     end
     #
 elseif  false
+    # Last visit:  20-Oct-2026
+    # Last reproduced:  20-Oct-2026 (3 of 3 numbers on the claim line)
     # Last successful:  17-Oct-2026   ## increments -42.7061 / -43.3205 / -47.6452 mHa for
     #                  :previousLayersFrozen / :coreFrozen / :allFree;  ordering check PASSED
     #

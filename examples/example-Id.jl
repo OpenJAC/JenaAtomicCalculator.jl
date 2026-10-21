@@ -57,7 +57,7 @@ if true
 	finalLevel       = AtomicData[ResultKeys.Multiplet].levels[1]
 
 elseif true
-    # Last visit:  26-Aug-2026
+    # Last visit:  20-Oct-2026 (NEEDS AN EARLIER BRANCH OF THIS FILE)
     # Last successful:  unknown ...
     # Perform the StrongField computation
 	sfaSettings = StrongField.Settings([E1], "VelocityGauge", true, true, hydrogenic, hydrogenic1s, mAverage)

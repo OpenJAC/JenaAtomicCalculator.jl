@@ -7,7 +7,7 @@ setDefaults("print summary: open", "zzz-ForPedestrians.sum")
 
 
 if  false
-    # Last visit:  18-Oct-2026
+    # Last visit:  20-Oct-2026
     # Last successful:  26Jun2026
     # computeTransitionRates(ForPhotoEmission): K-alpha radiative rates for the 1s-hole of neutral neon.
     # Initial: 1s vacancy;  final: 2s or 2p vacancy (same number of electrons).
@@ -83,6 +83,7 @@ elseif  false
                     plotfile="spectrum-li-photon.pdf")
     #
 elseif  true
+    # Last visit:  20-Oct-2026
     # Last successful:  28Jun2026
     # displaySpectrum(ForAutoIonization): Ne KLL Auger electron spectrum.
     # Three final configurations; L23L23 1D2 line dominates at ~810 eV.

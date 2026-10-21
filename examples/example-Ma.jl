@@ -30,6 +30,7 @@ elseif  false
     computeLevelEnergies(Basics.ForGivenConfigs(), configs)
     #
 elseif  false
+    # Last visit:  20-Oct-2026
     # Last successful:  27Jun2026
     # He-like isoelectronic sequence Z=4..10: configuration-averaged energies of 1s^2 (ground)
     # and 1s 2p (first excited).  Shows Z^2 scaling and the 1s->2p gap across Be^2+ ... Ne^8+.

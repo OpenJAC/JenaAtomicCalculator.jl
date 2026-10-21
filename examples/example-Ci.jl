@@ -17,6 +17,7 @@ println("    LARGER than the level spacing itself, so the four reference levels 
 println("    alpha+ and alpha- -- the regime AlphaVariation.matchLevelByOverlap exists for (challenge S6).")
 
 if true
+    # Last visit:  20-Oct-2026
     # Last successful:  21-Jul-2026 -- 3P1 Q=1.0035, 3P2 Q=1.0003, 1D2 Q=0.0033, 1S0 Q=0.0012 (vs literature above)
     # C I -- the lightest, simplest member of the sequence; small but nonzero relativistic sensitivity.
     setDefaults("print summary: open", "zzz-AlphaVariation.sum")
@@ -65,6 +66,7 @@ elseif true
     setDefaults("print summary: close", "")
     #
 elseif true
+    # Last visit:  20-Oct-2026
     # Last successful:  21-Jul-2026 -- q(4f5/2-5s) = -136121 cm^-1 (0.09% from literature -136000 cm^-1); excitation
     # 8.235 eV vs literature 6.903 eV (~19% high, same expected cause as Nd13+ above). Ground state comes out as
     # 4f_5/2 (not 5s_1/2), correctly reproducing the level crossing between the Nd13+ and Sm15+ members of this

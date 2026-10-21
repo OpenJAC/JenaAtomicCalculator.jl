@@ -578,6 +578,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
+    # Last visit:  20-Oct-2026
     # Last successful:  22-Aug-2026
     #   [PROVENANCE: as branch a.]
     # Branch i: NUCLEAR DEFORMATION -- a gap made visible, and it is not the gap that was expected.

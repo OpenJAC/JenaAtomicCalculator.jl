@@ -15,7 +15,7 @@ println("    intensity-ratio Te diagnostic).")
 
 
 if  true
-    # Last visit:  02-Aug-2026
+    # Last visit:  20-Oct-2026
     # Last successful:  unknown ...
     # Branch a: the Gabriel (1972) case -- He-like Fe (Fe XXV), the classic, most extensively tabulated
     #   dielectronic-satellite Te diagnostic in the literature, and the natural PRIMARY validation case
@@ -107,7 +107,7 @@ if  true
     wb = perform(computation, output=true)
     #
 elseif  true
-    # Last visit:  02-Aug-2026
+    # Last visit:  20-Oct-2026
     # Last successful:  unknown ...
     # Branch b: F-like Ne+, the more complex, OPEN-SHELL recombining-ion case (2P_3/2+2P_1/2 ground,
     #   28-level "2p^4 3d" excited manifold) worked through and debugged FIRST, before branch a's

@@ -107,6 +107,7 @@ elseif  false
     println("\n  sum(naturalOccupation) = $(sum(outc.naturalOccupation))   [should equal N_electrons = 4]")
     #
 elseif  true
+    # Last visit:  20-Oct-2026
     # Last successful:  unknown -- deliberately left undated, see below.
     # Branch f: literature system -- N I (Z=7), [He] 2s^2 2p^3 4S°(3/2) ground level, with a small exploratory
     #   correlation config [He] 2s^2 2p^2 3p added (single 2p->3p-type excitation, same odd parity). Reports the

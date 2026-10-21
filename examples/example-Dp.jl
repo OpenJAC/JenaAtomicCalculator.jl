@@ -122,7 +122,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:      25-Aug-2026
+    # Last visit:  20-Oct-2026
     # Last successful: 25-Aug-2026
     #
     # Branch c: THE ALIGNMENT OF THE RESIDUAL ION, which is the property this module shares with CoulombExcitation

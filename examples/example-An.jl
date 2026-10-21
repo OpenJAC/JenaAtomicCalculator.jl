@@ -4,6 +4,7 @@ println("An) Apply & test the bi-orthogonal transformation of two independently-
 using LinearAlgebra
 
 if  true
+    # Last visit:  20-Oct-2026
     # Last successful:  30-Jul-2026
     # Branch a: Stage 1 -- orbital biorthogonalization. Generates an initial- and a final-state multiplet
     #   via two INDEPENDENT SCF processes (exactly as example-Da.jl does today), then confirms two things:
@@ -44,6 +45,7 @@ if  true
     println(">> trivial-identity check (same basis on both sides): worst |P_new - P_old| = $worst2")
     #
 elseif  true
+    # Last visit:  20-Oct-2026
     # Last successful:  30-Jul-2026
     # Branch b: Stage 3 -- CI-vector counter-rotation, validated in isolation from Stage 1's specific
     #   biorthogonalizing choice. A minimal complete active space (1 electron among {3s,4s}, so the full CI

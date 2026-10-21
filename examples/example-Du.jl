@@ -192,7 +192,7 @@ elseif  true
     perform(wb)
     #
 elseif  false
-    # Last visit:  08-Aug-2026
+    # Last visit:  20-Oct-2026
     #
     # --- Branch c: THE SAME TRANSITION WITH THREE DIFFERENT COLOURS, to show that the scheme is not restricted
     #     to the monochromatic case.

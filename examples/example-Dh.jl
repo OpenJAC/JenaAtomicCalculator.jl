@@ -210,6 +210,8 @@ if  false
 ##  so a line has a continuous spectrum and is resolved by energy sharings)
 ## =====================================================================================================
 elseif  false
+    # Last visit:  20-Oct-2026
+    # Last reproduced:  20-Oct-2026 (4 of 4 numbers on the claim line)
     # OWN GRID for this branch: Bsplines.checkGridRepresentation refused the one used here and named
     # about 255.0 a.u. as the box this branch's subshells want. A local grid is used rather than
     # changing a shared one, so the branches that are already matched are not disturbed -- a box too
@@ -447,6 +449,7 @@ elseif  false
     end
     #
 elseif  false
+    # Last visit:  20-Oct-2026
     # OWN GRID: the file-level grid (80 a.u.) is refused for this branch, which wants about 255 a.u.
     # A local grid leaves the branches that are already matched undisturbed; hp = rbox/300.
     grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.8500, rbox = 255.0)
@@ -1091,7 +1094,7 @@ elseif  false
     perform(we)
     #
 elseif  false
-    # Last visit:  18-Oct-2026
+    # Last visit:  20-Oct-2026
     # Last successful:  11-Aug-2026     ## for the PHOTON-ENERGY DEPENDENCE of the absorption cross section;
     #                                   ## the absolute scale remains unverified, see below.
     #

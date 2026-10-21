@@ -8,7 +8,7 @@ setDefaults("unit: energy", "eV")
 grid = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.6e-2, rbox = 10.0)
 
 if  true
-    # Last visit:  17-Aug-2026
+    # Last visit:  20-Oct-2026
     # Last successful:  17-Aug-2026
     # THE PHYSICS BEING CHECKED, and why this is an absolute test rather than an internal one.
     #
@@ -67,7 +67,7 @@ if  true
     end
     #
 elseif  false
-    # Last visit:  18-Oct-2026
+    # Last visit:  20-Oct-2026
     # Last successful:  unknown ...
     #
 end

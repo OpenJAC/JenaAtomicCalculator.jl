@@ -31,7 +31,7 @@ setDefaults("method: normalization, pure sine")      ## setDefaults("method: nor
 ##   physically-plausible-looking calculation, not a proof of correctness. A natural next step, not attempted here.
 
 if  true
-    # Last visit:  18-Oct-2026
+    # Last visit:  20-Oct-2026
     # Last successful:  2-Aug-2026
     # Branch A: Ne 2s and 2p photoionization; cf. Kennedy & Manson, Phys. Rev. A 5, 227 (1972).
     #   finalConfigs EXPANDED (2-Aug-2026) to include BOTH the 2s-hole and 2p-hole final configurations --

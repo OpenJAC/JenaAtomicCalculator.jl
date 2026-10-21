@@ -50,6 +50,7 @@ println("    several of its own ionization stages, combined into one Planck mean
 
 
 if  false
+    # Last visit:  20-Oct-2026
     # Last successful:  17-Oct-2026
     #
     # Branch a: carbon (Z=6, 2s^2 2p^2 / 2s 2p^3 / 2p^4 -- the SAME complex example-Jf.jl validates) and
@@ -96,6 +97,7 @@ if  false
     println(">>> already-validated single-species machinery, adding no new CSF-level approximation.")
     #
 elseif  false
+    # Last visit:  20-Oct-2026
     # Last successful:  18-Oct-2026
     #
     # Branch b: ONE species (carbon), but now spread over TWO of its OWN ionization stages -- the 4-electron
@@ -244,6 +246,7 @@ elseif  false
     println(">>> -- not a configuration-space gap, since adding further shells had already stopped helping.")
     #
 elseif  false
+    # Last visit:  20-Oct-2026
     # Last successful:  19-Oct-2026   ## at omega = 1.2 Ha: bound-bound 1.5e-15, bound-free 4.1e-7 [a0^2];
     #                                    Rosseland (bound-bound+bound-free) 9.1e-6 [a0^2]
     #
@@ -283,6 +286,7 @@ elseif  false
     println(">>> a line-only spectrum. Bound-free supplies the physical floor that makes it meaningful.")
     #
 elseif  false
+    # Last visit:  20-Oct-2026
     # Last successful:  19-Oct-2026   ## crossover at omega = 0.95 Ha: bound-bound 1.0e-9, free-free 9.8e-9
     #                                    [a0^2] (free-free already 10x larger at the NEXT point past the
     #                                    crossing, omega = 1.0: 6.5e-11 vs 8.6e-9)
@@ -321,6 +325,8 @@ elseif  false
     println(">>> bound-free-only) opacity most understates the true continuum.")
     #
 elseif  true
+    # Last visit:  20-Oct-2026
+    # Last reproduced:  20-Oct-2026 (7 of 7 numbers on the claim line)
     # Last successful:  20-Oct-2026   ## resonance width 0.2574689438 eV (example-De.jl's own validated
     #                                    0.2574689437887644 eV, from 9.461809e-03 a.u.); peak kappa_gaussian
     #                                    2.609405e-05 vs peak kappa_voigt 6.909243e-06 [a0^2] at the line

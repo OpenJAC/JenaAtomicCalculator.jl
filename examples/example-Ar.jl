@@ -172,7 +172,7 @@ elseif  false
     println(">> step 3 : $(length(ls)) levels, lowest = $(ls[1].energy) Ha  -- EXPECTED -459.93426153 Ha")
 
 elseif  true
-    # Last visit:  18-Oct-2026 (TIMED OUT at 500 s)
+    # Last visit:  20-Oct-2026 (TIMED OUT at 500 s)
     # Last successful:  13-Sep-2026 -- the table this branch prints, against NIST ASD 5.12.  Coulomb+Breit(0.):
     #                   3P*_0 233235 / 233406 / 235209,  3P*_1 239101 / 239246 / 240884,
     #                   3P*_2 253163 / 253269 / 254777,  1P*_1 357408 / 356254 / 354891 cm^-1

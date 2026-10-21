@@ -5,7 +5,7 @@ setDefaults("print summary: open", "zzz-saha-boltzmann.sum")
 
 
 if  false
-    # Last visit:  18-Oct-2026
+    # Last visit:  20-Oct-2026
     # Last successful:  18-Jul-2026
     # Compute the Saha-Boltzmann equilibrium densities for a mixture of Carbon ions, restricted to the highest
     # charge states q = 4:6 (bare through He-like), NoExcitations = 1, upperShellNo = 4 -- a light, fast case to

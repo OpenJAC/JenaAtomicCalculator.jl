@@ -55,7 +55,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:  18-Oct-2026
+    # Last visit:  20-Oct-2026
     # Last successful:  31-Jul-2026
     # Branch c: neutral Ne (Z=10), [Ne] closed shell -- comparison against Waasmaier & Kirfel (1995),
     #   Acta Cryst. A51, 416, examples/papers/1995.f0_WaasKirf.dat, a 5-Gaussian analytical fit
@@ -82,6 +82,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
+    # Last visit:  20-Oct-2026
     # Last successful:  31-Jul-2026
     # Branch d: neutral Ar (Z=18), [Ar] closed shell -- comparison against BOTH Waasmaier & Kirfel (1995)
     #   AND Hubbell et al. (1975), examples/papers/1975.jpcrd-hubbel-form-factors.pdf, Table I (p. 498):
@@ -105,6 +106,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  true
+    # Last visit:  20-Oct-2026
     # Last successful:  31-Jul-2026
     # Branch e: Fe3+ ION (Z=26, 23 electrons), [Ar] 3d^5 -- comparison against Waasmaier & Kirfel (1995),
     #   which (unlike the older Cromer-Mann fit) explicitly covers IONS, not just neutral atoms -- the

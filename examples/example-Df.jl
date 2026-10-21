@@ -241,7 +241,7 @@ elseif  false
     perform(wd)
     #
 elseif  false
-    # Last visit:  18-Oct-2026
+    # Last visit:  20-Oct-2026
     # --- Branch e: K-LL DR of He-like W72+ (Z=74) -- the Tu et al. benchmark, and the first case with a WIDE
     #     spread of J_f. Structurally identical to branch a): initial 1s^2, intermediate 1s2l2l', final 1s^2 2l,
     #     but at Z = 74 instead of Z = 6.
@@ -496,7 +496,7 @@ elseif  false
     perform(wf)
     #
 elseif  false
-    # Last visit:  05-Aug-2026
+    # Last visit:  20-Oct-2026 (TIMED OUT at 500 s)
     # --- Branch g: DR of H-like C5+ (Z=6) into He-like C4+ with the core excited to 2p and the electron captured
     #     into a RYDBERG shell -- the validation vehicle for the RydbergTailCorrection's n-scaling.
     #
@@ -728,7 +728,7 @@ elseif  false
     perform(wh)
     #
 elseif  true
-    # Last visit:  18-Oct-2026
+    # Last visit:  20-Oct-2026
     # --- Branch h: K-LL DR of Li-like C3+ (Z=6) with the initial ion HYPERFINE-RESOLVED -- the first branch that
     #     exercises module-DielectronicRecombination-inc-HF-resolved.jl on the dimension where the physics lives.
     #

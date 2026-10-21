@@ -550,6 +550,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
+    # Last visit:  20-Oct-2026
     # Last successful:  22-Aug-2026
     #   [PROVENANCE: as branch a.]
     # Branch h: THE MISSING LAMB SHIFT, PUT IN WITH JAC'S OWN QED MODEL -- and branch c turns out to have understated

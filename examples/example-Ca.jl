@@ -23,7 +23,7 @@ if  true
     wb = perform(wa; output=true)
     #
 elseif  true
-    # Last visit:  16-Oct-2026 -- RUNS (exit 0), and WHAT STOPS A DATE IS THE GAUGES. C (Z=6), four
+    # Last visit:  20-Oct-2026
     #   configurations, 13 E1 transitions. The strong lines to levels 6 and 7 (A ~ 4e8 1/s) agree to 25 %,
     #   which is ordinary; but the equally strong lines 13-->11 and 13-->12 (A ~ 1e8 and 7e7 1/s) come out
     #   with Coulomb/Babushkin = 6.28 and 6.31, and 15-->11, 15-->12 with 4.01 and 4.12. A factor of four to
@@ -41,7 +41,7 @@ elseif  true
     wb = perform(wa; output=true)
     #
 elseif  false
-    # Last visit:  30-Aug-2026 -- RUNS (exit 0) AND COMPUTES NOTHING, which is why it cannot be dated.
+    # Last visit:  20-Oct-2026
     #   The configuration list is the single closed shell 1s^2 2s^2 at Z=36, so the multiplet holds ONE level
     #   (J=0, even) and there is no pair of levels to connect: the Einstein table comes out empty. The branch
     #   is therefore correct and useless as it stands -- it would need a second configuration to test
@@ -60,6 +60,7 @@ elseif  false
     frozenOrbs = wb[ResultKeys.Multiplet].levels[1].basis.orbitals
     #
 elseif  true
+    # Last visit:  20-Oct-2026
     # Last successful:  30-Aug-2026 -- C (Z=6), 1s^2 2s^2 + 1s^2 2s 3p, two E1 transitions, and the
     #   gauge ratio is 1.1898 and 1.1919 -- consistent between the two lines, so the 19 % is systematic rather
     #   than erratic, as a length-against-velocity difference in a small CI usually is. NOT DATED only because

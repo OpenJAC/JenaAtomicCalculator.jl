@@ -4,6 +4,7 @@ println("Db) Apply & test the PhotoExcitation module with ASF from an internally
 setDefaults("print summary: open", "zzz-PhotoExcitation.sum")
 
 if  true
+    # Last visit:  20-Oct-2026
     # Last successful:  28-Aug-2026 -- REPRODUCES EXACTLY. Energies 1.84650119 and 1.84657903 eV (record: 1.8464),
     # summed absorption oscillator strength f = 0.65048 (Coulomb) / 0.88455 (Babushkin) against the recorded
     # 0.6505 / 0.8845, still bracketing the literature f(2s-2p) = 0.7414.
@@ -33,6 +34,7 @@ if  true
     wb = perform(wa)
     #
 elseif false
+    # Last visit:  20-Oct-2026
     # Last successful:  28-Aug-2026 -- THE RECORDED f-VALUES BELOW WERE PRE-FIX AND ARE NOW DOUBLED, CORRECTLY.
     # Today: f(1->2) = 1.8309e-02 (Coulomb) / 1.8578e-02 (Babushkin), f(1->4) = 7.6852e-01 / 7.8003e-01, at
     # 3.88624723e+03 and 3.90608068e+03 eV. The REPORT below quotes 0.0091/0.0086 and 0.3843/0.3886, i.e. almost
@@ -63,7 +65,7 @@ elseif false
     wb = perform(wa)
     #
 elseif false
-    # Last visit:  18-Oct-2026
+    # Last visit:  20-Oct-2026
     # Last reproduced:  18-Oct-2026 (6 of 9 to 1e-5, 1 more to 1e-3;  2 are the superseded pre-fix values)
     # Last successful:  28-Aug-2026 -- SAME PRE-FIX HALVING AS THE BRANCH ABOVE, and for the same reason.
     # Today: f(1->2) = 1.8213e-02 / 1.7616e-02, f(1->4) = 7.6512e-01 / 7.3954e-01 at 3.88546592e+03 and

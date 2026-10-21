@@ -16,6 +16,7 @@ captureScheme() = Cascade.DielectronicCaptureScheme(500.0, 0., 1, [Shell("1s")],
                                                     [Shell("2s"), Shell("2p")])
 
 if  true
+    # Last visit:  20-Oct-2026
     # Last successful:  23-Aug-2026
     #   [PROVENANCE: produced on Julia 1.10.9, with a Manifest re-resolved for 1.10 because the checkout's Manifest
     #    had been resolved under 1.12.6 on the maintainer machine.  Re-run there to confirm.]

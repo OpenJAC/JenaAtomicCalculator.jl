@@ -7,6 +7,7 @@ setDefaults("unit: rate",          "1/s")
 setDefaults("print summary: open", "zzz-Empirical.sum")
 
 if  false
+    # Last visit:  20-Oct-2026
     #
     # Last successful:  17-Jul-2026
     # Branch 1: Empirical.chargeExchangeCrossSection(q, Ip, approx) -- the direct (q, Ip) method, comparing the two

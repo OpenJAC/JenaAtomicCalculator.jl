@@ -218,8 +218,8 @@ elseif  false
     ## measured radii (Angeli & Marinova) and checked beta2 values, and NOT a better nuclear model.
     #
 elseif  false
-    # Last visit:  18-Oct-2026
-    # Last reproduced:  18-Oct-2026 (1 of 1 to 1e-5)
+    # Last visit:  20-Oct-2026
+    # Last reproduced:  20-Oct-2026 (1 of 1 numbers on the claim line)
     # Last successful:  14-Aug-2026:  Li-like Nd, Z = 60, A = 142, R_rms = 4.9123 fm held FIXED while only
     # the nuclear SHAPE is varied, so that every difference below is a pure shape effect.
     #

@@ -133,7 +133,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:      06-Aug-2026
+    # Last visit:  20-Oct-2026
     # Last successful: 06-Aug-2026 ... 4 steps, 65 lines, after the multipole bug this branch exposed was
     #                  fixed; multipole hierarchy verified internally, see below.  Warm cost ~6 s.
     #

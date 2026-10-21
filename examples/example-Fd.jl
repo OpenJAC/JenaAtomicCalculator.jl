@@ -196,7 +196,7 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:      23-Aug-2026
+    # Last visit:  20-Oct-2026
     # Last successful: 23-Aug-2026
     #
     # REPORT (23-Aug-2026, Galerkin): 14.3 s warm, 5 lines, total 0.585 / 0.504 Mb against branch a's

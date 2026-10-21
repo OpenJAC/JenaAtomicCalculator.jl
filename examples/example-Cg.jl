@@ -124,6 +124,7 @@ elseif  false
     wb = perform(wa)
     #
 elseif  false
+    # Last visit:  20-Oct-2026
     # Last successful:  31-Jul-2026 (all 4 sub-computations ran cleanly; decayShells' effect is CONFIRMED
     #   ABSENT for StepwiseDecayScheme, root cause found and documented below, not a fixed positive result)
     # Branch e: Mg (Z=12) double-core-hole "1s 2p^6 3s^2" -- explicit decayShells test, per user request/
@@ -213,6 +214,7 @@ elseif  false
     perform(wa4)
     #
 elseif  false
+    # Last visit:  20-Oct-2026
     # Last successful:  31-Jul-2026
     # Branch f: Si (Z=14) K-shell hole, "1s 2s^2 2p^6 3s^2 3p^2" (13 electrons; neutral Si [Ne]3s^2 3p^2
     #   minus one 1s electron) -- explicit levelSelection test, per user request. Si's open 3p^2 shell gives
