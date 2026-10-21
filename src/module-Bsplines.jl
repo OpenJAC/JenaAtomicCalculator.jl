@@ -7,7 +7,7 @@
 module Bsplines
 
 
-using  BSplineKit, Printf, ..Basics, ..Defaults, ..Nuclear, ..Radial, JenaAtomicCalculator
+using  BSplineKit, Printf, ..AngularMomentum, ..Basics, ..Defaults, ..Nuclear, ..Radial, JenaAtomicCalculator
 
 
 """
@@ -574,6 +574,83 @@ end
 
 
 """
+`Bsplines.exchangeOnOrbital(kappa::Int64, primitives::Bsplines.Primitives, orb::Radial.Orbital,
+                            coreOrbitals::Dict{Subshell,Orbital}, occupations::Dict{Subshell,Float64}; factor::Float64=1.0)`
+    ... applies the SAME nonlocal exchange operator as `Bsplines.setupExchangeMatrix` to ONE given function and returns the result
+        projected onto the primitives, SUM_i <B_i| (-K) |orb>, in the sign convention and the (nsL+nsS) layout that
+        `RandomPhase.inducedSourceVector` and `RandomPhase.exchangeSourceVector` use. A vector::Array{Float64,1} is returned.
+
+        **WHY BOTH FORMS EXIST.** The matrix is what a Galerkin left-hand side needs, since there the unknown is a coefficient
+        vector; this one is what a right-hand side needs, where the function is already known as radial arrays P and Q and no
+        expansion coefficients are available. They are the same operator, and `setupExchangeMatrix(...) * c` must reproduce this
+        function whenever c really is orb's coefficient vector -- which is a test, and a sharp one, because the two routes share
+        only `Bsplines.ykOnGrid`.
+
+        **DO NOT OBTAIN c BY FITTING A FUNCTION THAT IS NOT IN THE SPAN.** `Bsplines.fitVectorToPrimitives` recovers a bound
+        orbital's coefficients to 1e-14, but a PERTURBED orbital reaching the box boundary is a different matter: measured on the
+        H 1s -> 2p Dalgarno-Lewis solutions in a 120 a.u. box, the fitted vector reproduces the SHAPE of K chi exactly -- the
+        result stays collinear with phi_a Y^1[phi_a,chi] to 5e-16 -- while carrying only 0.2490 of its NORM, both channels alike.
+        A shape that survives and a magnitude that does not is exactly what a collinearity test cannot see, so use this function
+        for a given function and the matrix only where c comes from a diagonalization.
+
+        + kappa          ::Int64                      ... symmetry block of orb;  it is not read off orb, which may carry none.
+        + orb            ::Radial.Orbital             ... the function the operator is applied to; only P and Q are read.
+        + coreOrbitals   ::Dict{Subshell,Orbital}     ... the core orbitals exchange is taken with; all of them are included.
+        + occupations    ::Dict{Subshell,Float64}     ... their occupations, one per subshell of coreOrbitals.
+        + factor         ::Float64                    ... an overall scaling, as in `Bsplines.setupExchangeMatrix`.
+"""
+function exchangeOnOrbital(kappa::Int64, primitives::Bsplines.Primitives, orb::Radial.Orbital,
+                           coreOrbitals::Dict{Subshell,Orbital}, occupations::Dict{Subshell,Float64}; factor::Float64=1.0)
+    grid = primitives.grid
+    nsL  = grid.nsL;    nsS = grid.nsS
+    ja2  = 2*abs(kappa) - 1
+    la   = kappa > 0 ? kappa : -kappa - 1
+    subA = Subshell(la + 1, kappa)
+    fP   = zeros( grid.NoPoints );    fQ = zeros( grid.NoPoints );    mtpF = 1
+    shells = sort( collect(keys(coreOrbitals)), by = sh -> (sh.n, sh.kappa) )
+
+    for  bSub  in  shells
+        !haskey(occupations, bSub)   &&   error("Bsplines.exchangeOnOrbital(): no occupation given for core subshell $bSub.")
+        occ = occupations[bSub];    occ == 0.   &&   continue
+        orbB = coreOrbitals[bSub];  jb2 = Basics.subshell_2j(bSub)
+        mtpB = min( size(orbB.P, 1), size(orbB.Q, 1), grid.NoPoints )
+        mtpR = min( mtpB, size(orb.P, 1), size(orb.Q, 1) )
+        rho  = zeros( mtpR )
+        for  i = 1:mtpR    rho[i] = orb.P[i] * orbB.P[i] + orb.Q[i] * orbB.Q[i]    end
+        for  k = 0:((ja2 + jb2) ÷ 2)
+            cl = AngularMomentum.CL_reduced_me(subA, k, bSub)
+            cl == 0.   &&   continue
+            coeff = factor * occ * cl^2 / ((ja2 + 1.0) * (jb2 + 1.0))
+            yk = Bsplines.ykOnGrid(k, rho, 1, mtpR, mtpR, grid)
+            for  i = 1:mtpR
+                fP[i] = fP[i] - coeff * yk[i] * orbB.P[i]
+                fQ[i] = fQ[i] - coeff * yk[i] * orbB.Q[i]
+            end
+            mtpF = max(mtpF, mtpR)
+        end
+    end
+
+    wa = zeros( nsL+nsS )
+    for  i = 1:nsL
+        bsp = primitives.bsplinesL[i];    lower = bsp.lower;    upper = min(bsp.upper, mtpF)
+        upper < lower   &&   continue
+        s = 0.
+        for  r = lower:upper    s = s + bsp.bs[r-bsp.lower+1] * fP[r] * grid.wr[r]    end
+        wa[i] = s
+    end
+    for  i = 1:nsS
+        bsp = primitives.bsplinesS[i];    lower = bsp.lower;    upper = min(bsp.upper, mtpF)
+        upper < lower   &&   continue
+        s = 0.
+        for  r = lower:upper    s = s + bsp.bs[r-bsp.lower+1] * fQ[r] * grid.wr[r]    end
+        wa[nsL+i] = s
+    end
+
+    return( wa )
+end
+
+
+"""
 `Bsplines.findPositiveBranchStart(values::Array{Float64,1}; mass::Float64=1.0)`
     ... returns the 1-based index of the first (ascending-sorted) eigenvalue above -1.999*mass*c^2, the standard threshold marking the
         boundary between the unphysical negative-energy continuum ("Dirac sea") branch and the physical positive branch, following
@@ -1045,6 +1122,102 @@ end
 
 
 """
+`Bsplines.setupExchangeMatrix(kappa::Int64, primitives::Bsplines.Primitives, coreOrbitals::Dict{Subshell,Orbital},
+                              occupations::Dict{Subshell,Float64}; factor::Float64=1.0)`
+    ... sets up the NONLOCAL exchange term of the Dirac-Fock operator for the symmetry block kappa, in the same B-spline basis and
+        with the same (nsL+nsS) x (nsL+nsS) layout as `Bsplines.setupLocalMatrix`, so that the two simply add:
+
+            A  =  Bsplines.setupLocalMatrix(kappa, primitives, nuclear + direct, storage)  +  Bsplines.setupExchangeMatrix(kappa, ...)
+
+        is a Dirac-Fock matrix where `setupLocalMatrix` alone is a Dirac-Hartree one. A matrix::Array{Float64,2} is returned.
+
+        **WHY A MATRIX AND NOT A POTENTIAL.** Exchange maps a function at one radius to an integral over all radii, so no
+        `Radial.Potential` can carry it: a local V(r) exists only if the kernel is a delta function. In a finite basis, however,
+        every operator IS a matrix, and this one is exactly representable with nothing approximated. That is why the family of
+        `Basics.computePotential` methods cannot be extended to Dirac-Fock and this function exists instead.
+
+        **THE OPERATOR.** With w_b the occupation of core subshell b and rho_ub = P_u P_b + Q_u Q_b the transition density,
+
+            (K u)(r)  =  SUM_b SUM_k  w_b  <kappa||C^k||b>^2 / ((2j+1)(2j_b+1))  [ Y^k(rho_ub; r) / r ]  phi_b(r) ,
+
+        both components of phi_b being multiplied by the SAME kernel and the same coefficient -- the parity rule l_a+k+l_b even
+        holds for the small components too, since each l shifts by one. The coefficient is the one in JAC's own closed-form
+        average energy (`BasicsAZ.meanEnergyInClosedForm`, where it multiplies G^k(ab)), obtained from it by variation; that energy
+        has been measured against the exact (2J+1)-weighted trace to 1.6e-09 over nine configurations, so the coefficient needs
+        no outside reference. Contracting this operator with phi_a returns SUM_b w_b SUM_k Lambda_k G^k(ab), which is the check.
+
+        **THE RETURNED MATRIX IS -K, THE TERM AS IT ENTERS THE HAMILTONIAN**, so it is ADDED and never subtracted, and it is
+        NEGATIVE semi-definite: <u|K|u> is the Coulomb self-energy of rho_ub, positive for every b and k. Both of those are
+        cheap tests that can fail, and so is its symmetry -- unlike `setupLocalMatrix`, which is not symmetric.
+
+        **IT IS THE CROSS-SUBSHELL TERM, AND THE CALLER MUST EXCLUDE THE ORBITAL'S OWN SUBSHELL.** Where the function being acted
+        on IS one of the core orbitals, that subshell contributes no nonlocal term at all: varying the a^w energy gives
+        (w_a-1)[Y^0(aa)/r - SUM_(k>=2) mu_k Y^k(aa)/r], which is LOCAL and belongs with the direct potential, together with the
+        (w_a-1) that removes the self-interaction. Passing such a subshell here would double-count it in the wrong form. For a
+        virtual, continuum or perturbed function -- the Dalgarno-Lewis and random-phase cases -- the question never arises.
+
+        + kappa          ::Int64                      ... symmetry block of the function the operator acts on.
+        + coreOrbitals   ::Dict{Subshell,Orbital}     ... the core orbitals that exchange is taken with; all of them are included.
+        + occupations    ::Dict{Subshell,Float64}     ... their occupations, one per subshell of coreOrbitals.
+        + factor         ::Float64                    ... an overall scaling, for calibrating or switching the term off; 1.0 is
+                                                          Dirac-Fock and 0.0 reproduces `setupLocalMatrix` alone.
+"""
+function setupExchangeMatrix(kappa::Int64, primitives::Bsplines.Primitives, coreOrbitals::Dict{Subshell,Orbital},
+                             occupations::Dict{Subshell,Float64}; factor::Float64=1.0)
+    grid = primitives.grid
+    nsL  = grid.nsL;    nsS = grid.nsS
+    wa   = zeros( nsL+nsS, nsL+nsS )
+    ja2  = 2*abs(kappa) - 1                                     # 2j of the block;  2j+1 = 2|kappa|
+    la   = kappa > 0 ? kappa : -kappa - 1
+    subA = Subshell(la + 1, kappa)                              # a carrier for kappa alone, with the smallest valid n
+    shells = sort( collect(keys(coreOrbitals)), by = sh -> (sh.n, sh.kappa) )
+
+    for  bSub  in  shells
+        !haskey(occupations, bSub)   &&   error("Bsplines.setupExchangeMatrix(): no occupation given for core subshell $bSub.")
+        occ = occupations[bSub];    occ == 0.   &&   continue
+        orbB = coreOrbitals[bSub];  jb2 = Basics.subshell_2j(bSub)
+        mtp  = min( size(orbB.P, 1), size(orbB.Q, 1), grid.NoPoints )
+        rho  = zeros( mtp )
+        for  k = 0:((ja2 + jb2) ÷ 2)
+            cl = AngularMomentum.CL_reduced_me(subA, k, bSub)
+            cl == 0.   &&   continue
+            coeff = factor * occ * cl^2 / ((ja2 + 1.0) * (jb2 + 1.0))
+            for  jj = 1:nsL+nsS
+                # the column's transition density with the core orbital;  a large-component column pairs with P_b, a small one with Q_b
+                if  jj <= nsL    bspj = primitives.bsplinesL[jj];         dj = orbB.P
+                else             bspj = primitives.bsplinesS[jj-nsL];     dj = orbB.Q
+                end
+                loj = bspj.lower;    upj = min(bspj.upper, mtp)
+                upj < loj   &&   continue
+                fill!(rho, 0.)
+                for  i = loj:upj    rho[i] = bspj.bs[i+1-bspj.lower] * dj[i]    end
+                yk = Bsplines.ykOnGrid(k, rho, loj, upj, mtp, grid)
+                # the receiving end:  the large rows pick up P_b, the small rows Q_b, from the SAME kernel
+                for  ii = 1:nsL
+                    bspi = primitives.bsplinesL[ii]
+                    loi  = bspi.lower;    upi = min(bspi.upper, mtp)
+                    upi < loi   &&   continue
+                    wb = 0.
+                    for  i = loi:upi    wb = wb + bspi.bs[i+1-bspi.lower] * orbB.P[i] * yk[i] * grid.wr[i]    end
+                    wa[ii,jj] = wa[ii,jj] - coeff * wb
+                end
+                for  ii = 1:nsS
+                    bspi = primitives.bsplinesS[ii]
+                    loi  = bspi.lower;    upi = min(bspi.upper, mtp)
+                    upi < loi   &&   continue
+                    wb = 0.
+                    for  i = loi:upi    wb = wb + bspi.bs[i+1-bspi.lower] * orbB.Q[i] * yk[i] * grid.wr[i]    end
+                    wa[nsL+ii,jj] = wa[nsL+ii,jj] - coeff * wb
+                end
+            end
+        end
+    end
+
+    return( wa )
+end
+
+
+"""
 `Bsplines.setupLocalMatrix(kappa::Int64, primitives::Bsplines.Primitives, pot::Radial.Potential, storage::Dict{String,Array{Float64,2}};
                            mass::Float64=1.0)`
     ... sets up the local parts of the generalized eigenvalue problem for the symmetry block kappa and the given (local) potential pot. The
@@ -1121,6 +1294,39 @@ function setupLocalMatrix(kappa::Int64, primitives::Bsplines.Primitives, pot::Ra
     
     return( wa )
 end   
+"""
+`Bsplines.ykOnGrid(k::Int64, rho::Array{Float64,1}, lower::Int64, upper::Int64, mtp::Int64, grid::Radial.Grid)`
+    ... computes the Coulomb kernel Y_ab^k(r)/r on EVERY grid point r[1:mtp] at once, for a density rho that is nonzero only on
+        rho[lower:upper]. It is the vector-valued counterpart of `RadialIntegrals.Yk_ab`, which returns the same quantity at ONE
+        radius; that function costs O(mtp) per radius, hence O(mtp^2) for a whole matrix column, and it is exactly what made a
+        B-spline representation of a NONLOCAL operator look unaffordable -- cf. the cost note in `RandomPhase.gmres`, which
+        declined to assemble such a matrix for this reason. Splitting the kernel at r_m,
+
+            Y^k(r_m)/r_m  =  r_m^(-k-1) SUM_(i<=m) rho_i w_i r_i^k   +   r_m^k SUM_(i>m) rho_i w_i r_i^(-k-1)
+
+        turns it into one forward and one backward partial sum and so into O(mtp) for the whole column. Below the support of rho
+        only the second sum survives and above it only the first, so the kernel is there an exact power of r and is written as
+        such rather than swept. A values::Array{Float64,1} of length mtp is returned.
+"""
+function ykOnGrid(k::Int64, rho::Array{Float64,1}, lower::Int64, upper::Int64, mtp::Int64, grid::Radial.Grid)
+    wa = zeros( mtp )
+    lo = max(lower, 2);    up = min(upper, mtp)
+    up < lo   &&   return( wa )
+
+    # (1) The two partial sums over the support of rho.  The i = m term belongs to the FORWARD sum, exactly as in
+    #     RadialIntegrals.Yk_ab, where min(r,r_i) = max(r,r_i) = r_m leaves rho_m w_m / r_m.
+    loSum = zeros( up - lo + 2 );    hiSum = zeros( up - lo + 2 )
+    for  i = lo:up        loSum[i-lo+2] = loSum[i-lo+1] + rho[i] * grid.wr[i] * grid.r[i]^k           end
+    for  i = up:-1:lo     hiSum[i-lo+1] = hiSum[i-lo+2] + rho[i] * grid.wr[i] / grid.r[i]^(k+1)       end
+    loTotal = loSum[up-lo+2];    hiTotal = hiSum[1]
+
+    # (2) The three regions: below the support, on it, and above it.
+    for  m = 1:lo-1       wa[m] = grid.r[m]^k * hiTotal                                                        end
+    for  m = lo:up        wa[m] = loSum[m-lo+2] / grid.r[m]^(k+1)  +  grid.r[m]^k * hiSum[m-lo+2]              end
+    for  m = up+1:mtp     wa[m] = loTotal / grid.r[m]^(k+1)                                                    end
+
+    return( wa )
+end
 
 
 end # module
