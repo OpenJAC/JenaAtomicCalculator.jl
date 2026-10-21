@@ -25,7 +25,8 @@ using Printf
 
 
 if  true
-    # Last visit:      29-Sep-2026
+    # Last visit:  21-Oct-2026
+    # Last reproduced:  21-Oct-2026 (2 of 2 numbers on the claim line)
     # Last successful: 29-Sep-2026 -- Th(4+) [Rn] gives gamma_inf = -184.95, hence 1 - gamma_inf = 185.95.
     #   VERIFIED AGAINST AN INDEPENDENT RELATIVISTIC CALCULATION: Feiock & Johnson, Phys. Rev. 187, 39 (1969),
     #   quoted by Peik & Okhapkin, C. R. Physique 16, 516 (2015), give about -178 for Rn-like Th(4+) -- so 4 %,
@@ -39,13 +40,14 @@ if  true
     setDefaults("standard grid", grid)
     asf  = AsfSettings(AsfSettings(); scField=Basics.DFSField(1.0))
     wa   = Atomic.Computation(Atomic.Computation(); name="Th4+", grid=grid, nuclearModel=nm,
-                              configs=[conf], asfSettings=asf)
-    mp   = perform(wa; output=true)[ResultKeys.Multiplet]
-    NuclearShielding.computeOutcomes(mp, nm, grid, NuclearShielding.Settings())
+                              configs=[conf], asfSettings=asf,
+                              propertySettings=[NuclearShielding.Settings()] )
+    perform(wa; output=true)
     setDefaults("print summary: close", "")
     #
 elseif  false
-    # Last visit:      29-Sep-2026
+    # Last visit:  21-Oct-2026
+    # Last reproduced:  21-Oct-2026 (all three ions of the claim's table)
     # Last successful: 29-Sep-2026 -- the three CLOSED-SHELL ions of Sternheimer, Phys. Rev. 159, 266 (1967),
     #   Table I.  This work against his RAW values (his published ones carry a hand-applied factor 1/1.1 for his
     #   use of neutral-atom orbitals, which we do not need since we use ion orbitals):
@@ -62,9 +64,10 @@ elseif  false
         conf = Configuration(cstr);   nm = Nuclear.Model(Z)
         grid = Basics.recommendedGrid([conf], nm; printout=false);   setDefaults("standard grid", grid)
         asf  = AsfSettings(AsfSettings(); scField=Basics.DFSField(1.0))
-        mp   = perform(Atomic.Computation(Atomic.Computation(); name=name, grid=grid, nuclearModel=nm,
-                       configs=[conf], asfSettings=asf); output=true)[ResultKeys.Multiplet]
-        out  = NuclearShielding.computeOutcomes(mp, nm, grid, NuclearShielding.Settings(); output=true)
+        wb   = perform(Atomic.Computation(Atomic.Computation(); name=name, grid=grid, nuclearModel=nm,
+                       configs=[conf], asfSettings=asf,
+                       propertySettings=[NuclearShielding.Settings()] ); output=true)
+        out  = wb[NuclearShielding.Settings]
         @printf("\n  >>> %-8s gamma_inf = %9.2f\n\n", name, out[1].gammaE2)
     end
     #
@@ -85,6 +88,14 @@ elseif  false
     asf  = AsfSettings(AsfSettings(); scField=Basics.DFSField(1.0))
     mp   = perform(Atomic.Computation(Atomic.Computation(); name="Th4+", grid=grid, nuclearModel=nm,
                    configs=[conf], asfSettings=asf); output=true)[ResultKeys.Multiplet]
+    #   WHY THIS BRANCH KEEPS ONE perform AND THEN LOOPS THE PROPERTY DIRECTLY, measured 21-Oct-2026 and
+    #   not a shortcut:  the Th4+ [Rn] self-consistent field costs 65.1 s and one shielding computation on it
+    #   0.6 s, so the structure is 99 % of the work and running it once per settings variant would multiply
+    #   this branch's cost by the number of variants for no physics at all.  Passing all the variants in ONE
+    #   propertySettings=[...] does not work either, and it fails SILENTLY: perform keys its results by the
+    #   settings TYPE, so several NuclearShielding.Settings collide on one key and only the LAST survives --
+    #   checked, two settings in and one outcome out.  Branches a, b, e and h, which need their own field per
+    #   variant anyway, do go through the standard route.
     ANG  = 1.0/0.529177210903
     for model in (NuclearShielding.UniformField(),
                   NuclearShielding.NeighbourField([(1.0, 1000.0*ANG)]),
@@ -108,6 +119,14 @@ elseif  false
     asf  = AsfSettings(AsfSettings(); scField=Basics.DFSField(1.0))
     mp   = perform(Atomic.Computation(Atomic.Computation(); name="Th4+", grid=grid, nuclearModel=nm,
                    configs=[conf], asfSettings=asf); output=true)[ResultKeys.Multiplet]
+    #   WHY THIS BRANCH KEEPS ONE perform AND THEN LOOPS THE PROPERTY DIRECTLY, measured 21-Oct-2026 and
+    #   not a shortcut:  the Th4+ [Rn] self-consistent field costs 65.1 s and one shielding computation on it
+    #   0.6 s, so the structure is 99 % of the work and running it once per settings variant would multiply
+    #   this branch's cost by the number of variants for no physics at all.  Passing all the variants in ONE
+    #   propertySettings=[...] does not work either, and it fails SILENTLY: perform keys its results by the
+    #   settings TYPE, so several NuclearShielding.Settings collide on one key and only the LAST survives --
+    #   checked, two settings in and one outcome out.  Branches a, b, e and h, which need their own field per
+    #   variant anyway, do go through the standard route.
     for nv in (1, 2, 5, 10, 20, 0)
         out = NuclearShielding.computeOutcomes(mp, nm, grid,
                   NuclearShielding.Settings(NuclearShielding.Settings(); nVirtualMax=nv); output=true)
@@ -115,7 +134,7 @@ elseif  false
     end
     #
 elseif  false
-    # Last visit:  18-Oct-2026
+    # Last visit:  21-Oct-2026 (RAISED AS DESIGNED -- both guards fired)
     # Last successful: 29-Sep-2026 -- A GUARD TEST: both calls below MUST raise, and raising is the pass.
     #   (i)  an OPEN-SHELL ion.  A shielding factor is the SCALAR response of a spherical ion; for an open shell
     #        the response is not one number and the factorisation does not apply.  Returning something plausible
@@ -133,9 +152,8 @@ elseif  false
         grid = Basics.recommendedGrid([conf], nm; printout=false);   setDefaults("standard grid", grid)
         asf  = AsfSettings(AsfSettings(); scField=Basics.DFSField(1.0))
         try
-            mp = perform(Atomic.Computation(Atomic.Computation(); name="x", grid=grid, nuclearModel=nm,
-                         configs=[conf], asfSettings=asf); output=true)[ResultKeys.Multiplet]
-            NuclearShielding.computeOutcomes(mp, nm, grid, sets)
+            perform(Atomic.Computation(Atomic.Computation(); name="x", grid=grid, nuclearModel=nm,
+                    configs=[conf], asfSettings=asf, propertySettings=[sets] ); output=true)
             @printf("\n  >>> %-28s DID NOT RAISE -- this is a FAILURE of the guard.\n\n", what)
         catch err
             @printf("\n  >>> %-28s raised as designed:\n       %s\n\n", what,
@@ -260,6 +278,9 @@ elseif  false
         cpMp = open(cpT,"w") do io;  redirect_stdout(io) do
                    perform(Atomic.Computation(Atomic.Computation(); name=cpName, grid=cpG, nuclearModel=cpNm,
                            configs=[cpC], asfSettings=cpA); output=true)[ResultKeys.Multiplet]  end  end
+        # ONE field per ion, then BOTH settings on it -- the same economics as branches c and d: the SCF is
+        # 65.1 s against 0.6 s for the property, and two NuclearShielding.Settings in one propertySettings
+        # would collide on a single result key and silently lose the first.
         cpV = Float64[]
         for  cpS  in  (cpSets0, cpSets1)
             cpO = open(cpT,"w") do io;  redirect_stdout(io) do
@@ -276,7 +297,8 @@ elseif  false
     #
 
 elseif  false
-    # Last visit:      04-Oct-2026
+    # Last visit:  21-Oct-2026
+    # Last reproduced:  21-Oct-2026 (3 of 3 numbers of the grid table)
     # Last successful: 04-Oct-2026 -- THE GRID, AND THE ONE THING THAT DECIDES WHETHER A SHIELDING FACTOR IS REAL.
     #   gamma_inf is NOT box-dependent, which is the opposite of what was believed for a day.  What decides it is
     #   the SPLINE DENSITY, nsL / r_box.  Hold that fixed and the box may be enlarged tenfold with no change;
@@ -306,9 +328,9 @@ elseif  false
         setDefaults("standard grid", cpG)
         cpT = tempname()
         cpO = open(cpT,"w") do io;  redirect_stdout(io) do
-                  cpMp = perform(Atomic.Computation(Atomic.Computation(); name="Y^3+", grid=cpG, nuclearModel=cpNm,
-                                 configs=[cpConf], asfSettings=cpAsf); output=true)[ResultKeys.Multiplet]
-                  NuclearShielding.computeOutcomes(cpMp, cpNm, cpG, NuclearShielding.Settings(); output=true)[1]
+                  perform(Atomic.Computation(Atomic.Computation(); name="Y^3+", grid=cpG, nuclearModel=cpNm,
+                          configs=[cpConf], asfSettings=cpAsf,
+                          propertySettings=[NuclearShielding.Settings()] ); output=true)[NuclearShielding.Settings][1]
               end  end
         rm(cpT, force=true)
         cpA1 = maximum(abs(c.value) for c in cpO.contributions) / abs(cpO.gammaE2)
