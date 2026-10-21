@@ -94,6 +94,7 @@ elseif  char == 'D'
     println("Dt) Apply & test the CrystalFieldEmission module (crystal-field-resolved transitions) with initial- and final-state multiplets declared directly via Atomic.Computation.")
     println("Dw) Apply & test the GeneralizedOscillatorStrength module: generalized oscillator strengths f_n(K) of the Bethe theory, for bound-bound transitions.")
     println("Dx) Apply & test the PhotoRecombinationInterference module: RR and DR amplitudes added coherently; interference in the cross section, beta_2 and the photon polarization.")
+    println("Dy) Apply & test the PhotoIonizationInterference module: direct PI and resonant (excitation+autoionization) amplitudes added coherently; the Fano interference term in the cross section.")
     #
 elseif  char == 'E'
     println("E)  Examples, tests & development of composed atomic processes")

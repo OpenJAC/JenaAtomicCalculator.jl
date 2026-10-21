@@ -966,6 +966,72 @@ end
 
 
 """
+`TestFrames.testModule_PhotoIonizationInterference(; short::Bool=true)`  ... tests on module
+    PhotoIonizationInterference; a success::Bool is returned.
+"""
+function testModule_PhotoIonizationInterference(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-PhotoIonizationInterference-new.sum")
+    printstyled("\n\nTest the module  PhotoIonizationInterference  ... \n", color=:cyan)
+    # A SANITY test on the module's own internal consistency, needing no stored reference, the time-reversed
+    # counterpart of TestFrames.testModule_PhotoRecombinationInterference's own check. With includeResonance =
+    # false the coherent sum must collapse to plain photoionization, so the module has to reproduce
+    # PhotoIonization exactly -- not approximately, since it is then evaluating the same amplitude -- and both
+    # the resonant and the interference term must be identically zero. Be-like Fe22+ is the TIME REVERSE of
+    # example-Dx.jl branch a's own Li-like Fe23+ system: the SAME three configurations, with initial and final
+    # swapped relative to the recombination picture.
+    success  = true;   printTest, iostream = Defaults.getDefaults("test flag/stream")
+    grid     = Radial.Grid(Radial.Grid(false), rnt = 2.0e-6, h = 5.0e-2, hp = 1.0e-2, rbox = 4.0)
+    Defaults.setDefaults("standard grid", grid)
+    nModel   = Nuclear.Model(26.)
+    photonEnergies = [2200.0]   ## ionization threshold (f-i) measured at 1944.6 eV; this clears it with margin
+    iConfigs = [Configuration("1s^2 2s^2")];   mConfigs = [Configuration("1s 2s^2 2p")]
+    fConfigs = [Configuration("1s^2 2s")]
+
+    piSet   = PhotoIonization.Settings(PhotoIonization.Settings(); multipoles=[E1], gauges=[UseCoulomb],
+                  photonEnergies=photonEnergies, calcAnisotropy=false, printBefore=false)
+    piLines = perform( Atomic.Computation(Atomic.Computation(), name="PI reference", grid=grid, nuclearModel=nModel,
+                  initialConfigs=iConfigs, finalConfigs=fConfigs, processSettings=piSet);
+                  output=true )[PhotoIonization.Settings]
+    priiSet  = PhotoIonizationInterference.Settings(PhotoIonizationInterference.Settings();
+                  multipoles=[E1], gauges=[UseCoulomb], photonEnergies=photonEnergies,
+                  includePI=true, includeResonance=false, calcAnisotropy=false, printBefore=false)
+    priiPaths = perform( Atomic.Computation(Atomic.Computation(), name="PI limit of the interference module",
+                  grid=grid, nuclearModel=nModel, initialConfigs=iConfigs, intermediateConfigs=mConfigs,
+                  finalConfigs=fConfigs, processSettings=priiSet);
+                  output=true )[PhotoIonizationInterference.Settings]
+
+    if  length(priiPaths) == 0
+        success = false
+        if printTest   info(iostream, "no interference pathways were returned")   end
+    end
+    for  p  in  priiPaths
+        # (1) the resonant and interference terms must vanish IDENTICALLY when the resonance is switched off
+        if  p.crossSectionResonant.Coulomb != 0.0   ||   p.interference.Coulomb != 0.0
+            success = false
+            if printTest   info(iostream, "with includeResonance = false, sigma_resonant = " *
+                                "$(p.crossSectionResonant.Coulomb) and interference = $(p.interference.Coulomb); " *
+                                "both must be identically zero")   end
+        end
+        # (2) what remains must BE photoionization, evaluated by the other module
+        for  l  in  piLines
+            if  abs(l.photonEnergy - p.photonEnergy) < 1.0e-10  &&  l.finalLevel.index == p.finalLevel.index
+                ratio = p.crossSectionPI.Coulomb / l.crossSection.Coulomb
+                if  abs(ratio - 1.0) > 1.0e-8
+                    success = false
+                    if printTest   info(iostream, "the PI limit gives $(p.crossSectionPI.Coulomb) against " *
+                                        "PhotoIonization's $(l.crossSection.Coulomb), ratio $ratio")   end
+                end
+            end
+        end
+    end
+
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_PhotoIonizationInterference()::", success)
+    return(success)
+end
+
+
+"""
 `TestFrames.testModule_PhotoRecombinationInterference(; short::Bool=true)`  ... tests on module
     PhotoRecombinationInterference; a success::Bool is returned.
 """

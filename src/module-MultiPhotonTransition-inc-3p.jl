@@ -121,7 +121,7 @@ function checkSharings_3p(energy::Float64, noSharings::Int64)
         end
         push!( results, (name, exact, quad, abs(quad - exact) / abs(exact)) )
     end
-    return( results )
+    return( results isa Dict{String,Any} ? Basics.PerformResults(results) : results )
 end
 
 

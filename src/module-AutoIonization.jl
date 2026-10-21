@@ -306,6 +306,33 @@ end
 
 
 """
+`AutoIonization.amplitudeForPhotoionizationConvention(kind::AbstractEeInteraction, kappa::Int64, phase::Float64,
+                                                      continuumLevel::Level, initialLevel::Level, grid::Radial.Grid;
+                                                      printout::Bool=true)`
+    ... to compute the SAME outgoing-wave Auger decay amplitude as `AutoIonization.amplitude`, but with the real reduced matrix
+        element multiplied by i^(-l) exp(-i phase) -- `PhotoIonization.amplitude`'s own continuum-phase convention -- rather than
+        this module's native i^(+l) exp(-i phase). A value::ComplexF64 is returned.
+
+        WHY THIS EXISTS, AND WHY A PLAIN CALL TO `amplitude` IS NOT IT. Both conventions share the SAME phase factor exp(-i phase)
+        -- both describe an OUTGOING continuum electron -- but differ in the l-PREFACTOR: i^(+l) here against i^(-l) there, a
+        mismatch of i^(2l) = (-1)^l. That factor is harmless in any quantity that squares the amplitude (an ordinary Auger rate,
+        for instance), which is why it is easy to miss; it is NOT harmless when this amplitude is added COHERENTLY to a
+        `PhotoIonization` amplitude reaching the same (f, kappa) channel, as in `PhotoIonizationInterference`, because (-1)^l
+        depends on the partial wave and therefore reweights the partial waves against one another inside the coherent sum. This is
+        the exact counterpart, for photoionization, of why `AutoIonization.captureAmplitude` exists for recombination -- there the
+        two conventions differ in the PHASE (exp(+i phase) against exp(-i phase)); here they differ in the L-PREFACTOR instead,
+        so the fix is a real sign (-1)^l rather than a phase rotation exp(2i phase).
+"""
+function amplitudeForPhotoionizationConvention(kind::AbstractEeInteraction, kappa::Int64, phase::Float64, continuumLevel::Level,
+                                               initialLevel::Level, grid::Radial.Grid; printout::Bool=true)
+    wa = AutoIonization.amplitude(kind, kappa, phase, continuumLevel, initialLevel, grid; printout=printout)
+    l  = Basics.subshell_l(Subshell(101, kappa))
+
+    return( wa * (-1)^l )
+end
+
+
+"""
 `AutoIonization.amplitude(kind::AbstractEeInteraction, kappa::Int64, phase::Float64, continuumLevel::Level,
                           initialLevel::Level, grid::Radial.Grid, plasmaModel::Basics.AbstractPlasmaModel; printout::Bool=true)`
     ... to compute the Auger amplitude as AutoIonization.amplitude(...) above, but with the electron-electron Coulomb interaction

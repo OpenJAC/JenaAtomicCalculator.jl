@@ -133,7 +133,8 @@ export AbstractComputeTheme, AbstractConfigurationRestriction, AbstractConfigura
        PairA1P, Parity,
        ParticleScattering, PathwaySelection, perform, PeriodicTable, Photo, PhotoDouble, PhotoDoubleIonization,
        PhotoEmission, PhotoExc, PhotoExcAuto, PhotoExcFluor, PhotoExcitation, PhotoExcitationAutoion,
-       PhotoExcitationFluores, PhotoIonization, PhotonScattering, PhotoRecombination, PhotoRecombinationInterference, PhysicalConstants, Plasma, plus,
+       PhotoExcitationFluores, PhotoIonization, PhotoIonizationInterference, PhotonScattering, PhotoRecombination,
+       PhotoRecombinationInterference, PhysicalConstants, Plasma, plus,
        PointNucleus, PrintWarnings, Pulse,
        QedPetersburg, QedSydney,
        RacahAlgebra, RacahExpression, Radial, RadialIntegrals, RadialOrbitalsBoth, RadialOrbitalsLarge,
@@ -245,6 +246,7 @@ include("module-DecayYield.jl")
 include("module-ImpactExcitation.jl")
 include("module-CoulombExcitation.jl")
 include("module-PhotoRecombinationInterference.jl")
+include("module-PhotoIonizationInterference.jl")
 include("module-GeneralizedOscillatorStrength.jl")
 end
 

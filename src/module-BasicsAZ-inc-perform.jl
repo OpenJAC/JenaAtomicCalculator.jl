@@ -79,6 +79,7 @@ function  resultKeyStrings(T::Type)
     T === MultiPhotonIonization.Settings    &&  return( ["multi-photon single ionization:"] )
     T === CrystalFieldEmission.Settings     &&  return( ["crystal-field-resolved emission lines:"] )
     T === PhotoRecombinationInterference.Settings  &&  return( ["photorecombination-interference pathways:"] )
+    T === PhotoIonizationInterference.Settings     &&  return( ["photoionization-interference pathways:"] )
     T === GeneralizedOscillatorStrength.Settings   &&  return( ["generalized oscillator strengths:"] )
 
     # --- the cascade and simulation results, which have a scheme rather than a settings type
@@ -209,7 +210,8 @@ function  allResultKeyTypes()
             InternalConversion.Settings, TwoElectronOnePhoton.Settings, ParticleScattering.Settings,
             PhotonScattering.Settings, BeamPhotoExcitation.Settings, HyperfineInduced.Settings,
             MultiPhotonIonization.Settings, CrystalFieldEmission.Settings,
-            PhotoRecombinationInterference.Settings, GeneralizedOscillatorStrength.Settings ] )
+            PhotoRecombinationInterference.Settings, PhotoIonizationInterference.Settings,
+            GeneralizedOscillatorStrength.Settings ] )
 end
 
 
@@ -396,7 +398,7 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
         #
         if typeof(computation.processSettings) in [PhotoExcitationFluores.Settings, PhotoExcitationAutoion.Settings,
                                                    DielectronicRecombination.Settings, ResonantInelastic.Settings,
-                                                   PhotoRecombinationInterference.Settings]
+                                                   PhotoRecombinationInterference.Settings, PhotoIonizationInterference.Settings]
             intermediateMultiplet = SelfConsistent.performSCF(computation.intermediateConfigs, nModel, computation.grid, computation.intermediateAsfSettings)
             if  output   results["intermediateMultiplet"] = intermediateMultiplet    end 
         end
@@ -521,6 +523,10 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
             outcome = PhotoRecombinationInterference.computePathways(finalMultiplet, intermediateMultiplet, initialMultiplet, nModel,
                                                                      computation.grid, computation.processSettings)
             if output    results = Base.merge( results, Dict("photorecombination-interference pathways:" => outcome) )    end
+        elseif  typeof(computation.processSettings) == PhotoIonizationInterference.Settings
+            outcome = PhotoIonizationInterference.computePathways(finalMultiplet, intermediateMultiplet, initialMultiplet, nModel,
+                                                                  computation.grid, computation.processSettings)
+            if output    results = Base.merge( results, Dict("photoionization-interference pathways:" => outcome) )    end
         elseif  typeof(computation.processSettings) == GeneralizedOscillatorStrength.Settings
             outcome = GeneralizedOscillatorStrength.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings)
             if output    results = Base.merge( results, Dict("generalized oscillator strengths:" => outcome) )    end
