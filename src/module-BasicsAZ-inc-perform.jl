@@ -51,6 +51,7 @@ function  resultKeyStrings(T::Type)
     T === ReducedDensityMatrix.Settings     &&  return( ["RDM outcomes:"] )
     T === WeakInteractionEnhancement.Settings  &&  return( ["Weak-interaction enhancement outcomes:"] )
     T === CrystalField.Settings             &&  return( ["Crystal-field splitting outcomes:"] )
+    T === NuclearShielding.Settings         &&  return( ["Nuclear-shielding outcomes:"] )
     # --- the one process of the computation
     T === AutoIonization.Settings           &&  return( ["AutoIonization lines:", "autoionization lines:"] )
     T === RayleighCompton.Settings          &&  return( ["Rayleigh-Compton lines:"] )
@@ -201,7 +202,7 @@ function  allResultKeyTypes()
             Einstein.Settings, Hfs.Settings, LandeZeeman.Settings, StarkShift.Settings, StarkZeeman.Settings,
             IsotopeShift.Settings, AlphaVariation.Settings, FormFactor.Settings, DecayYield.Settings,
             MultipolePolarizibility.Settings, DispersionCoefficient.Settings, ReducedDensityMatrix.Settings,
-            WeakInteractionEnhancement.Settings, CrystalField.Settings,
+            WeakInteractionEnhancement.Settings, CrystalField.Settings, NuclearShielding.Settings,
             AutoIonization.Settings, RayleighCompton.Settings, ElectronCapture.Settings,
             DoubleAutoIonization.Settings, DielectronicRecombination.Settings, MultiPhotonTransition.Settings,
             PhotoIonization.Settings, PhotoDoubleIonization.Settings, PhotoExcitation.Settings,
@@ -390,6 +391,10 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
             elseif  typeof(settings) == CrystalField.Settings
                 outcome = CrystalField.computeOutcomes(multiplet, nModel, computation.grid, settings)
                 if output    results = Base.merge( results, Dict("Crystal-field splitting outcomes:" => outcome) )        end
+                #
+            elseif  typeof(settings) == NuclearShielding.Settings
+                outcome = NuclearShielding.computeOutcomes(multiplet, nModel, computation.grid, settings)
+                if output    results = Base.merge( results, Dict("Nuclear-shielding outcomes:" => outcome) )              end
                 #
             end
         end
