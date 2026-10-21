@@ -264,6 +264,20 @@ end
         defensible, so none is imposed. Bsplines.checkOrbitalConsistency remains the guard for that side: a starved subshell shows up as its
         two spin-orbit partners ceasing to describe the same shell.
 
+        AND A FLAG HERE IS NOT A DEFECT: a COUNT of these warnings is not a count of damage. The ratio measures where
+        the tail EXISTS, not how much WEIGHT it carries. Of eight flagged example branches examined on 20/21-Oct-2026 the energy error ran
+        0.002-0.04 % in five, 1-3 % in two and 29 % in one, and on a second pass every one of the eight proved harmless. THE DISCRIMINATOR
+        IS THE FLAGGED ORBITAL'S Z_eff ~ Z - N + 1 *AND* ITS n, BOTH CONDITIONS: an orbital is genuinely at risk when Z_eff ~ 1 AND n >= 3,
+        i.e. when it lies OUTSIDE the bulk of the electronic charge, whereas Z_eff >= 2 is safe even at extent/box = 0.99. A VALENCE orbital
+        of a compact neutral atom passes Z_eff ~ 1 and is NOT at risk, because its own shell partners screen it poorly: neutral C I
+        1s^2 2s^2 2p^2 with 2p_1/2 at 0.971 of a 10.1 a.u. box moves the total energy by 2.8e-06 relative against a matched 17.0 a.u. box,
+        and `Basics.recommendedGrid` reports that box as set by 2s seeing Z_eff = 3.25, while <r>(2p) = 1.84 a.u. makes 10 a.u. 5.4 mean
+        radii wide. The test that settles such a case needs THREE boxes rather than two, since the spread between two ADEQUATE boxes is the
+        scale against which a flagged one must be judged: for that C I branch the two adequate boxes differ by 0.402 % over ten impact
+        energies while the flagged box differs from the wider of them by 0.309 % and lies BETWEEN them at every energy, which truncation
+        cannot do. Two further false-positive classes: pseudo-states, which MUST fill their box, and a warning read against the wrong
+        CONFIGURATION, since the label names an orbital while the damage depends on the configuration it sits in.
+
     + orbitals         ::Dict{Subshell,Orbital}  ... the CONVERGED orbitals.
     + grid             ::Radial.Grid             ... the grid they were computed on.
     + extentTolerance  ::Float64                 ... largest tolerated rEnd/rbox before the orbital counts as cut off.
