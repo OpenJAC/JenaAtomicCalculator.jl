@@ -202,8 +202,9 @@
 module MultipolePolarizibility
 
 
-using Printf, ..AngularMomentum, ..AtomicState, ..Basics, ..Bsplines, ..Defaults, ..ManyElectron, ..MultipoleMoment,
-      ..Nuclear, ..PhotoEmission, ..Radial, ..TableStrings
+using Printf, ..AngularMomentum, ..AtomicState, ..Basics, ..Bsplines, ..DalgarnoLewis, ..Defaults,
+      ..InteractionStrength, ..ManyElectron, ..MultipoleMoment, ..Nuclear, ..PhotoEmission, ..Radial,
+      ..RadialIntegrals, ..RandomPhase, ..TableStrings
 
 
 """
@@ -292,6 +293,14 @@ end
                                                                     i*omega is an internal device for dispersion
                                                                     coefficients rather than a property anyone asks
                                                                     for on its own.
+    + alphaCore      ::Array{Tuple{Float64,Float64},1}          ... (omega, alpha_core(omega)) for every frequency, when
+                                                                    Settings.calcCore is true, and empty otherwise. This
+                                                                    is the CLOSED subshells' polarizability from a
+                                                                    complete basis, so it is ADDITIVE to the alphas above
+                                                                    and deliberately kept apart from them rather than
+                                                                    summed in: the two are computed by different routes
+                                                                    with different accuracies, and adding them silently
+                                                                    would hide which.
 """
 struct Outcome
     level          ::Level
@@ -299,6 +308,7 @@ struct Outcome
     alpha2         ::EmProperty
     contributions  ::Array{MultipolePolarizibility.Contribution,1}
     alphas         ::Array{Tuple{EmMultipole,Int64,Float64,EmProperty},1}
+    alphaCore      ::Array{Tuple{Float64,Float64},1}
 end
 
 
@@ -309,7 +319,7 @@ end
 """
 function Outcome()
     Outcome(Level(), EmProperty(0.), EmProperty(0.), MultipolePolarizibility.Contribution[],
-            Tuple{EmMultipole,Int64,Float64,EmProperty}[])
+            Tuple{EmMultipole,Int64,Float64,EmProperty}[], Tuple{Float64,Float64}[])
 end
 
 
@@ -355,6 +365,14 @@ end
     + printBefore               ::Bool                  ... True if a list of selected levels is printed before the
                                                             actual computations start.
     + levelSelection            ::LevelSelection        ... Specifies the selected levels, if any.
+    + calcCore                  ::Bool                  ... True if the CORE polarizability of the level's CLOSED
+                                                              subshells is to be computed as well, from a COMPLETE
+                                                              B-spline basis rather than from gMultiplet -- see
+                                                              MultipolePolarizibility.computeCorePolarizability for
+                                                              why that is a different calculation and not a better
+                                                              perturber list. It needs no gMultiplet, it is reported
+                                                              in its own table, and it is evaluated at every
+                                                              frequency in omegas as well as at omega = 0.
 """
 struct Settings  <:  AbstractPropertySettings
     multipoles                  ::Array{EmMultipole,1}
@@ -363,6 +381,7 @@ struct Settings  <:  AbstractPropertySettings
     helicity                    ::Int64
     printBefore                 ::Bool
     levelSelection              ::LevelSelection
+    calcCore                    ::Bool
 end
 
 
@@ -371,14 +390,14 @@ end
     ... constructor for an `empty` instance of MultipolePolarizibility.Settings for the computation dynamic polarizibilities.
 """
 function Settings()
-    Settings(EmMultipole[], Multiplet(), Float64[], 0, false, LevelSelection() )
+    Settings(EmMultipole[], Multiplet(), Float64[], 0, false, LevelSelection(), false )
 end
 
 
 """
 `MultipolePolarizibility.Settings(set::MultipolePolarizibility.Settings;`
 
-        multipoles=.., gMultiplet=.., omegas=.., helicity=.., printBefore=.., levelSelection=..)
+        multipoles=.., gMultiplet=.., omegas=.., helicity=.., printBefore=.., levelSelection=.., calcCore=..)
 
     ... keyword copy-constructor for re-defining selected values of a settings::MultipolePolarizibility.Settings.
 """
@@ -387,15 +406,16 @@ function Settings(set::MultipolePolarizibility.Settings;
         gMultiplet::Union{Nothing,Multiplet}=nothing,
         omegas::Union{Nothing,Array{Float64,1}}=nothing,   helicity::Union{Nothing,Int64}=nothing,
         printBefore::Union{Nothing,Bool}=nothing,
-        levelSelection::Union{Nothing,LevelSelection}=nothing)
+        levelSelection::Union{Nothing,LevelSelection}=nothing,   calcCore::Union{Nothing,Bool}=nothing)
     if  isnothing(multipoles)       multipolesx     = set.multipoles     else   multipolesx     = multipoles     end
     if  isnothing(gMultiplet)       gMultipletx     = set.gMultiplet     else   gMultipletx     = gMultiplet     end
     if  isnothing(omegas)           omegasx         = set.omegas         else   omegasx         = omegas         end
     if  isnothing(helicity)         helicityx       = set.helicity       else   helicityx       = helicity       end
     if  isnothing(printBefore)      printBeforex    = set.printBefore    else   printBeforex    = printBefore    end
     if  isnothing(levelSelection)   levelSelectionx = set.levelSelection else   levelSelectionx = levelSelection end
+    if  isnothing(calcCore)         calcCorex       = set.calcCore       else   calcCorex       = calcCore       end
 
-    Settings( multipolesx, gMultipletx, omegasx, helicityx, printBeforex, levelSelectionx )
+    Settings( multipolesx, gMultipletx, omegasx, helicityx, printBeforex, levelSelectionx, calcCorex )
 end
 
 
@@ -408,6 +428,7 @@ function Base.show(io::IO, settings::MultipolePolarizibility.Settings)
     println(io, "helicity:                 $(settings.helicity)  ")
     println(io, "printBefore:              $(settings.printBefore)  ")
     println(io, "levelSelection:           $(settings.levelSelection)  ")
+    println(io, "calcCore:                 $(settings.calcCore)  ")
 end
 
 
@@ -763,11 +784,35 @@ end
         settings.multipoles (or gMultiplet is empty), alpha0=alpha2=0. is returned without further computation.
 """
 function  computeAmplitudesProperties(outcome::MultipolePolarizibility.Outcome, gMultiplet::Multiplet,
-                                       grid::Radial.Grid, settings::MultipolePolarizibility.Settings)
-    if  isempty(settings.multipoles)  ||  isempty(gMultiplet.levels)   return  outcome   end
-
+                                       nm::Nuclear.Model, grid::Radial.Grid,
+                                       primitives::Union{Nothing,Bsplines.Primitives},
+                                       settings::MultipolePolarizibility.Settings)
     alphas = Tuple{EmMultipole,Int64,Float64,EmProperty}[];   contributions = MultipolePolarizibility.Contribution[]
     alpha0 = EmProperty(0.);                                  alpha2        = EmProperty(0.)
+    alphaCore = Tuple{Float64,Float64}[]
+
+    ## THE CORE PART IS INDEPENDENT OF gMultiplet, which is the whole point of it, so it is computed BEFORE the
+    ## early return below and survives a computation that has no perturber list at all.
+    ## AND AN EMPTY alphaCore MEANS EXACTLY ONE THING: this level has NO closed subshell.  The check is made here,
+    ## before the loop, so that such a level gets no entry at all rather than an entry reading alpha_core = 0 --
+    ## which would say "the core does not polarize" where the truth is "there is no core".
+    if  settings.calcCore  &&  !isnothing(primitives)  &&
+            !isempty( MultipolePolarizibility.closedSubshells(outcome.level) )
+        for  omega  in  unique( vcat(0.0, settings.omegas) )
+            al, dEps = MultipolePolarizibility.computeCorePolarizability(outcome.level, nm, grid, primitives, omega)
+            push!( alphaCore, (omega, al) )
+            if  dEps > 1.0e-6
+                @warn("MultipolePolarizibility: the core orbitals REGENERATED in the DFS potential of this level's " *
+                      "basis differ from the stored ones by up to $(dEps) a.u. in orbital energy.  The level was " *
+                      "optimized by a route this potential does not reproduce, so alpha_core is not trustworthy here.")
+            end
+        end
+    end
+
+    if  isempty(settings.multipoles)  ||  isempty(gMultiplet.levels)
+        return  MultipolePolarizibility.Outcome(outcome.level, outcome.alpha0, outcome.alpha2,
+                                                outcome.contributions, outcome.alphas, alphaCore)
+    end
 
     ## omega = 0. IS ALWAYS COMPUTED, whether or not the caller listed it, because alpha0/alpha2 of the Outcome are
     ## defined as the STATIC scalar and tensor polarizabilities and several callers read them. It is also computed
@@ -793,7 +838,148 @@ function  computeAmplitudesProperties(outcome::MultipolePolarizibility.Outcome, 
         end
     end
 
-    return  MultipolePolarizibility.Outcome(outcome.level, alpha0, alpha2, contributions, alphas)
+    return  MultipolePolarizibility.Outcome(outcome.level, alpha0, alpha2, contributions, alphas, alphaCore)
+end
+
+
+"""
+`MultipolePolarizibility.closedSubshells(level::Level)`
+    ... returns those subshells of the given level whose occupation is FULL, i.e. 2j+1, together with that occupation,
+        as the pairs a core polarizability is to be summed over. The occupations are read from the level's LEADING CSF,
+        which is sufficient because a subshell that is closed in one CSF of a bound level is closed in all of them; the
+        subshell list is taken from the BASIS or from the CSF according to that CSF's own `useStandardSubshells` flag,
+        which is what the field means and cannot be guessed from the CSF alone.
+        **A PARTIALLY FILLED SUBSHELL IS DELIBERATELY EXCLUDED, and that is the physics rather than a limitation:** its
+        response is the valence excitation the sum-over-states route computes from `Settings.gMultiplet`, where the
+        individual perturber levels and their energies are what matter. A `Dict{Subshell,Float64}` is returned, empty
+        for a level with no closed subshell at all.
+"""
+function closedSubshells(level::Level)
+    occ = Dict{Subshell,Float64}()
+    isempty(level.basis.csfs)  &&  return( occ )
+    csf  = level.basis.csfs[1]
+    ## `CsfR.subshells` is filled ONLY when useStandardSubshells == false;  otherwise the list belongs to the basis.
+    subs = csf.useStandardSubshells ? level.basis.subshells : csf.subshells
+    for  (i, sh)  in  enumerate(subs)
+        i > length(csf.occupation)   &&   break
+        if  csf.occupation[i] == Basics.subshell_2j(sh) + 1    occ[sh] = Float64(csf.occupation[i])    end
+    end
+
+    return( occ )
+end
+
+
+"""
+`MultipolePolarizibility.radialDrive(aSub::Subshell, tSub::Subshell, orbitals::Dict{Subshell,Orbital},
+                                        primitives::Bsplines.Primitives, grid::Radial.Grid)`
+    ... returns the correction vector that turns `DalgarnoLewis.solve`'s own static drive into the PURE RADIAL drive r,
+        as an `Array{Float64,1}` to be handed to that function's `extraSource`. It is needed because `solve` with
+        `staticDrive = true` builds its source from `InteractionStrength.eMultipole`, which carries the angular
+        reduction, whereas the assembly below wants the bare radial operator with the angular factor applied
+        separately and visibly -- the discipline Rule 18 asks for. The vector is therefore R_i - b_i, the difference of
+        the two drives over the B-spline basis. An `Array{Float64,1}` of length nsL+nsS is returned.
+
+        A future `drive = :radial` option in `DalgarnoLewis.solve` would make this helper unnecessary; it lives here
+        rather than there so that this change touches one module.
+"""
+function radialDrive(aSub::Subshell, tSub::Subshell, orbitals::Dict{Subshell,Orbital},
+                        primitives::Bsplines.Primitives, grid::Radial.Grid)
+    nsL = grid.nsL;   nsS = grid.nsS;   R = zeros(nsL+nsS);   b = zeros(nsL+nsS)
+    for  i = 1:nsL
+        full = zeros(grid.NoPoints);   bsp = primitives.bsplinesL[i];   full[bsp.lower:bsp.upper] = bsp.bs
+        syn  = Orbital(tSub, false, true, orbitals[aSub].energy, full, zeros(grid.NoPoints),
+                       zeros(grid.NoPoints), zeros(grid.NoPoints), Radial.Grid())
+        R[i] = RadialIntegrals.rkDiagonal(1, orbitals[aSub], syn, grid)
+        b[i] = InteractionStrength.eMultipole(1, orbitals[aSub], syn, grid)
+    end
+    for  i = 1:nsS
+        full = zeros(grid.NoPoints);   bsp = primitives.bsplinesS[i];   full[bsp.lower:bsp.upper] = bsp.bs
+        syn  = Orbital(tSub, false, true, orbitals[aSub].energy, zeros(grid.NoPoints), full,
+                       zeros(grid.NoPoints), zeros(grid.NoPoints), Radial.Grid())
+        R[nsL+i] = RadialIntegrals.rkDiagonal(1, orbitals[aSub], syn, grid)
+        b[nsL+i] = InteractionStrength.eMultipole(1, orbitals[aSub], syn, grid)
+    end
+
+    return( R - b )
+end
+
+
+"""
+`MultipolePolarizibility.computeCorePolarizability(level::Level, nm::Nuclear.Model, grid::Radial.Grid,
+                                                      primitives::Bsplines.Primitives, omega::Float64;
+                                                      scField::Basics.AbstractScField = Basics.DFSField())`
+    ... computes the dipole polarizability of the level's CLOSED subshells from a COMPLETE B-spline basis, by solving
+        the Dalgarno-Lewis equation in each channel the rank-1 operator reaches instead of summing over a perturber
+        list. A `value::Float64` is returned, in atomic units, together with the largest orbital-energy inconsistency
+        found (see below) as the second member of a tuple.
+
+        **WHY THIS IS A DIFFERENT CALCULATION AND NOT A BETTER PERTURBER LIST.** For a closed shell the CONTINUUM
+        carries about 35 % of the polarizability (18.6 % for hydrogen's 1s), so a sum over bound perturbers cannot
+        converge to it: measured on Na+ with 2p^5 ns + 2p^5 nd, n <= 8, the sum gives 1.1213 / 0.8719 / 0.6861 / 0.6135
+        at rbox = 12 / 20 / 32 / 50 a.u., a monotone slide in which the box has become a fitted parameter. The chi
+        solved here saturates each channel, so there is no perturber set to choose: the same quantity comes out as
+        1.277625 / 1.277776 / 1.277831 / 1.277876 over rbox = 40 to 200 a.u., a spread of 2.0e-4 across a fivefold
+        change of box.
+
+        **THE FREQUENCY NEEDS TWO SOLVES, which is the only thing that differs from the static case.** The two energy
+        denominators dE - omega and dE + omega no longer coincide, so chi is solved at targetEnergy = E_a +- omega and
+        each contraction carries 1/3; at omega = 0 the two solves are identical and the 1/3 + 1/3 reproduces the
+        static 2/3 exactly, which is the calibration of this prefactor (measured: identical to the last bit).
+
+        **THE CONSISTENCY GUARD, and it is returned rather than printed, so a caller can act on it.** The chi equation's
+        Hamiltonian must be the operator its source orbital is an eigenfunction of, so the core orbitals are
+        REGENERATED here in the DFS potential built from the level's own basis rather than taken from that basis. The
+        second member of the returned tuple is the largest |eps(regenerated) - eps(stored)| over the closed subshells;
+        a value that is not small says the level was optimized by a route this potential does not reproduce, and the
+        core number should not be trusted. `scField` names the mean field to regenerate them in and must be the one
+        the level itself was computed with -- `Basics.NuclearField()` builds the bare nuclear potential, which is what
+        makes a hydrogenic closed subshell an EXACT test of this routine: a 1s^2 shell at charge Z then has
+        alpha = 2 * 9/(2 Z^4) with no screening and no literature in it.
+
+        **WHAT LIMITS THE RESULT IS NOT THE BASIS BUT THE MEAN FIELD.** The induced field of the other core electrons
+        is absent here, so the number is the UNSCREENED one -- 1.351 times the RRPA value for Na+. Screening is
+        `RandomPhase`'s business and its exchange half is not yet wired, so this routine deliberately reports the
+        unscreened polarizability rather than a partially screened one.
+"""
+function computeCorePolarizability(level::Level, nm::Nuclear.Model, grid::Radial.Grid,
+                                      primitives::Bsplines.Primitives, omega::Float64;
+                                      scField::Basics.AbstractScField = Basics.DFSField())
+    occ = MultipolePolarizibility.closedSubshells(level)
+    isempty(occ)  &&  return( (0.0, 0.0) )
+
+    shells = sort( collect(keys(occ)), by = sh -> (sh.n, sh.kappa) )
+    pot    = isa(scField, Basics.NuclearField) ? Nuclear.nuclearPotential(nm, grid) :
+             Basics.add( Nuclear.nuclearPotential(nm, grid),
+                         Basics.computePotential(scField, grid, level.basis) )
+    orbs   = redirect_stdout(devnull) do
+        Bsplines.generateOrbitals(shells, pot, nm, primitives; printout=false)   end
+
+    worstEps = 0.0
+    for  sh  in  shells
+        if  haskey(level.basis.orbitals, sh)
+            worstEps = max( worstEps, abs(orbs[sh].energy - level.basis.orbitals[sh].energy) )
+        end
+    end
+
+    alpha = 0.0
+    for  aSub  in  shells
+        (!haskey(orbs, aSub)  ||  orbs[aSub].energy >= 0.0)  &&  continue
+        fOcc = occ[aSub] / (Basics.subshell_2j(aSub) + 1.0)        ## exactly 1 for a closed subshell, kept explicit
+        for  tSub  in  RandomPhase.reachableChannels(1, aSub)
+            extra = MultipolePolarizibility.radialDrive(aSub, tSub, orbs, primitives, grid)
+            cl2   = fOcc * AngularMomentum.CL_reduced_me(aSub, 1, tSub)^2
+            for  signedOmega  in  (omega, -omega)
+                chi = redirect_stdout(devnull) do
+                    DalgarnoLewis.solve(E1, Basics.Babushkin, signedOmega, tSub, orbs[aSub], pot, primitives;
+                                        settings = DalgarnoLewis.Settings(), staticDrive = true,
+                                        extraSource = extra)   end
+                chiP   = RandomPhase.projectOntoUnoccupied(chi, tSub, orbs, grid)
+                alpha += cl2 / 3.0 * RadialIntegrals.rkDiagonal(1, orbs[aSub], chiP, grid)
+            end
+        end
+    end
+
+    return( (alpha, worstEps) )
 end
 
 
@@ -816,11 +1002,16 @@ function computeOutcomes(multiplet::Multiplet, nm::Nuclear.Model, grid::Radial.G
     # Display all selected levels before the computations start
     if  settings.printBefore    MultipolePolarizibility.displayOutcomes(outcomes)    end
     #
+    ## The B-spline primitives are needed ONLY by the core part, and building them is not free, so they are built
+    ## once here and only when asked for.
+    primitives = settings.calcCore ? Bsplines.generatePrimitives(grid) : nothing
+    #
     # Calculate all amplitudes and requested properties
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
     newOutcomes = MultipolePolarizibility.Outcome[]
     for  outcome in outcomes
-        newOutcome = MultipolePolarizibility.computeAmplitudesProperties(outcome, settings.gMultiplet, grid, settings)
+        newOutcome = MultipolePolarizibility.computeAmplitudesProperties(outcome, settings.gMultiplet, nm, grid,
+                                                                         primitives, settings)
         push!( newOutcomes, newOutcome)
         MultipolePolarizibility.displayContributions(stdout, newOutcome)
         if  printSummary    MultipolePolarizibility.displayContributions(iostream, newOutcome)   end
@@ -828,6 +1019,12 @@ function computeOutcomes(multiplet::Multiplet, nm::Nuclear.Model, grid::Radial.G
     # Print all results to screen
     MultipolePolarizibility.displayResults(stdout, newOutcomes)
     if  printSummary    MultipolePolarizibility.displayResults(iostream, newOutcomes)   end
+    ## A SEPARATE TABLE ON PURPOSE: the core polarizability comes from a different route with a different accuracy,
+    ## and adding a column to displayResults would change output that approved test references already hold.
+    if  settings.calcCore
+        MultipolePolarizibility.displayCorePolarizabilities(stdout, newOutcomes)
+        if  printSummary    MultipolePolarizibility.displayCorePolarizabilities(iostream, newOutcomes)   end
+    end
     #
     if    output    return( newOutcomes )
     else            return( nothing )
@@ -846,7 +1043,8 @@ function  determineOutcomes(multiplet::Multiplet, settings::MultipolePolarizibil
     for  level  in  multiplet.levels
         if  Basics.selectLevel(level, settings.levelSelection)
             push!( outcomes, MultipolePolarizibility.Outcome(level, EmProperty(0.), EmProperty(0.),
-                                 MultipolePolarizibility.Contribution[], Tuple{EmMultipole,Int64,Float64,EmProperty}[]) )
+                                 MultipolePolarizibility.Contribution[], Tuple{EmMultipole,Int64,Float64,EmProperty}[],
+                                 Tuple{Float64,Float64}[]) )
         end
     end
     return( outcomes )
@@ -880,6 +1078,50 @@ function  displayOutcomes(outcomes::Array{MultipolePolarizibility.Outcome,1})
     end
     println("  ", TableStrings.hLine(nx))
     #
+    return( nothing )
+end
+
+
+"""
+`MultipolePolarizibility.displayCorePolarizabilities(stream::IO, outcomes::Array{MultipolePolarizibility.Outcome,1})`
+    ... prints the CLOSED subshells' dipole polarizability of every outcome that carries one, at each frequency it was
+        computed for, together with the fractional change from the static value. It is a table of its OWN rather than
+        a column of `MultipolePolarizibility.displayResults`, for two reasons: the quantity comes from a complete-basis
+        route with a different accuracy from the sum over states beside it, and adding a column there would alter
+        printed output that approved test references already hold. Nothing is returned.
+"""
+function  displayCorePolarizabilities(stream::IO, outcomes::Array{MultipolePolarizibility.Outcome,1})
+    any( !isempty(oc.alphaCore)  for oc in outcomes )   ||   return( nothing )
+    nx = 88
+    println(stream, " ")
+    println(stream, "  Dipole polarizability of the CLOSED subshells, from a COMPLETE B-spline basis (unscreened):")
+    println(stream, " ")
+    println(stream, "  ", TableStrings.hLine(nx))
+    sa = "  ";   sb = "  "
+    sa = sa * TableStrings.center(10, "Level"; na=2);                   sb = sb * TableStrings.hBlank(12)
+    sa = sa * TableStrings.center(10, "J^P";   na=4);                   sb = sb * TableStrings.hBlank(14)
+    sa = sa * TableStrings.center(16, "omega"; na=3)
+    sb = sb * TableStrings.center(16, "[a.u.]"; na=3)
+    sa = sa * TableStrings.center(18, "alpha_core"; na=3);              sb = sb * TableStrings.center(18, "[a.u.]"; na=3)
+    sa = sa * TableStrings.center(14, "/ alpha_core(0)"; na=2);         sb = sb * TableStrings.hBlank(16)
+    println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx))
+    #
+    for  outcome  in  outcomes
+        isempty(outcome.alphaCore)  &&  continue
+        aStatic = outcome.alphaCore[1][2]
+        for  (omega, alpha)  in  outcome.alphaCore
+            sc = "  " * TableStrings.center(10, TableStrings.level(outcome.level.index); na=2)
+            sc = sc * TableStrings.center(10, string( LevelSymmetry(outcome.level.J, outcome.level.parity) ); na=4)
+            sc = sc * TableStrings.flushright(16, @sprintf("%.8e", omega)) * "   "
+            sc = sc * TableStrings.flushright(18, @sprintf("%.8e", alpha)) * "   "
+            sc = sc * TableStrings.flushright(14, aStatic == 0.0 ? "--" : @sprintf("%.8f", alpha/aStatic))
+            println(stream, sc)
+        end
+    end
+    println(stream, "  ", TableStrings.hLine(nx))
+    println(stream, "  The continuum is included implicitly, so this number does NOT depend on a perturber list and is")
+    println(stream, "  box-independent;  what it does NOT contain is the screening by the other core electrons.")
+
     return( nothing )
 end
 
