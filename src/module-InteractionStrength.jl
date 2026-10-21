@@ -97,12 +97,26 @@ XLCache() = XLCache( Dict{XLKey, Float64}() )
         kernels are the static kernel TIMES a product of one phi and one psi: the omega -> 0 limit is then exact by construction rather than
         a special case, and nothing has to be recovered from a cancellation between large numbers.
 
-        Evaluated from the ascending power series in -x^2/2 rather than from j_K and y_K separately. For small x -- which is the physical
-        case, since x = omega r ~ (Delta E) r / c -- forming j_K y_K directly loses the answer to cancellation, and each factor alone
-        diverges as omega -> 0.
+        TWO ROUTES, JOINED AT x = 2, because each one fails where the other works. Below the crossover an ascending power series in
+        -x^2/2 is used: it returns (phi-1) and (psi-1) with full RELATIVE precision, which is what the W kernel of
+        InteractionStrength.XL_Breit_densities needs, since that kernel multiplies them by [nu]^2/omega^2 -- and forming j_K y_K directly
+        there loses the answer to cancellation, each factor alone diverging as omega -> 0. Above the crossover the EXACT normalised
+        functions are returned from GSL's spherical Bessel functions, which is what every other radial integral in JAC already uses.
+
+        THE SERIES ALONE IS NOT ENOUGH, AND THAT WAS A DEFECT RATHER THAN A LIMITATION. It carries 12 terms while needing about x^2/2 of
+        them, so past x ~ 2.5 the truncation shows and past x ~ 5 the partial sum DIVERGES -- measured against the exact functions, the
+        worst relative error over K = 0..6 runs 9.3e-16 at x = 2, 2.7e-08 at x = 4, 2.8e+01 at x = 12 and 1.2e+25 at x = 100, with nothing
+        in the returned value to show it. Since the argument is x = omega r with omega = factor |E_a - E_c| / c, which reaches ~9 a.u. for
+        a 3p-1s pair at Z = 54, x runs into the hundreds across a radial grid and the Breit strength was silently destroyed: the
+        frequency-dependent correction of example-Ad.jl branch 4 reached 4.4e+97 Ha at factor = 1 where it should be ~5.2.
+
+        THE CROSSOVER WAS MEASURED, NOT CHOSEN. The two routes must overlap, and they do only in a narrow window: at x = 2 the series is
+        right to 9.3e-16 while the exact route still gives (f-1) to 5.4e-15, whereas by x = 2.5 the series has lost 2.3e-13 and by
+        x = 1e-4 the exact route has lost 6.7e-07 on (f-1). x = 2 is where both are good.
 
         Verified against (2K+1)!! j_K(x)/x^K and -x^(K+1) y_K(x)/(2K-1)!! from GSL to <= 4.6e-16 for K = 0..3 and x = 1e-4..0.5, and to
-        1.000000000000000 in the limit x -> 0.
+        1.000000000000000 in the limit x -> 0. **THAT RANGE IS THE COVERAGE GAP THAT HID THE DEFECT** -- a verification stopping at
+        x = 0.5 can say nothing about x = 100, and the function was used there.
 
         The normalisation follows GRASP2018 (rci90/bessel.f90, which stores phi-1 and psi-1); the formulation was read there and re-derived
         here rather than transcribed.
@@ -110,6 +124,15 @@ XLCache() = XLCache( Dict{XLKey, Float64}() )
 """
 function besselPhiPsi(K::Int64, x::Float64; nmax::Int64=12, tol::Float64=1.0e-16)
     x == 0.  &&  return( (1.0, 1.0) )
+
+    # Past the crossover the series below DIVERGES instead of converging, so the exact functions are taken
+    # there;  see the docstring for the measurement that fixes the crossover at 2.
+    if  abs(x) > 2.0
+        dfUp = 1.0;     for  i = 1:2:(2K+1)    dfUp = dfUp * i    end    ## (2K+1)!!
+        dfDown = 1.0;   for  i = 1:2:(2K-1)    dfDown = dfDown * i    end    ## (2K-1)!!, and 1 for K = 0
+        return( ( dfUp * GSL.sf_bessel_jl(K, x) / x^K,  -x^(K+1) * GSL.sf_bessel_yl(K, x) / dfDown ) )
+    end
+
     wa = -0.5 * x^2;    t1 = 1.0;   t2 = 1.0;   s1 = 0.0;   s2 = 0.0
     for  i = 1:nmax
         t1 = t1 * wa / ( i * (2*(K+i) + 1) );    t2 = t2 * wa / ( i * (2*(i-K) - 1) )
