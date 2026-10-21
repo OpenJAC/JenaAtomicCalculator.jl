@@ -1133,8 +1133,23 @@ end
 
         **WHY A MATRIX AND NOT A POTENTIAL.** Exchange maps a function at one radius to an integral over all radii, so no
         `Radial.Potential` can carry it: a local V(r) exists only if the kernel is a delta function. In a finite basis, however,
-        every operator IS a matrix, and this one is exactly representable with nothing approximated. That is why the family of
-        `Basics.computePotential` methods cannot be extended to Dirac-Fock and this function exists instead.
+        every operator IS a matrix, and this one is exactly representable with nothing approximated. That is why no member of the
+        `Basics.computePotential` family can be a Dirac-Fock field, and why `Basics.ALField` -- which IS a Dirac-Fock SCF -- has no
+        `computePotential` method: it carries exchange as a matrix instead, through `SelfConsistent.computeFockMatrix`.
+
+        **WHAT THIS ADDS BESIDE THAT, SINCE JAC ALREADY HAD MATRIX EXCHANGE AND A CLAIM TO THE CONTRARY WOULD BE WRONG.**
+        `InteractionStrength.XL_Coulomb(L, a::Subshell, b::Orbital, c::Orbital, d::Subshell, primitives)` already builds the
+        radial exchange matrix for an arbitrary symmetry, and the two AGREE: measured 21-Oct-2026 on Ne for the two cases where
+        exactly one rank contributes, ||X - r W||/||X|| is 6.5e-08 (s_1/2, k = 0) and 1.3e-08 (p_3/2, k = 1), with the LL and SS
+        blocks matching to 4.1e-13 and 1.8e-15 and the whole residual sitting in the cross blocks at that quadrature's own
+        tolerance. Two independent methods -- `Bsplines.ykOnGrid`'s cumulative sweeps against per-call adaptive quadrature -- so
+        this is a check and not a reimplementation of a convention. What is new is (1) the FOCK ASSEMBLY: summed over core
+        subshells AND ranks with the occupations and the (2j+1) denominators, ready to add to `setupLocalMatrix`, where
+        `XL_Coulomb` returns one (b,k) term and leaves the Fock coefficient to the caller's `coeffs2p` -- which exists only for
+        OCCUPIED subshells, so a perturbed, virtual or continuum channel has none; and (2) the cost, 0.28 s for Ne's whole
+        four-subshell core against 5.6 CPU-minutes for two single-rank `XL_Coulomb` matrices on an idle machine. The AL line's own
+        fast path is `InteractionStrength.XL_CoulombTensor` with caches built once per rank, which is a different trade-off and is
+        not what that factor compares against.
 
         **THE OPERATOR.** With w_b the occupation of core subshell b and rho_ub = P_u P_b + Q_u Q_b the transition density,
 
