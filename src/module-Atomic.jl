@@ -98,6 +98,8 @@ function Computation(comp::Atomic.Computation;
     if  isnothing(processSettings)          prsx                     = comp.processSettings         else  prsx                     = processSettings          end 
     
     
+    Atomic.checkPropertySettings(propertySettingsx)
+
     cp = Computation(namex, nuclearModelx, gridx, propertySettingsx, configsx, asfSettingsx, initialConfigsx, initialAsfSettingsx,     
                         intermediateConfigsx,  intermediateAsfSettingsx, finalConfigsx, finalAsfSettingsx,        
                         prsx) 
@@ -174,6 +176,55 @@ function Base.show(io::IO, comp::Atomic.Computation)
     if  Isotope in comp.properties    &&  comp.isotopeSettings  != IsotopeShift.Settings()
         println(io, "isotopeSettings:              \n$(comp.isotopeSettings)  ")            end
     end
+end
+
+
+"""
+`Atomic.checkPropertySettings(propertySettings)`
+    ... refuses a `propertySettings` list that carries TWO settings OF THE SAME TYPE. Nothing is returned; the
+        offending case raises.
+
+        **THE ARGUMENT IS DELIBERATELY UNTYPED**, and the first version of this guard got it wrong in exactly
+        the way item 84 did: `[s1, s2]` written with two settings of ONE type has the concrete type
+        `Vector{NuclearShielding.Settings}`, not `Array{Basics.AbstractPropertySettings,1}`, so a signature
+        naming the abstract element type does not match the very case the guard exists for -- it raised a
+        `MethodError` instead of the explanation. Anything that is not an array is passed over silently, since
+        the keyword itself admits `Any`.
+
+        **A `Computation` RUNS ONE COMPUTATION, FOR ONE PROPERTY OR ONE PROCESS, and higher complexity is not
+        built on top of it** -- the maintainer's decision, 21-Oct-2026. A scan, a convergence study or a
+        comparison of models is a SCRIPT: one `perform` does the structure, and the loop or the arithmetic sits
+        around the terms it stored. The economics agree, measured on Th4+ [Rn] the same day: the
+        self-consistent field costs 65.1 s and one shielding property on it 0.6 s, so the structure is 99 % of
+        the work and six `Computation`s cost 5.8x what one field and a loop cost, for no physics.
+
+        **IT RAISES RATHER THAN WARNS, AND THAT IS THE POINT.** Until this guard existed the duplicate was
+        accepted and the result was LOST: every property branch of `Basics.perform` stores its outcome under a
+        constant string key, so the second write replaced the first and `Base.merge` said nothing -- measured,
+        two `NuclearShielding.Settings` differing only in `nVirtualMax` went in and ONE outcome came back, the
+        second. There is no use for which that is the wanted behaviour, so a warning would leave a wrong number
+        in circulation; this stops at construction, where the mistake is, rather than deep inside `perform`
+        where only the symptom shows.
+
+    + propertySettings  ::Array{Basics.AbstractPropertySettings,1}   ... the list as given to the Computation.
+"""
+function checkPropertySettings(propertySettings)
+    isa(propertySettings, AbstractArray)  ||  return( nothing )
+    seen = DataType[]
+    for  settings  in  propertySettings
+        T = typeof(settings)
+        if  T in seen
+            error("Atomic.Computation(): propertySettings carries TWO settings of the type $T, and a "        *
+                  "Computation runs ONE computation for one property -- the second would silently replace "   *
+                  "the first, since every property stores its result under one key.  A scan over settings "   *
+                  "(a convergence study, several field models, a frequency series) belongs in a SCRIPT: do "  *
+                  "ONE perform for the structure and then loop the property over the terms it stored, which " *
+                  "is also far cheaper -- the self-consistent field is the bulk of the work.")
+        end
+        push!( seen, T )
+    end
+
+    return( nothing )
 end
 
 
