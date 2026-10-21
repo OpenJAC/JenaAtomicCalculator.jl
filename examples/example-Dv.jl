@@ -93,18 +93,72 @@ elseif  false
     #
     #
 elseif  true
-    # Last visit:  02-Sep-2026
-    # Last successful:  02-Sep-2026 -- the two published alignment parameters are REPRODUCED TO 0.9 %:
+    # Last visit:  21-Oct-2026
+    # Last successful:  21-Oct-2026   ## A_20 = -0.79999 (J = 2) and -0.93832 (J = 1) for 2s_1/2 2p_3/2, with the
+    #                                 ## six-resonance table below;  CoulombBreit(1.), maxKappa = 6, rbox = 5 a.u.
     #
-    #        resonance                    published        JAC         difference
-    #        2s_1/2 2p_3/2  J = 2  (2-)     -0.890       -0.89776        0.9 %
-    #        2s_1/2 2p_3/2  J = 1  (1-)     -0.918       -0.92599        0.9 %
+    #   THE REFERENCE FOR THIS BRANCH IS NOW JAC'S OWN RESULT, on the maintainer's instruction of 21-Oct-2026, and
+    #   no longer the published pair.  The published values stay below as the physical comparison they are, but what
+    #   a later run must REPRODUCE is this table, computed twice from independent scripts and agreeing to all five
+    #   digits:
     #
-    #   with the right sign, the right magnitude AND the right ordering -- J = 1 is more strongly aligned than
-    #   J = 2 in both.  About 1 % is what a single-configuration basis should give against the paper's MCDF, and
-    #   the alignment is a RATIO in which the common radial factors cancel, which is why it comes out this close
-    #   from a much simpler wave function.  The other levels printed are different resonances: level 3 (1-) is
-    #   2s_1/2 2p_1/2 and level 9 (2+) is 2p^2.
+    #        level   J^P      A_20       A_40      resonance
+    #          3     1 -    +0.33084      --       2s_1/2 2p_1/2
+    #          5     2 -    -0.79999   -0.16401    2s_1/2 2p_3/2
+    #          6     1 +    -0.22995      --       2p^2
+    #          7     2 +    -1.19175   +1.58802    2p^2
+    #          8     1 -    -0.93832      --       2s_1/2 2p_3/2
+    #          9     2 +    -1.10437   +1.19722    2p^2
+    #
+    #   Levels 1, 2, 4 and 10 have J_d < 1 and carry no alignment.  Two companion numbers are worth having beside
+    #   the table, because they are what make it interpretable: the capture rates run 1.3e+13 to 3.0e+14 /s, and
+    #   each of these captures proceeds through exactly TWO partial waves, so there is no partial-wave truncation
+    #   error in any of these values.
+    #
+    #   THE 02-Sep-2026 CLAIM IS WITHDRAWN, and the reason is written here rather than deleted with it.  That
+    #   claim read "both published alignment parameters REPRODUCED TO 0.9 %", on the values -0.89776 (J = 2)
+    #   and -0.92599 (J = 1).  Both came from a DEFECTIVE Breit kernel: InteractionStrength.besselPhiPsi
+    #   evaluated the spherical Bessel functions from a twelve-term small-argument series with no large-argument
+    #   branch, and in a CAPTURE calculation the continuum electron carries full amplitude out to the box wall,
+    #   where the argument omega*r reaches ~130.  The attribution is not argued but measured: an isolated clone
+    #   of the repaired code with only that one route removed returns -0.89776 and -0.92599 to all five digits.
+    #
+    #   AND THE REFUTATION WAS PRINTED IN THE SAME TABLE ALL ALONG, which is the part worth remembering: in that
+    #   clone the capture RATES come out at 1e+35 to 1e+44 /s, against 1e+13 to 1e+14 here and a physical ceiling
+    #   near one per atomic time unit, ~1e+18.  The amplitudes were twelve orders of magnitude too large -- and
+    #   A_20 = rho_20/rho_00 is a RATIO, which divides that common factor straight out, so it went on looking
+    #   civilised and inside its physical range.  When a claim rests on a ratio, check one ABSOLUTE number from
+    #   the same run against a physical bound.
+    #
+    #   WHAT NOW HOLDS DIFFERS BY LEVEL, and the reason is structural rather than numerical.  The selection rules
+    #   from a 1s initial ion allow at most TWO partial waves into each final symmetry, so A_20 here is a
+    #   function of exactly one modulus ratio x = |c2/c1|^2 and one relative phase, with no partial-wave
+    #   truncation error at all, and the two single-wave values below are pure angular geometry:
+    #
+    #        resonance                  published    CoulombBreit(1.)   CoulombGaunt()   one wave alone
+    #        2s_1/2 2p_3/2  J = 1 (1-)    -0.918         -0.93832          -0.92138      -0.70711 (p_3/2)
+    #        2s_1/2 2p_3/2  J = 2 (2-)    -0.890         -0.79999          -0.80719      -0.83666 (p_3/2)
+    #
+    #   THE J = 1 COMPARISON WITH THE PUBLISHED VALUE HOLDS.  Its two channels, p_3/2 and p_1/2, are both Coulomb-
+    #   allowed, and they interfere with the SAME sign the published value needs.  Holding the relative phase at
+    #   its measured value, -0.918 corresponds to a channel ratio x = |c2/c1|^2 of 0.0162 against our 0.0198 --
+    #   22 % in one small amplitude, which is what a single-configuration basis against the paper's MCDF should
+    #   look like.  Here the magnetic interaction is decisive rather than a correction: Coulomb alone gives
+    #   -1.27103, which is 38.5 % out.
+    #
+    #   THE J = 2 COMPARISON DOES NOT HOLD, AND ITS 10 % IS A SIGN RATHER THAN AN ACCURACY.  The VALUE above is this
+    #   branch's reference like any other;  what is not claimed is agreement with -0.890.  Its second channel is f_5/2,
+    #   which needs rank >= 3 and is therefore COULOMB-DARK -- the Coulomb-only run returns -0.83666, the pure p_3/2
+    #   geometry, to five decimals -- so the whole alignment rides on one magnetically created amplitude entering as
+    #   sqrt(x).  Every magnetic option available (Gaunt, static Breit, retarded Breit at four frequencies) puts the
+    #   interference ABOVE that geometric value, while -0.890 lies BELOW it: the two sit on opposite sides of -0.83666.
+    #   Put most sharply, and this is the strongest statement available because the relative phase is the one quantity
+    #   a kernel error cannot touch: AT THE MEASURED PHASE, -0.890 IS UNREACHABLE AT ANY CHANNEL RATIO WHATEVER.  A
+    #   larger basis changes x and not a phase, so this is not a correlation shortfall, and the level must not be
+    #   quoted AS AGREEING with the published value in either direction until the relative sign of the p_3/2 and
+    #   f_5/2 capture amplitudes is settled.
+    #
+    #   The other levels printed are different resonances: level 3 (1-) is 2s_1/2 2p_1/2 and level 9 (2+) is 2p^2.
     #
     # d) RECONSTRUCT THE PUBLISHED ALIGNMENTS.  Fritzsche, Kabachnik & Surzhykov, PRA 78, 032703 (2008), Sec. IV B,
     #    for the K-LL dielectronic recombination of hydrogenlike U(91+) into helium-like uranium, quote
@@ -136,8 +190,10 @@ elseif  true
                             finalConfigs   = [Configuration("2s^2"), Configuration("2s 2p"), Configuration("2p^2")],
                             processSettings = ecSettings )
     wb = perform(wa; output = true)
-    println("\n  Published (PRA 78, 032703 (2008), Sec. IV B):  A_20(2s2p_3/2, J=2) = -0.890,  " *
-            "A_20(2s2p_3/2, J=1) = -0.918")
+    println("\n  This branch's reference (21-Oct-2026, CoulombBreit(1.), maxKappa = 6):  " *
+            "level 5 (2-) = -0.79999,  level 8 (1-) = -0.93832")
+    println("  Published (PRA 78, 032703 (2008), Sec. IV B):  A_20(2s2p_3/2, J=2) = -0.890,  " *
+            "A_20(2s2p_3/2, J=1) = -0.918  -- the J = 1 comparison holds, the J = 2 one does not;  see above")
     for  ln in wb[ElectronCapture.Settings]
         length(ln.alignment) == 0  &&  continue
         @printf("    level %2d   J^P = %s   A_20 = %9.5f\n", ln.finalLevel.index,
