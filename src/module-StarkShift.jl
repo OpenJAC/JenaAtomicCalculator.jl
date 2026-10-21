@@ -158,6 +158,13 @@ end
                                                        Settings.temperature, in a.u.; 0. if no temperature was
                                                        given. It carries NO M-dependence, by the isotropy
                                                        argument in the module docstring.
+    + magicWavelengths       ::Array{StarkShift.MagicWavelength,1}
+                                                 ... The magic wavelengths of THIS level paired with
+                                                       settings.magicPartnerIndex, empty unless
+                                                       settings.calcMagicWavelengths. A magic wavelength belongs
+                                                       to the PAIR, so it is stored on the outcome of the first
+                                                       of the two and the partner's own outcome carries the same
+                                                       list;  which is which is in the printed table.
     + bbrEta                 ::Float64           ... The dynamic correction eta of that shift, i.e. how far
                                                        alpha_0(omega) departs from alpha_0(0) across the Planck
                                                        spectrum. A small eta says the static polarizability was
@@ -173,6 +180,7 @@ struct Outcome
     Jsublevels                ::Array{StarkShift.SublevelJ,1}
     bbrShift                 ::EmProperty
     bbrEta                   ::Float64
+    magicWavelengths         ::Array{StarkShift.MagicWavelength,1}
 end
 
 
@@ -180,7 +188,8 @@ end
 `StarkShift.Outcome()`  ... constructor for an `empty` instance of StarkShift.Outcome.
 """
 function Outcome()
-    Outcome(Level(), 0., 0., EmProperty(0.), EmProperty(0.), StarkShift.SublevelJ[], EmProperty(0.), 0.)
+    Outcome(Level(), 0., 0., EmProperty(0.), EmProperty(0.), StarkShift.SublevelJ[], EmProperty(0.), 0.,
+            StarkShift.MagicWavelength[])
 end
 
 
@@ -205,6 +214,11 @@ end
     + calcEDM                ::Bool              ... True if the EDM of selected levels is to be calculated.
     + calcEQM                ::Bool              ... True if the EQM of selected levels is to be calculated.
     + calcStarkshifts        ::Bool              ... True if the Stark energy shifts are to be computed.
+    + calcMagicWavelengths   ::Bool              ... True if the MAGIC WAVELENGTHS of a PAIR of levels are to be
+                                                       computed, i.e. the frequencies at which the two levels are
+                                                       shifted equally and the transition between them is
+                                                       insensitive to the trapping field. Needs gMultiplet and
+                                                       magicPartnerIndex;  both are checked.
     + gMultiplet              ::Multiplet         ... A local, approximate Green multiplet of intermediate
                                                        (opposite-parity) ASF that the underlying alpha_0/alpha_2
                                                        sum-over-states runs over -- generated INDEPENDENTLY,
@@ -223,17 +237,30 @@ end
                                                        INDEPENDENT of EField and omega: a black-body shift is an
                                                        average over the whole Planck spectrum and does not read
                                                        either of them.
+    + magicPartnerIndex      ::Int64             ... Index, IN THE COMPUTED MULTIPLET, of the level each selected
+                                                       level is paired with for a magic wavelength. A magic
+                                                       wavelength belongs to a PAIR and not to a level, and the
+                                                       partner is always another level of the same atom, so an
+                                                       index into the same multiplet names it -- the same
+                                                       vocabulary levelSelection already uses. 0 means none.
+    + magicOmegas            ::Array{Float64,1}  ... The frequency window [omegaMin, omegaMax] in atomic units
+                                                       within which magic wavelengths are searched. EMPTY means
+                                                       the documented defaults of StarkShift.magicWavelengths
+                                                       (0.01 to 0.25 a.u.); any other length than 0 or 2 raises.
     + levelSelection         ::LevelSelection    ... Specifies the selected levels, if any.
 """
 struct Settings  <:  AbstractPropertySettings
     calcEDM                  ::Bool
     calcEQM                  ::Bool
     calcStarkshifts          ::Bool
+    calcMagicWavelengths     ::Bool
     gMultiplet                ::Multiplet
     printBefore               ::Bool
     EField                   ::Float64
     omega                    ::Float64
     temperature              ::Float64
+    magicPartnerIndex        ::Int64
+    magicOmegas              ::Array{Float64,1}
     levelSelection           ::LevelSelection
 end
 
@@ -243,36 +270,40 @@ end
     ... constructor for an `empty` instance of StarkShift.Settings.
 """
 function Settings()
-        Settings(false, false, false, Multiplet(), false, 0., 0., 0., LevelSelection() )
+        Settings(false, false, false, false, Multiplet(), false, 0., 0., 0., 0, Float64[], LevelSelection() )
 end
 
 
 """
 `StarkShift.Settings(set::StarkShift.Settings;`
 
-        calcEDM=.., calcEQM=.., calcStarkshifts=.., gMultiplet=.., printBefore=.., EField=.., omega=..,
-        temperature=.., levelSelection=..)
+        calcEDM=.., calcEQM=.., calcStarkshifts=.., calcMagicWavelengths=.., gMultiplet=.., printBefore=..,
+        EField=.., omega=.., temperature=.., magicPartnerIndex=.., magicOmegas=.., levelSelection=..)
 
     ... keyword copy-constructor for re-defining selected values of a settings::StarkShift.Settings.
 """
 function Settings(set::StarkShift.Settings;
         calcEDM::Union{Nothing,Bool}=nothing,                   calcEQM::Union{Nothing,Bool}=nothing,
-        calcStarkshifts::Union{Nothing,Bool}=nothing,           gMultiplet::Union{Nothing,Multiplet}=nothing,
-        printBefore::Union{Nothing,Bool}=nothing,               EField::Union{Nothing,Float64}=nothing,
-        omega::Union{Nothing,Float64}=nothing,                  temperature::Union{Nothing,Float64}=nothing,
-        levelSelection::Union{Nothing,LevelSelection}=nothing)
+        calcStarkshifts::Union{Nothing,Bool}=nothing,           calcMagicWavelengths::Union{Nothing,Bool}=nothing,
+        gMultiplet::Union{Nothing,Multiplet}=nothing,           printBefore::Union{Nothing,Bool}=nothing,
+        EField::Union{Nothing,Float64}=nothing,                 omega::Union{Nothing,Float64}=nothing,
+        temperature::Union{Nothing,Float64}=nothing,            magicPartnerIndex::Union{Nothing,Int64}=nothing,
+        magicOmegas::Union{Nothing,Array{Float64,1}}=nothing,   levelSelection::Union{Nothing,LevelSelection}=nothing)
     if  isnothing(calcEDM)           calcEDMx          = set.calcEDM          else   calcEDMx          = calcEDM          end
     if  isnothing(calcEQM)           calcEQMx          = set.calcEQM          else   calcEQMx          = calcEQM          end
     if  isnothing(calcStarkshifts)   calcStarkshiftsx  = set.calcStarkshifts  else   calcStarkshiftsx  = calcStarkshifts  end
+    if  isnothing(calcMagicWavelengths)  calcMagicWavelengthsx = set.calcMagicWavelengths  else  calcMagicWavelengthsx = calcMagicWavelengths  end
     if  isnothing(gMultiplet)        gMultipletx       = set.gMultiplet       else   gMultipletx       = gMultiplet       end
     if  isnothing(printBefore)       printBeforex      = set.printBefore      else   printBeforex      = printBefore      end
     if  isnothing(EField)            EFieldx           = set.EField           else   EFieldx           = EField           end
     if  isnothing(omega)             omegax            = set.omega            else   omegax            = omega            end
     if  isnothing(temperature)       temperaturex      = set.temperature      else   temperaturex      = temperature      end
+    if  isnothing(magicPartnerIndex)  magicPartnerIndexx = set.magicPartnerIndex  else  magicPartnerIndexx = magicPartnerIndex  end
+    if  isnothing(magicOmegas)       magicOmegasx      = set.magicOmegas      else   magicOmegasx      = magicOmegas      end
     if  isnothing(levelSelection)    levelSelectionx   = set.levelSelection   else   levelSelectionx   = levelSelection   end
 
-    Settings( calcEDMx, calcEQMx, calcStarkshiftsx, gMultipletx, printBeforex, EFieldx, omegax, temperaturex,
-              levelSelectionx )
+    Settings( calcEDMx, calcEQMx, calcStarkshiftsx, calcMagicWavelengthsx, gMultipletx, printBeforex, EFieldx,
+              omegax, temperaturex, magicPartnerIndexx, magicOmegasx, levelSelectionx )
 end
 
 
@@ -281,11 +312,14 @@ function Base.show(io::IO, settings::StarkShift.Settings)
     println(io, "calcEDM:               $(settings.calcEDM)  ")
     println(io, "calcEQM:               $(settings.calcEQM)  ")
     println(io, "calcStarkshifts:       $(settings.calcStarkshifts)  ")
+    println(io, "calcMagicWavelengths:  $(settings.calcMagicWavelengths)  ")
     println(io, "gMultiplet:            $(settings.gMultiplet)  ")
     println(io, "printBefore:           $(settings.printBefore)  ")
     println(io, "EField:                $(settings.EField)  ")
     println(io, "omega:                 $(settings.omega)  ")
     println(io, "temperature:           $(settings.temperature)  ")
+    println(io, "magicPartnerIndex:     $(settings.magicPartnerIndex)  ")
+    println(io, "magicOmegas:           $(settings.magicOmegas)  ")
     println(io, "levelSelection:        $(settings.levelSelection)  ")
 end
 
@@ -313,7 +347,8 @@ function  computeAmplitudesProperties(outcome::StarkShift.Outcome, grid::Radial.
                                                              settings.temperature)
     end
 
-    newOutcome = StarkShift.Outcome( outcome.Jlevel, edm, eqm, alpha0, alpha2, Jsublevels, bbrShift, bbrEta)
+    newOutcome = StarkShift.Outcome( outcome.Jlevel, edm, eqm, alpha0, alpha2, Jsublevels, bbrShift, bbrEta,
+                                     outcome.magicWavelengths)
     return( newOutcome )
 end
 
@@ -766,6 +801,12 @@ function computeOutcomes(multiplet::Multiplet, nm::Nuclear.Model, grid::Radial.G
         newOutcome = StarkShift.computeAmplitudesProperties(outcome, grid, settings) 
         push!( newOutcomes, newOutcome)
     end
+    # A magic wavelength belongs to a PAIR of levels and not to one, so it cannot be formed in
+    # computeAmplitudesProperties, which sees a single outcome:  the partner is named by its index in THIS
+    # multiplet and is looked up here, where the multiplet is in hand.
+    if  settings.calcMagicWavelengths
+        newOutcomes = StarkShift.addMagicWavelengths(newOutcomes, multiplet, grid, settings)
+    end
     # Print all results to screen
     StarkShift.displayResults(stdout, newOutcomes, settings)
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
@@ -774,6 +815,65 @@ function computeOutcomes(multiplet::Multiplet, nm::Nuclear.Model, grid::Radial.G
     if    output    return( newOutcomes )
     else            return( nothing )
     end
+end
+
+
+"""
+`StarkShift.addMagicWavelengths(outcomes::Array{StarkShift.Outcome,1}, multiplet::Multiplet, grid::Radial.Grid,
+                                settings::StarkShift.Settings)`
+    ... returns the given outcomes with their `magicWavelengths` filled in, each selected level paired with the
+        level `settings.magicPartnerIndex` of the SAME multiplet. This exists separately from
+        StarkShift.computeAmplitudesProperties for one reason: a magic wavelength is a property of a PAIR of
+        levels, so it cannot be formed from a single outcome, and the partner has to be looked up where the
+        multiplet is in hand. An Array{StarkShift.Outcome,1} is returned.
+
+        THREE THINGS ARE REFUSED RATHER THAN RETURNED EMPTY, because an empty list reads as "this pair has no
+        magic wavelength" -- a physical statement -- where the truth is that the computation was not set up:
+        a `gMultiplet` with no levels (the sum-over-states has nothing to run over), a `magicPartnerIndex` that
+        names no level of the multiplet, and a `magicOmegas` of any length other than 0 or 2.
+
+    + outcomes    ::Array{StarkShift.Outcome,1}  ... the outcomes whose amplitudes are already computed.
+    + multiplet   ::Multiplet                    ... the multiplet the partner level is taken from.
+    + grid        ::Radial.Grid                  ... the radial grid.
+    + settings    ::StarkShift.Settings          ... carries magicPartnerIndex and magicOmegas.
+"""
+function addMagicWavelengths(outcomes::Array{StarkShift.Outcome,1}, multiplet::Multiplet, grid::Radial.Grid,
+                             settings::StarkShift.Settings)
+    if  isempty(settings.gMultiplet.levels)
+        error("StarkShift.addMagicWavelengths(): calcMagicWavelengths = true needs a gMultiplet of "      *
+              "intermediate, opposite-parity levels for the alpha_0(omega) sum-over-states to run over;  "  *
+              "none was given.  See the module docstring and examples/example-Cl.jl for how it is built.")
+    end
+    partners = [ lev  for lev in multiplet.levels  if  lev.index == settings.magicPartnerIndex ]
+    if  length(partners) != 1
+        error("StarkShift.addMagicWavelengths(): magicPartnerIndex = $(settings.magicPartnerIndex) names "   *
+              "no single level of this multiplet, whose indices are "                                        *
+              "$([lev.index  for lev in multiplet.levels]).  A magic wavelength belongs to a PAIR, so the "  *
+              "partner must be named.")
+    end
+    partner = partners[1]
+    if      length(settings.magicOmegas) == 0    omegaMin, omegaMax = 0.01, 0.25
+    elseif  length(settings.magicOmegas) == 2    omegaMin, omegaMax = settings.magicOmegas[1], settings.magicOmegas[2]
+    else
+        error("StarkShift.addMagicWavelengths(): magicOmegas must be empty, for the documented defaults of "  *
+              "StarkShift.magicWavelengths, or hold exactly [omegaMin, omegaMax];  it holds "                 *
+              "$(length(settings.magicOmegas)) entries.")
+    end
+
+    newOutcomes = StarkShift.Outcome[]
+    for  outcome in outcomes
+        if  outcome.Jlevel.index == partner.index
+            # the partner paired with itself has no magic wavelength;  it keeps an empty list
+            push!( newOutcomes, outcome );      continue
+        end
+        mws = StarkShift.magicWavelengths(outcome.Jlevel, partner, settings.gMultiplet, grid;
+                                          omegaMin=omegaMin, omegaMax=omegaMax)
+        push!( newOutcomes, StarkShift.Outcome(outcome.Jlevel, outcome.Theta1, outcome.Theta2, outcome.alpha0,
+                                               outcome.alpha2, outcome.Jsublevels, outcome.bbrShift,
+                                               outcome.bbrEta, mws) )
+    end
+
+    return( newOutcomes )
 end
 
 
@@ -792,7 +892,7 @@ function  determineOutcomes(multiplet::Multiplet, settings::StarkShift.Settings)
             Jsublevels = StarkShift.SublevelJ[];   Mvalues = AngularMomentum.m_values(level.J)
             for  M in Mvalues   push!(Jsublevels, StarkShift.SublevelJ(M, EmProperty(0.)) )    end
             push!( outcomes, StarkShift.Outcome(level, 0., 0., EmProperty(0.), EmProperty(0.), Jsublevels,
-                                                 EmProperty(0.), 0.) )
+                                                 EmProperty(0.), 0., StarkShift.MagicWavelength[]) )
         end
     end
     return( outcomes )
@@ -960,6 +1060,41 @@ function  displayResults(stream::IO, outcomes::Array{StarkShift.Outcome,1}, sett
             println(stream, sa )
         end
         println(stream, "  ", TableStrings.hLine(nx3))
+    end
+    #
+    if  settings.calcMagicWavelengths  &&  any(oc -> !isempty(oc.magicWavelengths), outcomes)
+        nx4 = 112
+        println(stream, " ")
+        println(stream, "  Magic wavelengths, each level paired with level $(settings.magicPartnerIndex):")
+        println(stream, " ")
+        println(stream, "  ", TableStrings.hLine(nx4))
+        sa = "  ";   sb = "  "
+        sa = sa * TableStrings.center(10, "Level"; na=2);                   sb = sb * TableStrings.hBlank(12)
+        sa = sa * TableStrings.center(10, "J^P";   na=3);                   sb = sb * TableStrings.hBlank(13)
+        sa = sa * TableStrings.center(16, "omega [a.u.]"; na=2);            sb = sb * TableStrings.hBlank(18)
+        sa = sa * TableStrings.center(16, "lambda [nm]";  na=2);            sb = sb * TableStrings.hBlank(18)
+        sa = sa * TableStrings.center(16, "alpha_common"; na=2);            sb = sb * TableStrings.hBlank(18)
+        sa = sa * TableStrings.center(14, "d(dalpha)/domega"; na=2)
+        println(stream, sa);   println(stream, sb);   println(stream, "  ", TableStrings.hLine(nx4))
+        #
+        for  outcome in outcomes
+            isempty(outcome.magicWavelengths)  &&  continue
+            sym = LevelSymmetry( outcome.Jlevel.J, outcome.Jlevel.parity)
+            for  (k, mw)  in  enumerate(outcome.magicWavelengths)
+                sa = "  "
+                sa = sa * TableStrings.center(10, k == 1 ? TableStrings.level(outcome.Jlevel.index) : ""; na=2)
+                sa = sa * TableStrings.center(10, k == 1 ? string(sym) : ""; na=3)
+                sa = sa * TableStrings.flushright(16, @sprintf("%.8e", mw.omega) )           * "  "
+                sa = sa * TableStrings.flushright(16, @sprintf("%.6f",  mw.wavelength) )     * "  "
+                sa = sa * TableStrings.flushright(16, @sprintf("%+.6e", mw.alphaCommon) )    * "  "
+                sa = sa * TableStrings.flushright(14, @sprintf("%+.2e", mw.slope) )
+                # the two reasons a zero may not be usable, carried by MagicWavelength itself
+                if  mw.alphaCommon < 0.    sa = sa * "   [alpha < 0: this trap REPELS]"                        end
+                if  mw.aboveResonance      sa = sa * "   [ABOVE a resonance: a principal value, no width]"     end
+                println(stream, sa )
+            end
+        end
+        println(stream, "  ", TableStrings.hLine(nx4))
     end
     #
     return( nothing )
