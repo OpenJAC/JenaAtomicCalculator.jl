@@ -66,11 +66,21 @@ elseif true
     setDefaults("print summary: close", "")
     #
 elseif true
-    # Last visit:  20-Oct-2026
-    # Last successful:  21-Jul-2026 -- q(4f5/2-5s) = -136121 cm^-1 (0.09% from literature -136000 cm^-1); excitation
-    # 8.235 eV vs literature 6.903 eV (~19% high, same expected cause as Nd13+ above). Ground state comes out as
+    # Last visit:  21-Oct-2026
+    # Last reproduced:  21-Oct-2026 (the claim line below, re-measured)
+    # Last successful:  21-Oct-2026 -- q(4f5/2-5s) = -136247 cm^-1 (0.18% from literature -136000 cm^-1); excitation
+    # 8.3055 eV vs literature 6.903 eV (~20% high, same expected cause as Nd13+ above). Ground state comes out as
     # 4f_5/2 (not 5s_1/2), correctly reproducing the level crossing between the Nd13+ and Sm15+ members of this
     # isoelectronic sequence -- and the SIGN of q flips accordingly, exactly as in the literature.
+    #   RE-DATED 21-Oct-2026 ON THE MAINTAINER'S DECISION, and the two numbers it carries were 8.235 eV and
+    # -136121 cm^-1 when first recorded on 21-Jul-2026. Neither is drift to be chased: the cause is `1d05ab3b`
+    # (13-Sep-2026), which repaired `SpinAngular.twoParticleMoveOne` where the spectator subshell lies BETWEEN
+    # donor and acceptor -- validated against GRASP2018 to nine figures -- so a pre-13-Sep MULTI-REFERENCE
+    # energy such as this 4f/5s pair is expected to move, and the new value is the better one. The excitation
+    # energy moved 0.86% and q only 0.09%, which is itself the point: q is a DIFFERENCE of relativistic shifts
+    # of the two levels and not the transition energy, which is why it sits at 0.18% of the literature while
+    # the energy sits at 20%. The 20% is BY CONSTRUCTION -- single configuration, plain Coulomb, no Breit, no
+    # QED, no correlation layer -- so a percent on top of it changes no statement this branch makes.
     # Sm15+ -- same recipe as Nd13+, two charge states further along the sequence, past the 5s-4f crossing.
     setDefaults("print summary: open", "zzz-AlphaVariation.sum")
     # Bsplines.checkOrbitalConsistency refuses Radial.Grid(true) here: its two spin-orbit partners come out
