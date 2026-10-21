@@ -243,6 +243,138 @@ end
 
 
 """
+`TestFrames.testModule_StarkBroadening(; short::Bool=true)`
+    ... tests module StarkBroadening on a small, cheap, REAL He-like C V (Z=6) 1s2p/1s^2 system: (i) of
+        1s2p's four odd-parity levels, only the J=1- pair is E1-connected to the J=0+ ground (J=0- and
+        J=2- are dipole-forbidden), so `StarkBroadening.computeLines` must return EXACTLY as many lines
+        as `PhotoExcitation` independently finds nonzero oscillator strength for -- a forbidden (u,l) pair
+        is not a spectral line and must not appear, and the full `Atomic.Computation`/`perform()` route
+        must agree with the direct call; (ii) EVERY perturber found for a given reference level must
+        carry the SAME oscillator strength `PhotoExcitation.computeLines` gives directly for that same
+        (upper,lower) pair -- the faithfulness check that matters most here, since
+        `StarkBroadening.gatherPerturbers` is a thin wrapper around that trusted machinery and must not
+        silently diverge from it; (iii) a line's own two endpoints are themselves a legitimate dipole-
+        connected pair, so u must appear among the perturbers found for l and vice versa -- the line's
+        own transition is one of the channels that dephases it, not something excluded; (iv) with NO
+        `method` given, `electronWidth`, `electronShift` and `profile` must all be `nothing`; (v)
+        `Basics.SimplifiedModifiedSemiempiricalMethod`, on a REAL single-valence-electron case (Li-like
+        C IV, 2s-2p, the physical scope this method assumes) must return a finite, positive
+        `electronWidth` for every line and a `profile` that actually peaks near 1; (vi)
+        `StarkBroadening.activeSubshell` must RAISE for the earlier He-like 1s2p case, which has TWO
+        partially-occupied subshells (1s and 2p both open) -- the method's own scope boundary enforced
+        rather than silently misapplied. A success::Bool is returned.
+"""
+function testModule_StarkBroadening(; short::Bool=true)
+    printstyled("\n\nTest the module  StarkBroadening  ... \n", color=:cyan)
+    success = true
+
+    ni   = Nuclear.Model(6.)
+    grid = Radial.Grid(true)
+    asfSettings = AsfSettings()
+    pxSettings  = PhotoExcitation.Settings(PhotoExcitation.Settings(); multipoles=[E1], gauges=[UseCoulomb, UseBabushkin])
+
+    wbU      = SelfConsistent.performSCF([Configuration("1s 2p")], ni, grid, asfSettings; printout=false)
+    wbL      = SelfConsistent.performSCF([Configuration("1s^2")],  ni, grid, asfSettings; printout=false)
+    upperMp  = Hamiltonian.performCI(wbU.levels[1].basis, ni, grid, asfSettings; printout=false)
+    lowerMp  = Hamiltonian.performCI(wbL.levels[1].basis, ni, grid, asfSettings; printout=false)
+
+    sbSettings = StarkBroadening.Settings(StarkBroadening.Settings(); multipoles=[E1], gauges=[UseCoulomb, UseBabushkin],
+                                             electronDensity=1.0e14, electronTemperature=10000.0)
+    lines = StarkBroadening.computeLines(lowerMp, upperMp, grid, sbSettings; output=true)
+
+    # (i) one line per (u,l) pair that PhotoExcitation itself finds a REAL (nonzero-oscillator-strength)
+    # line for -- of the 4 odd-parity levels of 1s2p, only the J=1- pair is E1-connected to the J=0+
+    # ground (J=0- and J=2- are dipole-forbidden), so exactly 2 lines are expected here.
+    pxAll = PhotoExcitation.computeLines(upperMp, lowerMp, grid, pxSettings; output=true)
+    nReal = length([pl for pl in pxAll if pl.oscStrength.Coulomb != 0.  ||  pl.oscStrength.Babushkin != 0.])
+    if  length(lines) != nReal
+        success = false;   println("  ** expected $(nReal) real (E1-allowed) lines, got $(length(lines))")
+    end
+
+    # ALSO exercise the full Atomic.Computation/perform() route once, end to end, and check it agrees.
+    comp = Atomic.Computation(Atomic.Computation();
+               name            = "test StarkBroadening", grid = grid, nuclearModel = ni,
+               initialConfigs  = [Configuration("1s 2p")],   finalConfigs = [Configuration("1s^2")],
+               processSettings = sbSettings )
+    wb = perform(comp; output=true)
+    if  length(wb[StarkBroadening.Settings]) != length(lines)
+        success = false;   println("  ** perform() gave a different number of lines than the direct call")
+    end
+
+    # (ii) faithfulness: every perturber's stored oscillator strength must match PhotoExcitation's own,
+    # computed independently for the SAME pair.
+    checked = 0
+    for  line in lines
+        for  pc  in  vcat(line.perturbersUpper, line.perturbersLower)
+            upperLev, lowerLev = pc.level.energy >= line.initialLevel.energy ?
+                                     (pc.level, line.initialLevel) : (line.initialLevel, pc.level)
+            # re-derive which of (initialLevel,finalLevel,pc.level) this contribution actually paired against
+            reference = pc  in  line.perturbersUpper ? line.initialLevel : line.finalLevel
+            upperLev, lowerLev = pc.level.energy >= reference.energy ? (pc.level, reference) : (reference, pc.level)
+            pxLines = PhotoExcitation.computeLines( Multiplet("u", [upperLev]), Multiplet("l", [lowerLev]), grid, pxSettings; output=true)
+            if  isempty(pxLines)   ||   abs(pxLines[1].oscStrength.Coulomb - pc.oscStrength.Coulomb) > 1.0e-10
+                success = false;   println("  ** a stored perturber oscillator strength does not match PhotoExcitation's own")
+            end
+            checked += 1
+        end
+    end
+    if  checked == 0
+        success = false;   println("  ** no perturbers were found at all -- the search is empty")
+    end
+
+    # (iii) a line's OWN two endpoints are themselves a legitimate dipole-connected pair, so each line's
+    # upper level u must appear among the perturbers found FOR l, and l among those found for u -- the
+    # line's own transition is one of the channels that dephases it, not something to be excluded.
+    for  line  in  lines
+        if  !any( pc.level === line.finalLevel    for pc in line.perturbersUpper )
+            success = false;   println("  ** the line's own lower level does not appear as a perturber of its upper level")
+        end
+        if  !any( pc.level === line.initialLevel   for pc in line.perturbersLower )
+            success = false;   println("  ** the line's own upper level does not appear as a perturber of its lower level")
+        end
+    end
+
+    # (iv) with NO method given (as above), no line may carry a computed width/shift/profile.
+    if  any( !isnothing(line.electronWidth)  ||  !isnothing(line.electronShift)  ||  !isnothing(line.profile)  for line in lines )
+        success = false
+        println("  ** a line carries a non-nothing electronWidth/electronShift/profile with no method given")
+    end
+
+    # (v) SimplifiedModifiedSemiempiricalMethod (SMSE), on a REAL single-valence-electron case (Li-like C IV,
+    # 2s-2p) -- the physical scope this method and StarkBroadening.activeSubshell assume.
+    wbU2  = SelfConsistent.performSCF([Configuration("1s^2 2p")], ni, grid, asfSettings; printout=false)
+    wbL2  = SelfConsistent.performSCF([Configuration("1s^2 2s")], ni, grid, asfSettings; printout=false)
+    upperMp2 = Hamiltonian.performCI(wbU2.levels[1].basis, ni, grid, asfSettings; printout=false)
+    lowerMp2 = Hamiltonian.performCI(wbL2.levels[1].basis, ni, grid, asfSettings; printout=false)
+    ev_to_au = 1.0/Defaults.convertUnits("energy: from atomic to eV", 1.0)
+    ionizationEnergy = lowerMp2.levels[1].energy + 64.49*ev_to_au     ## NIST: C IV 2s ionization energy ~64.49 eV
+    method = Basics.SimplifiedModifiedSemiempiricalMethod(ionizationEnergy, 4.0)
+    sbSettings2 = StarkBroadening.Settings(StarkBroadening.Settings(); multipoles=[E1], gauges=[UseCoulomb],
+                      electronDensity=1.0e17, electronTemperature=20000.0, method=method)
+    lines2 = StarkBroadening.computeLines(lowerMp2, upperMp2, grid, sbSettings2; output=true)
+    if  isempty(lines2)
+        success = false;   println("  ** SMSE test case (Li-like C IV 2s-2p) found no lines at all")
+    elseif  any( isnothing(ln.electronWidth)  ||  !isfinite(ln.electronWidth)  ||  ln.electronWidth <= 0.  for ln in lines2 )
+        success = false;   println("  ** SMSE did not return a finite, positive electronWidth for every line")
+    elseif  any( isnothing(ln.profile)  ||  maximum(ln.profile.intensity) < 0.999  for ln in lines2 )
+        success = false;   println("  ** the Lorentzian profile built from the SMSE width does not peak near 1")
+    end
+
+    # (vi) activeSubshell's OWN scope guard: the earlier He-like 1s2p case has TWO partially-occupied
+    # subshells (1s and 2p both open) and must RAISE rather than silently pick one.
+    try
+        StarkBroadening.activeSubshell(upperMp.levels[1])
+        success = false;   println("  ** activeSubshell did not raise for a level with more than one open subshell")
+    catch e
+        !(e isa ErrorException)   &&   ( success = false;   println("  ** activeSubshell raised the wrong exception type") )
+    end
+
+    testPrint("testModule_StarkBroadening()::", success)
+    return(success)
+end
+
+
+"""
 `TestFrames.testModule_ImpactExcitation(; short::Bool=true)`  ... tests on module ImpactExcitation; a
     success::Bool is returned.
 """

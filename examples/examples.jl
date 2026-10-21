@@ -223,7 +223,12 @@ elseif  char == 'P'
     #
 elseif  char == 'Q'
     return( nothing )
-else    
+elseif  char == 'S'
+    println("Sa) Apply & test the StarkBroadening module: the electron-impact Stark width of a line, via")
+    println("    Dimitrijevic & Konjevic's Simplified Modified Semiempirical (SMSE) method -- needs only the")
+    println("    line's own two levels (effective quantum number, active subshell), no perturber search.")
+    #
+else
     println("Unknown Letter; redo ...")
 end
 

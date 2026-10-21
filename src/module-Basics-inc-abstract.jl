@@ -2849,6 +2849,46 @@ abstract type  AbstractQTreatment                       end
 
 
 """
+`abstract type  Basics.AbstractStarkBroadeningMethod`
+    ... selects which closed-form relation `StarkBroadening` uses to turn a line's own structure (its
+        perturbers, or its own effective quantum numbers) into an electron-impact width/shift -- selected BY
+        WHICH CONCRETE TYPE YOU SUPPLY, never by a flag, the same discipline as `AbstractScfRoute` or
+        `AbstractEeInteraction`. More than one such method is in active, independent use in the Stark-
+        broadening literature -- not one formula with cosmetic variants -- so a type per method is the
+        honest representation; see `StarkBroadening`'s own module docstring for the primary sources behind
+        each.
+
+    + struct SimplifiedModifiedSemiempiricalMethod  ... the Dimitrijevic & Konjevic (1987) low-temperature
+                                                          simplification (SMSE): a fully closed form using
+                                                          only the line's own two levels' effective quantum
+                                                          numbers and orbital angular momenta -- no
+                                                          perturber search needed. Carries its OWN physics
+                                                          parameters, since unlike `StarkBroadening.Settings`'s
+                                                          density/temperature (properties of the PLASMA),
+                                                          these are properties of the ION itself.
+"""
+abstract type  AbstractStarkBroadeningMethod            end
+
+"""
+`struct  Basics.SimplifiedModifiedSemiempiricalMethod  <:  AbstractStarkBroadeningMethod`
+    ... see `AbstractStarkBroadeningMethod`'s own docstring. Dimitrijevic & Konjevic, Astron. Astrophys. 172,
+        345 (1987); formula as restated in Dimitrijevic & Popovic, J. Appl. Spectrosc. 68, 893 (2001), Eq. (7).
+
+    + ionizationEnergy   ::Float64   ... the ion's own ionization threshold (Hartree, the SAME zero-point as
+                                          Level.energy) -- the energy of the series limit this line's upper
+                                          AND lower level both lie below.
+    + residualCharge     ::Float64   ... Z in the formula: the ion's spectroscopic charge AFTER removing the
+                                          active electron, PLUS one (Z=1 for a neutral atom's own valence
+                                          electron, Z=3 for a twice-ionized ion's valence electron, and so
+                                          on) -- the same Z_eff convention Rule 12 already uses elsewhere.
+"""
+struct  SimplifiedModifiedSemiempiricalMethod  <:  AbstractStarkBroadeningMethod
+    ionizationEnergy     ::Float64
+    residualCharge       ::Float64
+end
+
+
+"""
 `struct  Basics.Variational  <:  Basics.AbstractQTreatment`
     ... every configuration a RAS step generates enters the CI, which is the behaviour of every RAS step written
         before 11-Sep-2026 and remains the default. Equivalent to `SecondOrder(0., 0.)` and kept as its own type

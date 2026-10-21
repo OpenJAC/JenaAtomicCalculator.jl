@@ -146,7 +146,7 @@ export AbstractComputeTheme, AbstractConfigurationRestriction, AbstractConfigura
        RequestMinimumOccupation, ResonantInelastic, RestrictExcitations, RestrictMaximumDisplacements,
        RestrictNoElectronsTo, RestrictParity, RestrictToShellDoubles,
        SelfConsistent, Semiempirical, setDefaults, Shell, ShellSelection, SolidAngle,
-       SphericalMesh, SphericalTensor, SpinAngularGaigalas, SpinAngular, SpinAngularTables, StarkShift, StarkZeeman, StartFromHydrogenic,
+       SphericalMesh, SphericalTensor, SpinAngularGaigalas, SpinAngular, SpinAngularTables, StarkBroadening, StarkShift, StarkZeeman, StartFromHydrogenic,
        StartFromPrevious, StartFromThomasFermi, StaticField,
        StaticQuantizationAxis, Statistical, StrongField, Subshell, SuperConfigurations,
        tabulate, ThomasFermiField, ThreeParameterFermiNucleus, TimeHarmonicField, TotalAM,
@@ -229,6 +229,7 @@ end
 if  incBasicProcesses
 # Functions/methods for atomic processes
 include("module-PhotoExcitation.jl")
+include("module-StarkBroadening.jl")
 include("module-PhotoIonization.jl")
 include("module-PhotoRecombination.jl")
 include("module-AutoIonization.jl")

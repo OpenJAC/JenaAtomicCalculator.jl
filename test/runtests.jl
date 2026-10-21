@@ -171,6 +171,8 @@ end
     @testset "JAC processes" begin
         @test TestFrames.testModule_PhotoEmission()
         @test TestFrames.testModule_PhotoExcitation()
+        @test TestFrames.testModule_StarkBroadening()   ## added 21-Oct-2026; scaffold + perturber-gathering only,
+                                                        ## no width/shift formula yet -- see the module's own docstring
         @test TestFrames.testModule_ImpactExcitation()
                                                    ## added 01-Sep-2026; Omega(i->f) = Omega(f->i) exactly, on
                                                    ## H-like C5+ where the module is known to work, and the

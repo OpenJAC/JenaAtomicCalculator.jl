@@ -63,6 +63,7 @@ function  resultKeyStrings(T::Type)
     T === PhotoIonization.Settings          &&  return( ["photoionization lines:"] )
     T === PhotoDoubleIonization.Settings    &&  return( ["Single-photon double-ionization lines:"] )
     T === PhotoExcitation.Settings          &&  return( ["photo-excitation lines:", "photoexcitation lines:"] )
+    T === StarkBroadening.Settings          &&  return( ["Stark-broadening lines:"] )
     T === PhotoExcitationAutoion.Settings   &&  return( ["photo-excitation-autoionization pathways:"] )
     T === PhotoExcitationFluores.Settings   &&  return( ["photo-excitation-fluorescence pathways:"] )
     T === PhotoEmission.Settings            &&  return( ["radiative lines:", "photoemission lines:"] )
@@ -206,6 +207,7 @@ function  allResultKeyTypes()
             AutoIonization.Settings, RayleighCompton.Settings, ElectronCapture.Settings,
             DoubleAutoIonization.Settings, DielectronicRecombination.Settings, MultiPhotonTransition.Settings,
             PhotoIonization.Settings, PhotoDoubleIonization.Settings, PhotoExcitation.Settings,
+            StarkBroadening.Settings,
             PhotoExcitationAutoion.Settings, PhotoExcitationFluores.Settings, PhotoEmission.Settings,
             CoulombExcitation.Settings, CoulombIonization.Settings, RadiativeAuger.Settings,
             PhotoRecombination.Settings, ImpactExcitation.Settings, InternalRecombination.Settings,
@@ -452,8 +454,11 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
             outcome = PhotoDoubleIonization.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid, computation.processSettings) 
             if output    results = Base.merge( results, Dict("Single-photon double-ionization lines:" => outcome) )      end
         elseif  typeof(computation.processSettings) == PhotoExcitation.Settings
-            outcome = PhotoExcitation.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings) 
+            outcome = PhotoExcitation.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings)
             if output    results = Base.merge( results, Dict("photo-excitation lines:" => outcome) )                     end
+        elseif  typeof(computation.processSettings) == StarkBroadening.Settings
+            outcome = StarkBroadening.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings)
+            if output    results = Base.merge( results, Dict("Stark-broadening lines:" => outcome) )                     end
         elseif  typeof(computation.processSettings) == PhotoExcitationAutoion.Settings  
             outcome = PhotoExcitationAutoion.computePathways(finalMultiplet, intermediateMultiplet, initialMultiplet, nModel, 
                                                                 computation.grid, computation.processSettings) 
