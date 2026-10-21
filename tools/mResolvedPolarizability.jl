@@ -1048,9 +1048,28 @@ end
 # which is pure v1 -- measures the angle of a mixture and can never be 1.  This case separates the two terms,
 # written out again here rather than called, and reads off their coefficients in the (v1, v2) basis.
 #
-# WHAT IT IS FOR.  The v2 equation of the three-term identity, -B2 + C_J = 0, is the ONE part that can be
+# WHAT IT IS FOR.  The v2 equation of the three-term identity, -B2 + C_J = 0, is the ONE part that could be
 # checked without a nonlocal frozen exchange:  C_J is the frozen Hartree coefficient, which needs only Y_0.
 # So this case decides whether the E2 branch is correctly normalised, and the answer is that it is.
+#
+# AND SINCE 21-Oct-2026 THE v1 EQUATION IS MEASURABLE TOO, because `Bsplines.setupExchangeMatrix` and
+# `Bsplines.exchangeOnOrbital` give JAC a frozen NONLOCAL exchange operator.  C_K is printed below and it is
+# EXACTLY occ * Lambda_1, to ten digits, with K chi collinear with v1 to 3e-16 -- so the operator itself is
+# not in question.  **THE v1 EQUATION DOES NOT CLOSE, AND NO SINGLE FACTOR CLOSES IT.**  Measured:
+#
+#     channel        A          B1 (coded)     C_K        A - B1 - C_K     B1 required by the identity
+#     1s -> 2p_3/2   -0.666661  +0.212687    +0.166667     -1.046014            -0.833328
+#     1s -> 2p_1/2   -0.666678  -0.101583    +0.166667     -0.731761            -0.833344
+#
+# The identity needs the SAME B1 on both channels;  the coded one differs between them by a factor -2.09, so
+# a SIGN or an overall scale cannot be the whole defect -- which is what the working hypothesis had been.
+# Four candidate conventions were tried and all four fail: B1 compared against A, against A*aCoeff, against
+# (A - C_K)*aCoeff, and with B1 divided by aCoeff (aCoeff = `RandomPhase.receivingCoefficient`, -0.816497 and
+# -0.577350 here), the implied factors coming out 1.78/-2.15, 3.20/-4.74 and so on -- never one number.
+# WHAT THAT LEAVES is the bookkeeping: A is built here from the m-RESOLVED induced density summed over
+# channels, B1 from the REDUCED `exchangeAngularCoefficient`, and C_K from a plain operator carrying no
+# angular reduction at all.  Putting the three in ONE convention is a derivation and is not attempted here;
+# it is the remaining work of item 75, and it is now a well-posed question rather than a missing ingredient.
 #
 # MEASURED 20-Oct-2026, H 1s in a 120 a.u. box:
 #
@@ -1186,6 +1205,34 @@ function caseM(grid, prim, orbs, pot, shells, occ)
                 cs(sD, sX), norm(sX)/norm(sD))
         @printf("      direct = %+.10f v1  (residual %.1e)      E2 = %+.10f v2  (residual %.1e)\n",
                 pr(sD, v1), rs(sD, v1), pr(x2, v2), rs(x2, v2))
+
+        # ---- THE v1 EQUATION, A - B1 - C_K = 0, which became checkable when `Bsplines.setupExchangeMatrix`
+        #      and `Bsplines.exchangeOnOrbital` gave JAC a frozen NONLOCAL exchange operator.  C_K is the
+        #      coefficient of K chi along v1;  both functions return -K, so K chi = -(the returned object).
+        nsL = grid.nsL;   nsS = grid.nsS
+        storage = Dict{String,Array{Float64,2}}()
+        matrixB = zeros(nsL+nsS, nsL+nsS)
+        matrixB[1:nsL,1:nsL]                 = Bsplines.generateTTpMatrix!("LL-overlap", 0, prim, storage)
+        matrixB[nsL+1:nsL+nsS,nsL+1:nsL+nsS] = Bsplines.generateTTpMatrix!("SS-overlap", 0, prim, storage)
+        core = Dict(aSub => orbA)
+        kDir = -Bsplines.exchangeOnOrbital(tSub.kappa, prim, gg, core, occ)
+        # the same thing through the MATRIX, on the FITTED vector -- the two must agree for the SAME function,
+        # which separates an error in either route from the fit's own amplitude error
+        X     = Bsplines.setupExchangeMatrix(tSub.kappa, prim, core, occ)
+        cv    = Bsplines.fitVectorToPrimitives(gg, prim, matrixB)
+        orbF  = Bsplines.generateOrbitalFromVector(tSub, 0.0, cv, prim)
+        kMat  = -(X * cv)
+        kFit  = -Bsplines.exchangeOnOrbital(tSub.kappa, prim, orbF, core, occ)
+        lam   = AM.CL_reduced_me(tSub, 1, aSub)^2 /
+                ((Basics.subshell_2j(tSub)+1.0) * (Basics.subshell_2j(aSub)+1.0))
+        A = pr(sD, v1);   B1 = pr(x1, v1);   CK = pr(kDir, v1)
+        @printf("      matrix against exchangeOnOrbital, SAME fitted function:  %.3e   (must be ~1e-14)\n",
+                norm(kMat .- kFit)/norm(kFit))
+        @printf("      the FIT's own amplitude error:  |K chi_fit| / |K chi| = %.6f\n", norm(kFit)/norm(kDir))
+        @printf("      occ * Lambda_1 = %.10f      C_K / (occ Lambda_1) = %.10f   (must be 1)\n",
+                occ[aSub]*lam, CK/(occ[aSub]*lam))
+        @printf("      A = %+.10f   B1 = %+.10f   C_K = %+.10f  (along v1 to %.1e)\n", A, B1, CK, rs(kDir, v1))
+        @printf("      A - B1 - C_K = %+.10f        (A - B1)/C_K = %+.8f\n", A-B1-CK, (A-B1)/CK)
     end
     # and the coefficient the v2 equation turns on, across subshells and ranks
     @printf("\n   c2(Lp=0) across subshells -- it is 1 everywhere, so the occupation is NOT inside it:\n")
@@ -1202,8 +1249,10 @@ function caseM(grid, prim, orbs, pot, shells, occ)
     println("""
    HOW TO READ IT.  cos(direct, E1) = +-1 and a 1e-16 split say the radial assembly is right;  the mixture
    angle explains CASE L's 1.40 and 1.81 with nothing left over.  c2 = 1 with the scale N_b/(2j_b+1) gives
-   B2 = 1 per electron for a CLOSED subshell, which is what the v2 equation -B2 + C_J = 0 requires.  The v1
-   equation stays unchecked:  it needs a frozen NONLOCAL exchange, and JAC has none.""")
+   B2 = 1 per electron for a CLOSED subshell, which is what the v2 equation -B2 + C_J = 0 requires.  C_K is
+   now measurable and is exactly occ*Lambda_1;  the v1 equation A - B1 - C_K = 0 does NOT close, and the
+   required B1 is the SAME on both channels while the coded one is not, so no single sign or factor repairs
+   it.  See this case's header for the four conventions tried and what is left.""")
 end
 caseM(gridM, primM, orbsM, potM, shellsM, occM)
 else
