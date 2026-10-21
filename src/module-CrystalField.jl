@@ -42,7 +42,7 @@
 module CrystalField
 
 
-using LinearAlgebra, Printf, ..AngularMomentum, ..Basics, ..Defaults, ..ManyElectron, ..Radial, ..RadialIntegrals, ..SpinAngular
+using LinearAlgebra, Printf, ..AngularMomentum, ..Basics, ..Defaults, ..ManyElectron, ..Nuclear, ..Radial, ..RadialIntegrals, ..SpinAngular
 
 
 #################################################################################################################################
@@ -509,8 +509,13 @@ end
         common M_J-resolved basis via CrystalField.computeRepresentation(...), and a single
         CrystalField.Outcome is returned. An Array{CrystalField.Outcome,1} is returned.
 
+        THIS IS THE DIRECT FORM, in which the lattice is handed over separately. `settings.lattice` is then NOT
+        read and the argument wins, so the two must not be filled with different lattices. The STANDARD route is
+        the method below, taking `(multiplet, nm, grid, settings)` as every other property does and reading the
+        lattice from the settings, which is where an `Atomic.Computation` has to carry it.
+
     + multiplet   ::Multiplet              ... the (unperturbed) atomic levels.
-    + lattice     ::CrystalField.Lattice    ... the external point-charge lattice.
+    + lattice     ::CrystalField.Lattice    ... the external point-charge lattice;  overrides settings.lattice.
     + grid        ::Radial.Grid            ... the radial grid.
     + settings    ::CrystalField.Settings   ... the crystal-field computation settings.
 """
@@ -537,6 +542,50 @@ function computeOutcomes(multiplet::Multiplet, lattice::Lattice, grid::Radial.Gr
     end
     #
     return  outcomes
+end
+
+
+"""
+`CrystalField.computeOutcomes(multiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid, settings::CrystalField.Settings; output=true)`
+    ... the STANDARD-ROUTE entry point, and the reason it exists is the signature rather than the physics: every
+        property module is reached by `Basics.perform` through `(multiplet, nuclearModel, grid, settings)`, so
+        this is what lets a crystal-field splitting be asked for with
+        `Atomic.Computation(...; propertySettings=[CrystalField.Settings(...)])` like any other property,
+        instead of by calling the module directly. The lattice is taken from `settings.lattice`, which is where
+        the standard route must carry it, and the results are printed to screen and to the summary file as every
+        registered property does. An Array{CrystalField.Outcome,1} is returned, or `nothing` for output=false.
+
+        `nm` IS ACCEPTED AND NOT USED, deliberately: the crystal field is set by the EXTERNAL point charges and
+        is independent of the nucleus, so there is nothing for it to do here. It is in the signature because
+        `perform` passes it to every property alike.
+
+    + multiplet   ::Multiplet              ... the (unperturbed) atomic levels.
+    + nm          ::Nuclear.Model          ... the nuclear model;  carried by the standard route, unused here.
+    + grid        ::Radial.Grid            ... the radial grid.
+    + settings    ::CrystalField.Settings   ... the settings, whose `lattice` field supplies the point charges.
+"""
+function computeOutcomes(multiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid, settings::Settings; output=true)
+    println("")
+    printstyled("CrystalField.computeOutcomes(): The computation of the crystal-field splitting starts now ... \n", color=:light_green)
+    printstyled("--------------------------------------------------------------------------------------------- \n", color=:light_green)
+    println("")
+    # An empty lattice is REFUSED rather than computed: every splitting would come back as exactly zero, and a
+    # table of zeros reads as "this level has no crystal-field splitting" instead of "no lattice was given".
+    if  isempty(settings.lattice.ions)
+        error("CrystalField.computeOutcomes(): settings.lattice carries no point charges, so there is no "   *
+              "external field at all and every Stark sublevel would come back at the parent energy.  Fill "  *
+              "Settings.lattice with a CrystalField.Lattice of CrystalField.PointCharge's -- see "           *
+              "examples/example-Ck.jl for an octahedral set.")
+    end
+    outcomes = CrystalField.computeOutcomes(multiplet, settings.lattice, grid, settings)
+
+    CrystalField.displayResults(stdout, outcomes)
+    printSummary, iostream = Defaults.getDefaults("summary flag/stream")
+    if  printSummary    CrystalField.displayResults(iostream, outcomes)   end
+
+    if    output    return( outcomes )
+    else            return( nothing )
+    end
 end
 
 
