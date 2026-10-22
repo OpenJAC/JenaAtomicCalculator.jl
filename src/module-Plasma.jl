@@ -779,13 +779,17 @@ end
 
     + Plasma.EmpiricalTreatment        ... scaled/hydrogenic input AND a fitted formula; wraps one
                                              Empirical.AbstractEmpiricalApproximation singleton; no SCF/CI anywhere.
-    + Plasma.SemiEmpiricalTreatment    ... a REAL, JAC-computed input (a cheap mean-field energy or Einstein-A) fed
-                                             into the SAME fitted formula the EmpiricalTreatment leg would use.
-                                             Supported today for PhotoEmission (Empirical.UsingJAC) and
-                                             ImpactExcitation (bridged through Empirical.GivenEinsteinA); NOT yet
-                                             supported for ImpactIonization/PhotoRecombination/ThreeBodyRecombination,
-                                             whose Empirical formulas have no hook to accept a real input --
-                                             Plasma.validateKineticChargeBalanceSupport raises rather than guessing.
+    + Plasma.SemiEmpiricalTreatment    ... a REAL, JAC-computed input (a cheap mean-field energy, Einstein-A or
+                                             binding energy) fed into the SAME fitted formula the EmpiricalTreatment
+                                             leg would use. Supported for all five legs: PhotoEmission
+                                             (Empirical.UsingJAC), ImpactExcitation (bridged through
+                                             Empirical.GivenEinsteinA), PhotoRecombination (Empirical.UsingJAC, via
+                                             the Einstein-Milne relation to a mean-field photoionization cross
+                                             section), and ImpactIonization/ThreeBodyRecombination
+                                             (Empirical.Lotz1967, fed a mean-field AL-Field binding energy via the
+                                             pSource keyword of Empirical.impactIonizationBindingEnergy rather than
+                                             a tabulated one). Plasma.validateKineticChargeBalanceSupport checks the
+                                             required approx for each leg and raises rather than guessing.
     + Plasma.StructureBasedTreatment   ... real input AND JAC's own cross-section/rate computation end-to-end; the
                                              only tier open to a GENERAL (non-classic) Plasma.ChargeStage. Carries the
                                              one knob that differs between models, an ImpactIonization.AbstractModel,
@@ -819,18 +823,21 @@ end
         realistic in input than Plasma.EmpiricalTreatment. Usable only on a CLASSIC Plasma.ChargeStage (cf.
         Plasma.ChargeStage), exactly like Plasma.EmpiricalTreatment.
 
-        Supported today for PhotoEmission, where approx must be Empirical.UsingJAC() -- Empirical's own mean-field
-        estimator -- and for ImpactExcitation, where approx must be Empirical.VanRegemorter1962() and the real
-        Einstein-A is obtained by calling Empirical.photoemissionEinsteinA(.., Empirical.UsingJAC()) and bridging the
-        result in as aSource=Empirical.GivenEinsteinA(..), the one aSource form impactExcitationCrossSection already
-        accepts. NOT YET supported for ImpactIonization/PhotoRecombination/ThreeBodyRecombination: their Empirical
-        formulas read the binding/threshold energy straight from Empirical.scaledBindingEnergy with no keyword to
-        override it, so there is no hook here to feed a real energy through without first changing module-Empirical.jl
-        itself (tracked, not implemented) -- any SemiEmpiricalTreatment on one of these three legs raises.
+        Supported for PhotoEmission and PhotoRecombination, where approx must be Empirical.UsingJAC() -- Empirical's
+        own mean-field estimator, used directly (PhotoRecombination's photoionizationCrossSection(.., UsingJAC())
+        feeds the Einstein-Milne relation exactly as ScaledHydrogenic's own Kramers formula does); for
+        ImpactExcitation, where approx must be Empirical.VanRegemorter1962() and the real Einstein-A is obtained by
+        calling Empirical.photoemissionEinsteinA(.., Empirical.UsingJAC()) and bridging the result in as
+        aSource=Empirical.GivenEinsteinA(..); and for ImpactIonization/ThreeBodyRecombination, where approx must be
+        Empirical.Lotz1967() -- the SAME Lotz/Saha formula EmpiricalTreatment(Lotz1967()) would use -- fed a
+        mean-field (AL-Field) binding energy via pSource=Empirical.UsingJAC() rather than a tabulated one, cf.
+        Empirical.impactIonizationBindingEnergy.
 
     + approx   ::Empirical.AbstractEmpiricalApproximation   ... the formula this tier's real input is fed into;
-                                                                   Empirical.UsingJAC() for PhotoEmission,
-                                                                   Empirical.VanRegemorter1962() for ImpactExcitation.
+                                                                   Empirical.UsingJAC() for PhotoEmission/
+                                                                   PhotoRecombination, Empirical.VanRegemorter1962()
+                                                                   for ImpactExcitation, Empirical.Lotz1967() for
+                                                                   ImpactIonization/ThreeBodyRecombination.
 """
 struct  SemiEmpiricalTreatment  <:  AbstractRateTreatment
     approx     ::Empirical.AbstractEmpiricalApproximation
@@ -908,9 +915,9 @@ end
         than an oversight: Plasma.EmpiricalTreatment and Plasma.SemiEmpiricalTreatment resolve rates at the
         CONFIGURATION level, so they are usable only on a CLASSIC Plasma.ChargeStage (exactly 2 configurations, 1
         level each, cf. Plasma.ChargeStage); a GENERAL (multi-configuration or multi-level) stage requires
-        Plasma.StructureBasedTreatment on every leg that touches it. Plasma.SemiEmpiricalTreatment is further
-        restricted to PhotoEmission and ImpactExcitation only (see Plasma.SemiEmpiricalTreatment for why the other
-        three legs are not yet supported). Plasma.validateKineticChargeBalanceSupport checks every leg against every
+        Plasma.StructureBasedTreatment on every leg that touches it. Plasma.SemiEmpiricalTreatment is supported on
+        all five legs, each with its own required approx (see Plasma.SemiEmpiricalTreatment).
+        Plasma.validateKineticChargeBalanceSupport checks every leg against every
         stage it touches BEFORE any Multiplet is generated, and RAISES -- naming the leg, the stage, and the nearest
         supported alternative -- rather than silently guessing at an unsupported combination or returning a wrong
         number (the error-over-guess pattern already used by corePolarization.doApply in module-PhotoEmission.jl).

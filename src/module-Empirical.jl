@@ -19,7 +19,13 @@ using  Printf, ..AtomicState, ..Basics, ..Continuum, ..Defaults, ..Distribution,
 
     + ScaledHydrogenic     ... hydrogenic (Kramers-type) formulas, scaled by tabulated binding energies;
                                cf. Empirical.scaledBindingEnergy.
-    + UsingJAC             ... simple mean-field (DFS) computations of energies and one-electron amplitudes.
+    + UsingJAC             ... simple mean-field computations of energies and one-electron amplitudes, replacing a
+                               tabulated/scaled input of the SAME formula by a real one: DFS orbitals and E1
+                               amplitudes for photoionization/photorecombination/photoemission, cf.
+                               Empirical.photoionizationCrossSection; AL-Field orbital energies (the binding energy
+                               in the Koopmans sense, cf. Basics.perform(::Empirical.Computation)) for the
+                               electron-impact-ionization/three-body-recombination binding energy P, cf.
+                               Empirical.impactIonizationBindingEnergy.
     + GivenEinsteinA       ... an externally given Einstein-A value (multipole, energy, rate); cf. below.
     + Lotz1967             ... Lotz's (1967) formula for electron-impact ionization cross sections
                                [W. Lotz, Z. Physik 206, 205 (1967)].

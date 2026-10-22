@@ -62,14 +62,6 @@ function validateKineticChargeBalanceSupport(scheme::Plasma.KineticChargeBalance
     end
 
     # --- cross-stage legs: ImpactIonization, PhotoRecombination, ThreeBodyRecombination. ---------------------------
-    # SemiEmpiricalTreatment is not yet supported here at all, regardless of stage shape.
-    for  (legName, treatment)  in  (("eiiTreatment", scheme.eiiTreatment), ("rrTreatment", scheme.rrTreatment), ("tbrTreatment", scheme.tbrTreatment))
-        if  treatment isa Plasma.SemiEmpiricalTreatment
-            push!(problems, "$legName = Plasma.SemiEmpiricalTreatment is not yet supported -- Empirical's threshold-energy " *
-                             "formula for this leg has no hook to accept a real computed input; use Plasma.EmpiricalTreatment " *
-                             "or Plasma.StructureBasedTreatment instead.")
-        end
-    end
     for  k = 1:nStages-1
         bothClassic = Plasma.isClassicChargeStage(scheme.chargeStages[k])  &&  Plasma.isClassicChargeStage(scheme.chargeStages[k+1])
         bothClassic   &&   continue
@@ -82,7 +74,7 @@ function validateKineticChargeBalanceSupport(scheme::Plasma.KineticChargeBalance
         end
     end
 
-    # --- SemiEmpiricalTreatment's own approx requirement, for the two legs that DO support it. ----------------------
+    # --- SemiEmpiricalTreatment's own approx requirement, one check per leg. ---------------------------------------
     if  scheme.peTreatment isa Plasma.SemiEmpiricalTreatment  &&  !(scheme.peTreatment.approx isa Empirical.UsingJAC)
         push!(problems, "peTreatment = Plasma.SemiEmpiricalTreatment requires approx = Empirical.UsingJAC(), got " *
                          "$(typeof(scheme.peTreatment.approx)).")
@@ -90,6 +82,20 @@ function validateKineticChargeBalanceSupport(scheme::Plasma.KineticChargeBalance
     if  scheme.ieTreatment isa Plasma.SemiEmpiricalTreatment  &&  !(scheme.ieTreatment.approx isa Empirical.VanRegemorter1962)
         push!(problems, "ieTreatment = Plasma.SemiEmpiricalTreatment requires approx = Empirical.VanRegemorter1962(), got " *
                          "$(typeof(scheme.ieTreatment.approx)).")
+    end
+    if  scheme.rrTreatment isa Plasma.SemiEmpiricalTreatment  &&  !(scheme.rrTreatment.approx isa Empirical.UsingJAC)
+        push!(problems, "rrTreatment = Plasma.SemiEmpiricalTreatment requires approx = Empirical.UsingJAC(), got " *
+                         "$(typeof(scheme.rrTreatment.approx)).")
+    end
+    if  scheme.eiiTreatment isa Plasma.SemiEmpiricalTreatment  &&  !(scheme.eiiTreatment.approx isa Empirical.Lotz1967)
+        push!(problems, "eiiTreatment = Plasma.SemiEmpiricalTreatment requires approx = Empirical.Lotz1967(), got " *
+                         "$(typeof(scheme.eiiTreatment.approx)) -- SemiEmpirical feeds a mean-field binding energy into " *
+                         "the SAME Lotz formula, cf. Empirical.impactIonizationBindingEnergy.")
+    end
+    if  scheme.tbrTreatment isa Plasma.SemiEmpiricalTreatment  &&  !(scheme.tbrTreatment.approx isa Empirical.Lotz1967)
+        push!(problems, "tbrTreatment = Plasma.SemiEmpiricalTreatment requires approx = Empirical.Lotz1967(), got " *
+                         "$(typeof(scheme.tbrTreatment.approx)) -- SemiEmpirical feeds a mean-field binding energy into " *
+                         "the SAME Saha/Lotz formula, cf. Empirical.impactIonizationBindingEnergy.")
     end
 
     if  length(problems) > 0
@@ -414,9 +420,10 @@ function computeKineticChargeBalance(scheme::Plasma.KineticChargeBalanceScheme, 
                                                                   electronTemperature=TeK, printBefore=false)
                     eiiRate     = ThreeBodyRecombination.eiiRateCoefficient(sh, levelLo, nm, grid, eiiSettings)
                 else
-                    eDist   = Distribution.ElectronMaxwell(Te_au)
+                    eDist    = Distribution.ElectronMaxwell(Te_au)
+                    pSource  = scheme.eiiTreatment isa Plasma.SemiEmpiricalTreatment ? Empirical.UsingJAC() : Empirical.ScaledHydrogenic()
                     eiiRate = coeffFactor * Empirical.impactIonizationPlasmaAlpha(eDist, stageLo.configs[1], stageHi.configs[1];
-                                                approx=scheme.eiiTreatment.approx, printout=false)
+                                                approx=scheme.eiiTreatment.approx, pSource=pSource, printout=false)
                 end
                 eiiTerm = eiiRate * Ne
                 if  isfinite(eiiTerm)
@@ -448,9 +455,10 @@ function computeKineticChargeBalance(scheme::Plasma.KineticChargeBalanceScheme, 
                     tbrLines    = ThreeBodyRecombination.computeLines(finalMp, initialMp, nm, grid, tbrSettings; output=true)
                     tbrRate     = length(tbrLines) > 0 ? tbrLines[1].rateCoefficient : 0.
                 else
-                    eDist   = Distribution.ElectronMaxwell(Te_au)
+                    eDist    = Distribution.ElectronMaxwell(Te_au)
+                    pSource  = scheme.tbrTreatment isa Plasma.SemiEmpiricalTreatment ? Empirical.UsingJAC() : Empirical.ScaledHydrogenic()
                     tbrRate = coeffFactor * Empirical.threeBodyRecombinationPlasmaAlpha(eDist, stageHi.configs[1], stageLo.configs[1];
-                                                approx=scheme.tbrTreatment.approx, printout=false)
+                                                approx=scheme.tbrTreatment.approx, pSource=pSource, printout=false)
                 end
 
                 downTermC = (rrRateC + tbrRate) * Ne;   downTermB = (rrRateB + tbrRate) * Ne

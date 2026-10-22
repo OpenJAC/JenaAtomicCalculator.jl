@@ -161,7 +161,7 @@ elseif  char == 'J'
     println("Jg) Apply & test the Plasma.SuperConfigurationIonizationScheme (equilibrium ionization balance across configurations).")
     println("Jh) Apply & test the Plasma.SuperConfigurationMixtureOpacityScheme (a multi-species mixture, Planck mean opacity).")
     println("Ji) Apply & test the Plasma.KineticChargeBalanceScheme (kinetic population balance across several charge states,")
-    println("    with a per-process empirical/structure-based rate-treatment switch).")
+    println("    with a per-process empirical/semi-empirical/structure-based rate-treatment ladder).")
     #
 elseif  char == 'K'
     println("K)  Examples, tests & development of deep-learning applications")

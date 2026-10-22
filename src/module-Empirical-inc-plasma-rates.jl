@@ -1240,13 +1240,16 @@ end
 `Empirical.threeBodyRecombinationPlasmaAlpha(eDist::Distribution.ElectronMaxwell,
                                              iConf::Configuration, fConf::Configuration;
                                              approx::Empirical.AbstractEmpiricalApproximation=Lotz1967(), printout::Bool=false,
+                                             pSource::Empirical.AbstractEmpiricalApproximation=Empirical.ScaledHydrogenic(),
                                              data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())`
     ... to estimate empirically the three-body recombination (TBR) plasma rate coefficient alpha^(TBR) for the capture
         channel iConf + e + e -> fConf + e, by detailed balance with the (Lotz) electron-impact ionization of fConf.
         In LTE, the Saha equation fixes the ratio of the forward and backward rates, so that
             alpha^(TBR) (T_e; i -> f) = alpha^(EII) (T_e; f -> i) * g_f/(2 g_i) * (2 pi/T_e)^(3/2) * exp(P/T_e),
         with P the binding energy of the captured electron and the factor 2 the spin degeneracy of the free electron.
-        An alpha::Float64 [a.u.] is returned.
+        The pSource keyword fixes how P itself is obtained: ScaledHydrogenic() (the default, tabulated) or
+        UsingJAC() (a JAC mean-field calculation), cf. Empirical.impactIonizationBindingEnergy() -- the same
+        Saha/Lotz formula throughout, a real rather than a tabulated input. An alpha::Float64 [a.u.] is returned.
         Quantity: a three-body rate coefficient [cm^6/s] -- multiply by the electron number density *squared*
             n_e^2 [1/cm^6] to obtain the rate per ion [1/s]; TBR therefore dominates over radiative recombination
             at high electron densities.
@@ -1261,6 +1264,7 @@ end
 function threeBodyRecombinationPlasmaAlpha(eDist::Distribution.ElectronMaxwell,
                                            iConf::Configuration, fConf::Configuration;
                                            approx::Empirical.AbstractEmpiricalApproximation=Lotz1967(), printout::Bool=false,
+                                           pSource::Empirical.AbstractEmpiricalApproximation=Empirical.ScaledHydrogenic(),
                                            data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())
     if  typeof(approx) != Empirical.Lotz1967
         error("The TBR plasma rate coefficient is presently supported only for approx = Lotz1967().")
@@ -1276,7 +1280,7 @@ function threeBodyRecombinationPlasmaAlpha(eDist::Distribution.ElectronMaxwell,
         if     v == -1     cShell = k    end
     end
     if  diff != -1   error("Incompatible initial and final configurations for a TBR rate coefficient.")   end
-    P      = Empirical.scaledBindingEnergy(Z, cShell, fConf, data)
+    P      = Empirical.impactIonizationBindingEnergy(fConf, cShell, pSource; data=data)
     xi     = fConf.shells[cShell]
     Te     = eDist.T
 
@@ -1312,7 +1316,8 @@ function threeBodyRecombinationPlasmaAlpha(eDist::Distribution.ElectronMaxwell,
         sa = "\n* Estimate empirically the three-body recombination plasma rate coefficient alpha for a given capture " *
              "channel i -> f with the following assumptions/simplifications: " *
              "\n    + Electron field: $eDist,  i.e. T_e [K] = $(Tex). " *
-             "\n    + Detailed balance (Saha) with the simplified Lotz (1967) EII cross section of the inverse process. " *
+             "\n    + Detailed balance (Saha) with the simplified Lotz (1967) EII cross section of the inverse process; " *
+             "binding energy from pSource = $pSource. " *
              "\n    + iConf = $iConf  -->  fConf = $fConf " *
              "\n    + Binding energy of the captured electron in $cShell [$unEnergy] = $Px " *
              "\n    + Plasma rate coefficient alpha^(TBR) [cm^6/s] = $alphax " *
@@ -1328,11 +1333,14 @@ end
 `Empirical.threeBodyRecombinationPlasmaAlpha(eDist::Distribution.ElectronMaxwell, iConf::Configuration;
                                              nLayers::Int64=10, approx::Empirical.AbstractEmpiricalApproximation=Lotz1967(),
                                              printout::Bool=false,
+                                             pSource::Empirical.AbstractEmpiricalApproximation=Empirical.ScaledHydrogenic(),
                                              data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())`
     ... to estimate empirically the *total* three-body recombination plasma rate coefficient alpha^(TBR) (T_e; i) of
         the ion iConf, i.e. the sum over all capture channels iConf + e + e -> fConf + e as enumerated by
         Empirical.recombinationConfigurations(iConf; nLayers): every vacancy of iConf and all empty (Rydberg) shells
-        with l <= 3 up to n_max = n_valence + nLayers, where the sum is truncated. An alpha::Float64 [a.u.] is returned.
+        with l <= 3 up to n_max = n_valence + nLayers, where the sum is truncated. The pSource keyword is passed
+        through to each channel's Empirical.threeBodyRecombinationPlasmaAlpha(..., iConf, fConf, ...). An
+        alpha::Float64 [a.u.] is returned.
         Quantity: a three-body rate coefficient [cm^6/s] -- multiply by the electron number density *squared*
             n_e^2 [1/cm^6] to obtain the rate per ion [1/s].
 
@@ -1348,11 +1356,12 @@ end
 function threeBodyRecombinationPlasmaAlpha(eDist::Distribution.ElectronMaxwell, iConf::Configuration;
                                            nLayers::Int64=10, approx::Empirical.AbstractEmpiricalApproximation=Lotz1967(),
                                            printout::Bool=false,
+                                           pSource::Empirical.AbstractEmpiricalApproximation=Empirical.ScaledHydrogenic(),
                                            data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())
     alpha  = 0.;    confs = Empirical.recombinationConfigurations(iConf, nLayers=nLayers)
     for  fConf in confs
         alpha = alpha + Empirical.threeBodyRecombinationPlasmaAlpha(eDist, iConf, fConf, approx=approx,
-                                                                    printout=false, data=data)
+                                                                    printout=false, pSource=pSource, data=data)
     end
 
     # Report about this estimate
@@ -1365,7 +1374,8 @@ function threeBodyRecombinationPlasmaAlpha(eDist::Distribution.ElectronMaxwell, 
         sa = "\n* Estimate empirically the total three-body recombination plasma rate coefficient alpha for a given " *
              "ion i with the following assumptions/simplifications: " *
              "\n    + Electron field: $eDist,  i.e. T_e [K] = $(Tex). " *
-             "\n    + Detailed balance (Saha) with the simplified Lotz (1967) EII cross section of each inverse process. " *
+             "\n    + Detailed balance (Saha) with the simplified Lotz (1967) EII cross section of each inverse process; " *
+             "binding energy from pSource = $pSource. " *
              "\n    + iConf = $iConf " *
              "\n    + Sum over $(length(confs)) capture channels: all vacancies of iConf and the empty (Rydberg) shells " *
              "with l <= 3 up to n_max = $(nValence + nLayers); the sum is truncated there. " *
@@ -1859,22 +1869,59 @@ end
 
 
 """
+`Empirical.impactIonizationBindingEnergy(iConf::Configuration, iShell::Shell,
+                                         pSource::Empirical.AbstractEmpiricalApproximation;
+                                         data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())`
+    ... the binding energy P of iShell in iConf that enters the Lotz (1967) EII/TBR formula, from either tabulated
+        data (pSource = ScaledHydrogenic()) or a JAC mean-field calculation (pSource = UsingJAC()). The mean-field
+        orbital is generated with Basics.ALField(), not the DFS field used elsewhere in this module for PI/PR/PE:
+        cf. the note in Basics.perform(::Empirical.Computation) on why an AL-Field eigenvalue, not a DFS one, is
+        the binding energy in the Koopmans sense that this formula's 1/P^2 scaling needs. A P::Float64 [a.u.] is
+        returned.
+"""
+function impactIonizationBindingEnergy(iConf::Configuration, iShell::Shell, pSource::Empirical.AbstractEmpiricalApproximation;
+                                       data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())
+    Z = Defaults.getDefaults("nuclear: charge")
+
+    if      typeof(pSource) == Empirical.ScaledHydrogenic
+        return( Empirical.scaledBindingEnergy(Z, iShell, iConf, data) )
+    elseif  typeof(pSource) == Empirical.UsingJAC
+        grid       = Radial.Grid(Radial.Grid(true), rnt = 4.0e-6, h = 5.0e-2, rbox = 10.0)
+        mfSettings = AtomicState.MeanFieldSettings(Basics.ALField())
+        meanField  = Representation("Internal", Nuclear.Model(Z), grid, [iConf], MeanFieldBasis(mfSettings) )
+        mfrep      = generate(meanField; output=true)
+        orbitals   = mfrep[ResultKeys.MeanFieldBasis].orbitals
+        subshells  = iShell.l == 0  ?  [Subshell(iShell.n, -1)]  :  [Subshell(iShell.n, iShell.l), Subshell(iShell.n, -iShell.l-1)]
+
+        return( minimum( -orbitals[s].energy  for s in subshells if haskey(orbitals, s) ) )
+    else
+        error("Unsupported pSource $pSource for the EII/TBR binding energy; use ScaledHydrogenic() or UsingJAC().")
+    end
+end
+
+
+"""
 `Empirical.impactIonizationCrossSection(energies::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
                                         approx::Empirical.Lotz1967; printout::Bool=false,
+                                        pSource::Empirical.AbstractEmpiricalApproximation=Empirical.ScaledHydrogenic(),
                                         data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())`
     ... to estimate empirically the electron-impact ionization (EII) cross section for a transition iConf -> fConf
         at the given (free-electron) energies, by using the simplified formula of Lotz (1967, 1968)
             sigma^(EII) (eps) = A xi ln(eps/P) / (eps P),        A = 4.5e-14 cm^2 eV^2,
-        where P is the binding energy of the ionized shell, cf. Empirical.scaledBindingEnergy(), and xi the number
-        of its equivalent electrons. Lotz's full formula carries subshell constants a_i = 2.9 ... 4.5e-14 cm^2 eV^2
-        and two further parameters (b_i, c_i) that lower the near-threshold cross section of neutral atoms; the
-        simplified form with A = 4.5e-14 applies best to ions and overestimates light neutral atoms by ~40%
-        (accuracy +40/-30%). A css::Array{Float64,1} [a.u.] is returned.
+        where P is the binding energy of the ionized shell and xi the number of its equivalent electrons. The
+        pSource keyword fixes how P itself is obtained: ScaledHydrogenic() (the default) takes it from tabulated
+        data, cf. Empirical.scaledBindingEnergy(); UsingJAC() takes it from a JAC mean-field calculation instead,
+        cf. Empirical.impactIonizationBindingEnergy() -- the same Lotz formula, a real rather than a tabulated
+        input. Lotz's full formula carries subshell constants a_i = 2.9 ... 4.5e-14 cm^2 eV^2 and two further
+        parameters (b_i, c_i) that lower the near-threshold cross section of neutral atoms; the simplified form
+        with A = 4.5e-14 applies best to ions and overestimates light neutral atoms by ~40% (accuracy +40/-30%).
+        A css::Array{Float64,1} [a.u.] is returned.
         Quantity: a cross section [a.u.] -- a property of the ion alone, independent of the plasma; fold it with the
             electron field, or pass the configurations to Empirical.impactIonizationPlasmaAlpha, to obtain a rate.
 """
 function impactIonizationCrossSection(energies::Array{Float64,1}, iConf::Configuration, fConf::Configuration,
                                       approx::Empirical.Lotz1967; printout::Bool=false,
+                                      pSource::Empirical.AbstractEmpiricalApproximation=Empirical.ScaledHydrogenic(),
                                       data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())
     Z = Defaults.getDefaults("nuclear: charge");   iShell = Shell(0,0);   diff = 0
 
@@ -1886,7 +1933,7 @@ function impactIonizationCrossSection(energies::Array{Float64,1}, iConf::Configu
         if      v == 1     iShell = k    end
     end
     if  diff != 1   error("Incompatible initial and final configurations for an EII cross section.")   end
-    P      = Empirical.scaledBindingEnergy(Z, iShell, iConf, data)
+    P      = Empirical.impactIonizationBindingEnergy(iConf, iShell, pSource; data=data)
     xi     = iConf.shells[iShell]
 
     # Lotz's constant A = 4.5e-14 cm^2 eV^2, expressed in atomic units [a_o^2 Hartree^2].
@@ -1909,7 +1956,7 @@ function impactIonizationCrossSection(energies::Array{Float64,1}, iConf::Configu
              "following assumptions/simplifications: " *
              "\n    + Use the simplified Lotz (1967) formula with A = 4.5e-14 cm^2 eV^2 (best for ions; ~40% high " *
              "for light neutral atoms). " *
-             "\n    + Binding energy (ionization threshold) taken from $data " *
+             "\n    + Binding energy (ionization threshold) from pSource = $pSource " *
              "\n    + iConf = $iConf  -->  fConf = $fConf " *
              "\n    + Binding energy of $iShell [$unEnergy] = $energyx;  equivalent electrons xi = $xi " *
              "\n    + Electron energies [$unEnergy] = $epsx " *
@@ -1926,11 +1973,14 @@ end
 `Empirical.impactIonizationPlasmaAlpha(eDist::Distribution.AbstractElectronDistribution,
                                        iConf::Configuration, fConf::Configuration;
                                        approx::Empirical.AbstractEmpiricalApproximation=Lotz1967(), printout::Bool=false,
+                                       pSource::Empirical.AbstractEmpiricalApproximation=Empirical.ScaledHydrogenic(),
                                        data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())`
     ... to estimate empirically the electron-impact ionization plasma rate coefficient alpha^(EII) for a transition
         iConf -> fConf and an electron distribution eDist at the electron temperature T_e, by folding the Lotz cross
         section with the electron distribution,
             alpha^(EII) (T_e; i -> f) = int d(eps) f_e(eps; T_e) v(eps) sigma^(EII)(eps).
+        The pSource keyword is passed through to Empirical.impactIonizationCrossSection and fixes how the binding
+        energy P is obtained: ScaledHydrogenic() (tabulated) or UsingJAC() (a JAC mean-field calculation).
         An alpha::Float64 [a.u.] is returned.
         Quantity: a rate coefficient [cm^3/s] -- multiply by the electron number density n_e [1/cm^3] to obtain the rate
             per ion [1/s].
@@ -1938,6 +1988,7 @@ end
 function impactIonizationPlasmaAlpha(eDist::Distribution.AbstractElectronDistribution,
                                      iConf::Configuration, fConf::Configuration;
                                      approx::Empirical.AbstractEmpiricalApproximation=Lotz1967(), printout::Bool=false,
+                                     pSource::Empirical.AbstractEmpiricalApproximation=Empirical.ScaledHydrogenic(),
                                      data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())
     if  typeof(approx) != Empirical.Lotz1967
         error("The EII plasma rate coefficient is presently supported only for approx = Lotz1967().")
@@ -1952,14 +2003,14 @@ function impactIonizationPlasmaAlpha(eDist::Distribution.AbstractElectronDistrib
         if      v == 1     iShell = k    end
     end
     if  diff != 1   error("Incompatible initial and final configurations for an EII rate coefficient.")   end
-    P = Empirical.scaledBindingEnergy(Z, iShell, iConf, data)
+    P = Empirical.impactIonizationBindingEnergy(iConf, iShell, pSource; data=data)
 
     if      hasproperty(eDist, :T)       Te = eDist.T
     elseif  hasproperty(eDist, :Tpar)    Te = max(eDist.Tpar, eDist.Tperp)
     else    error("No electron temperature can be extracted from $eDist.")
     end
     gridGL    = Radial.GridGL(Radial.GridGaussLegendreFinite(), P, P + 30*Te, 96; printout=true)
-    css       = Empirical.impactIonizationCrossSection(gridGL.t, iConf, fConf, approx; printout=false, data=data)
+    css       = Empirical.impactIonizationCrossSection(gridGL.t, iConf, fConf, approx; printout=false, pSource=pSource, data=data)
     for  n = 1:gridGL.nt
         alpha = alpha + css[n] * sqrt(2*gridGL.t[n]) * Distribution.electronEnergyDistribution(eDist, gridGL.t[n]) * gridGL.wt[n]
     end
@@ -1973,7 +2024,7 @@ function impactIonizationPlasmaAlpha(eDist::Distribution.AbstractElectronDistrib
         sa = "\n* Estimate empirically the electron-impact ionization plasma rate coefficient alpha for a given transition " *
              "i -> f with the following assumptions/simplifications: " *
              "\n    + Electron field: $eDist,  i.e. T_e [K] = $(Tex). " *
-             "\n    + EII cross sections follow the simplified Lotz (1967) formula. " *
+             "\n    + EII cross sections follow the simplified Lotz (1967) formula; binding energy from pSource = $pSource. " *
              "\n    + iConf = $iConf  -->  fConf = $fConf " *
              "\n    + Plasma rate coefficient alpha^(EII) [cm^3/s] = $alphax " *
              "\n    + Quantity: a rate coefficient [cm^3/s] -- multiply by the electron number density n_e [1/cm^3] for the rate per ion [1/s]. " * "\n"

@@ -640,8 +640,13 @@ end
         and -- the regression this test exists for -- the global "nuclear: charge" default is restored to
         whatever it was BEFORE the call, not left at the scheme's own nuclearModel.Z (Empirical's plasma-rate
         functions read that global default rather than taking Z as an argument; a run that leaves it changed
-        would silently corrupt whatever the caller computes next in the same session). A success::Bool is
-        returned.
+        would silently corrupt whatever the caller computes next in the same session). A SECOND, minimal case
+        then exercises the part of the scheme the carbon chain above never touches: a GENERAL (non-classic)
+        `Plasma.ChargeStage` -- one carrying a single configuration with 2 retained CI levels -- paired with
+        `Plasma.StructureBasedTreatment` on every leg, checking it completes with non-negative, sum-to-1
+        populations; and `Plasma.validateKineticChargeBalanceSupport`'s own loud guard, checking it RAISES when
+        that same general stage is instead paired with `Plasma.EmpiricalTreatment` on `peTreatment`. A
+        success::Bool is returned.
 """
 function testModule_KineticChargeBalance(; short::Bool=true)
     printstyled("\n\nTest the module  Plasma (KineticChargeBalanceScheme)  ... \n", color=:cyan)
@@ -694,6 +699,59 @@ function testModule_KineticChargeBalance(; short::Bool=true)
     catch  ex
         if  ex isa UndefVarError || ex isa MethodError
             success = false;   println("  ** the 1-stage guard raised the wrong kind of error: $(typeof(ex))")
+        end
+    end
+
+    # A GENERAL (non-classic) stage pair, minimal: the higher-charge stage carries TWO ionization-product
+    # configurations -- "1s^2" (remove the 2s electron) and "1s^1 2s^1" (remove a 1s electron instead), the
+    # second with 2 retained CI levels (J=0/J=1, same occupation) -- against a single-configuration lower-charge
+    # neighbour, every leg StructureBasedTreatment. This is the one shape the carbon-chain case above never
+    # exercises, cf. Plasma.ChargeStage, and the two product configurations are chosen so every (level, level)
+    # pair against the neighbour is a genuine single-electron ionization (cf. ThreeBodyRecombination.capturedSubshell):
+    # a general stage whose extra levels instead came from splitting ONE shell's own j (e.g. "1s^0 2p^1" with
+    # nLevels=2 giving 2p_1/2 and 2p_3/2) was tried first and correctly REJECTED by capturedSubshell -- pairing its
+    # 2p_3/2 level against a neighbour fixed at 2p_1/2 is not a single capture, it also silently changes the
+    # spectator electron's own j, and this is exactly the "user's own responsibility" caveat in Plasma.ChargeStage's
+    # own docstring, not a bug to route around here.
+    generalStages = [ Plasma.ChargeStage([Configuration("1s^2 2s^1")]; nLevels=[1]),
+                      Plasma.ChargeStage([Configuration("1s^2"), Configuration("1s^1 2s^1")]; nLevels=[1,2]) ]
+    generalScheme = Plasma.KineticChargeBalanceScheme(Plasma.KineticChargeBalanceScheme();
+                        chargeStages=generalStages, electronTemperatures=[1.0e4],
+                        peTreatment =Plasma.StructureBasedTreatment(), ieTreatment=Plasma.StructureBasedTreatment(),
+                        eiiTreatment=Plasma.StructureBasedTreatment(), rrTreatment=Plasma.StructureBasedTreatment(),
+                        tbrTreatment=Plasma.StructureBasedTreatment())
+    # ImpactExcitation/PhotoRecombination need a continuum, which needs a grid with an explicit hp (cf. Rule 12);
+    # the carbon-chain grid above has none, since the EmpiricalTreatment legs it tests never touch a continuum.
+    # This box is deliberately NOT tuned against the orbitals (that is a job for /test Mx on a real example, not a
+    # mechanism-only scaffold test): it may print ImpactExcitation's own "slowest continuum electron does not fit
+    # inside the box" warning at the lowest mesh energy, which is expected here and does not affect what this test
+    # actually checks (non-negativity, sum-to-1, and the guard), cf. testModule_Liouville's own "NO physics is
+    # compared against approved data" disclaimer for the same kind of scaffold test.
+    generalGrid   = Radial.Grid(Radial.Grid(true), rnt=4.0e-6, h=5.0e-2, hp=1.0e-2, rbox=30.0)
+    generalComp   = Plasma.Computation(Plasma.Computation(); scheme=generalScheme, nuclearModel=ni, grid=generalGrid,
+                                       settings=Plasma.Settings(0., 1.0e10, true))
+    wg = redirect_stdout(devnull) do
+             perform(generalComp; output=true)
+         end
+    popG = wg["populations:"][1.0e4]
+    for  (label, pop)  in  (("Coulomb", popG.Coulomb), ("Babushkin", popG.Babushkin))
+        if  any(pop .< 0.)
+            success = false;   println("  ** general-stage $label populations contain a negative entry: $pop")
+        end
+        if  abs(sum(pop) - 1.0) > 1.0e-8
+            success = false;   println("  ** general-stage $label populations do not sum to 1: $(sum(pop))")
+        end
+    end
+
+    # The SAME general stages, but with peTreatment left at Plasma.EmpiricalTreatment() -- a stage/treatment
+    # combination Plasma.validateKineticChargeBalanceSupport must refuse rather than guess at.
+    badScheme = Plasma.KineticChargeBalanceScheme(generalScheme; peTreatment=Plasma.EmpiricalTreatment(Empirical.ScaledHydrogenic()))
+    try
+        Plasma.validateKineticChargeBalanceSupport(badScheme)
+        success = false;   println("  ** a general stage with peTreatment = EmpiricalTreatment should raise, but did not")
+    catch  ex
+        if  !(ex isa ErrorException)
+            success = false;   println("  ** the general-stage guard raised the wrong kind of error: $(typeof(ex))")
         end
     end
 
