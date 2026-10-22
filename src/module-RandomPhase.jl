@@ -12,8 +12,9 @@
         VALIDATED THE WAY DalgarnoLewis's OWN COULOMB-GAUGE SOLVE WAS. `settings.couplingEnabled = true` now
         iterates: for every active electron a, the induced DIRECT (Hartree, "ring") potential at the external
         operator's own multipole rank L, felt from every OTHER active electron b (b excluded from its own
-        induced field -- this module builds no exchange term, so there is no self-interaction to subtract
-        beyond that), is built from the induced density delta_rho_b(r) = (2j_b+1) * 2 * [Pb(r)*Pchi_b(r) +
+        induced field -- this module wires no exchange term, so there is no self-interaction to subtract beyond
+        that; see the scope note at the end for what IS built and why it is not connected), is built from the
+        induced density delta_rho_b(r) = (2j_b+1) * 2 * [Pb(r)*Pchi_b(r) +
         Qb(r)*Qchi_b(r)] -- the (2j_b+1) a STATED CHOICE, treating each active subshell statistically as a
         filled shell, exactly as `Basics.computePotential(::Basics.AaHSField, ...)` already does for its own
         (L=0) Hartree term; the factor 2 is the psi*chi + chi*psi symmetrization for a real response -- via
@@ -68,15 +69,32 @@
         fixed point -- a DIRECT SOLVE could, since (I - J) stays invertible, and that is the right method for
         it. But solving this term exactly would make the module CONVERGE without making it RIGHT: a
         direct-only screening correction for a closed shell is not trustworthy, and exchange is not a small
-        correction in this regime. Whether to build the direct solve anyway, to extend to exchange (which the
-        scope note below puts out of reach), or to leave `couplingEnabled = true` as a documented
+        correction in this regime. Whether to build the direct solve anyway, to extend to exchange (for which
+        the scope note below says what is built and what is not), or to leave `couplingEnabled = true` as a documented
         demonstration is the maintainer's decision. The single-electron limit remains exact throughout and is
         unaffected by any of this. The full account, with every number, is at `RandomPhase.solve`.
 
-        WHAT IS STILL OUT OF SCOPE EVEN NOW. Only the DIRECT term is built: the EXCHANGE contribution to the
-        induced field needs the same two-electron angular machinery (`SpinAngular`) the CI path already
-        carries, a substantially larger undertaking -- "Random Phase Approximation" (no exchange) is the
-        right target for this module, not "RPA with Exchange".
+        WHAT IS STILL OUT OF SCOPE, RE-STATED 22-Oct-2026 BECAUSE THE EARLIER STATEMENT HERE IS NO LONGER TRUE.
+        Only the DIRECT term is WIRED; the exchange contribution to the induced field is written, verified and
+        deliberately left unconnected. The note this replaces said that exchange needed the two-electron angular
+        machinery of `SpinAngular` and was out of reach, so that "Random Phase Approximation" (no exchange) was the
+        right target for this module rather than "RPA with Exchange". **BOTH HALVES OF THAT HAVE SINCE BEEN BUILT.**
+        The angular half never needed `SpinAngular` at all -- it is a single 6j, and
+        `RandomPhase.exchangeAngularCoefficient` carries it, validated out of sample on 970 informative cases per
+        term to a worst deviation of 1.11e-16. The radial half, a frozen NONLOCAL exchange operator, now exists in
+        `Bsplines` -- `setupExchangeMatrix`, `exchangeOnOrbital` and `ykOnGrid`, 21-Oct-2026, validated six ways
+        with a whole-atom exchange energy agreeing to 1.1e-16 over every kappa and every pair.
+
+        **WHAT REMAINS IS NOT MACHINERY BUT A CONVENTION, AND THAT IS WHY NOTHING IS WIRED.** The three pieces are
+        expressed in three different angular conventions -- the induced direct term m-RESOLVED and summed over
+        channels, `exchangeAngularCoefficient` REDUCED, and the frozen operator carrying no angular reduction at
+        all -- so the identity that would fix their relative scale, `v1: A - B1 - C_K = 0`, does not close: it
+        needs the SAME B1 on both hydrogen channels while the coded one differs between them by a factor -2.09.
+        A sign or an overall scale therefore cannot be the defect; four conventions were tried and all four fail;
+        and putting the three into ONE convention is a derivation that was deliberately not guessed (Rule 18).
+        Until it is done `RandomPhase.exchangeSourceVector` stays unwired -- and note that it is UNWIRED rather
+        than approximate, which is measurable: this module's response comes out numerically IDENTICAL, 1.70716597,
+        under either exchange sign.
 """
 module RandomPhase
 
@@ -631,9 +649,11 @@ end
         it cannot see is a factor depending only on (j_b, L, Lp), an overall normalisation included, since such a
         factor leaves every magnetic quantum number untouched. The scale is fixed elsewhere and by other means:
         for the E2 branch by the frozen-Hartree comparison recorded in `RandomPhase.exchangeSourceVector`, which
-        holds for a closed subshell; for the E1 branch not at all, because the frozen NONLOCAL exchange it would
-        have to be compared against does not exist in JAC. Do not read the 1.11e-16 below as a check on the
-        magnitude.
+        holds for a closed subshell; for the E1 branch it is still open, though no longer for want of something to
+        compare against -- `Bsplines.setupExchangeMatrix` has supplied the frozen NONLOCAL exchange since
+        21-Oct-2026, and the comparison it makes possible is reported in `RandomPhase.exchangeSourceVector`: the
+        identity does not close, so the E1 scale awaits one common convention rather than one more measurement.
+        Do not read the 1.11e-16 below as a check on the magnitude.
 
         **COVARIANCE, THEN, IN ITS OWN RIGHT.** The m-resolved term must be
         PROPORTIONAL to `ME(t_a, m_ta, L, q, a, m_a)`, i.e. the ratio must be independent of every magnetic
@@ -715,8 +735,21 @@ end
         the FROZEN potential acting on chi is part of it. The problem carries exactly two radial shapes,
         v1 = phi_a Y_1[phi_a, chi] and v2 = chi Y_0[phi_a, phi_a], and the identity splits into
         `v1:  A - B1 - C_K = 0` and `v2:  -B2 + C_J = 0`, where A is the induced direct coefficient, B1 and B2
-        the two induced exchange coefficients, and C_J, C_K the frozen Hartree and frozen exchange ones. JAC has
-        no NONLOCAL exchange operator, so C_K does not exist and the v1 equation is not checkable. Comparing the
+        the two induced exchange coefficients, and C_J, C_K the frozen Hartree and frozen exchange ones. **C_K
+        BECAME MEASURABLE ON 21-Oct-2026 with `Bsplines.setupExchangeMatrix`, AND THE v1 EQUATION DOES NOT CLOSE
+        -- see the module's own docstring for what that leaves open.** C_K itself is not in doubt: it comes out
+        EXACTLY occ*Lambda_1 to ten digits and `K chi` is collinear with v1 to 3e-16. The failure is in the
+        relative convention of the three terms, measured on H 1s in a 120 a.u. box:
+
+            channel        A          B1 (coded)    C_K       A-B1-C_K    B1 the identity needs
+            1s -> 2p_3/2  -0.666661   +0.212687   +0.166667   -1.046014        -0.833328
+            1s -> 2p_1/2  -0.666678   -0.101583   +0.166667   -0.731761        -0.833344
+
+        The identity needs the SAME B1 on both channels while the coded one differs between them by a factor
+        -2.09, so no sign and no overall scale can repair it; four conventions were tried and all four fail
+        (B1 against A, against A*aCoeff, against (A-C_K)*aCoeff, and B1/aCoeff, with aCoeff =
+        `RandomPhase.receivingCoefficient`), the implied factors coming out 1.78/-2.15 and 3.20/-4.74 and never
+        one number. `tools/mResolvedPolarizability.jl` CASE M carries the measurement. Comparing the
         direct source against this function's output tests neither equation: measured on H 1s in a 120 a.u. box
         the ratios are 1.402708 (2p_3/2) and 1.811708 (2p_1/2) with cos 0.826089 and 0.899776, and both are
         REPRODUCED EXACTLY by the split below -- they are the angle between a pure v1 and a v1/v2 mixture, not a
@@ -968,9 +1001,12 @@ end
         1e-8. **Checking the TOTAL would not have shown this:** the two angular conventions tried before
         `cbdedacb` agree to 0.7 % on Ne's screened total while differing by 0.644 to 2.194 PER CHANNEL, which is
         how a convention error survived two repairs here.
-        **WHAT IS STILL ABSENT IS EXCHANGE** (item 75, HELD rather than open since 20-Oct-2026: its one blocker is
-        a frozen NONLOCAL exchange operator, which JAC does not have anywhere; the verified lines are in this file
-        and deliberately unwired). A direct-only induced field over-screens, so a number from this function is a
+        **WHAT IS STILL ABSENT IS EXCHANGE, AND THE REASON CHANGED ON 21-Oct-2026.** The blocker named until then
+        was a frozen NONLOCAL exchange operator; `Bsplines.setupExchangeMatrix` is that operator and it is built
+        and validated. What blocks the wiring now is ONE angular convention shared by the induced direct term, the
+        reduced exchange coefficient and the frozen operator -- a derivation, not code -- so the verified exchange
+        lines in this file stay deliberately unwired; the module's own docstring states the measurement that leaves
+        it open. A direct-only induced field over-screens, so a number from this function is a
         direct-only result in a strongly-coupled regime and NOT a validated screening correction. Do not read the
         paragraph above as more than it says: it establishes that two routes compute the SAME thing, not that the
         thing is the measured one.
@@ -1216,9 +1252,10 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, activeOrb
     #
     # SECOND, AND IT IS A QUESTION OF SCOPE RATHER THAN OF CODE:  rho ~ 2.7 means this term OVER-SCREENS
     # badly, so even solving it exactly would not yield a trustworthy screening correction for a closed shell.
-    # Exchange is not a small correction in this regime, and the module's own scope note puts it out of
-    # reach ("RPA", not "RPA with exchange").  **So a direct solve makes the module converge without making
-    # it right**, and that remains true now that the direct solve exists.
+    # Exchange is not a small correction in this regime, and it remains unwired -- no longer for want of
+    # machinery, since 21-Oct-2026, but for want of ONE angular convention shared by its three pieces; see the
+    # module's own scope note.  **So a direct solve makes the module converge without making it right**, and that
+    # remains true now that the direct solve exists.
     #
     # **THE DIRECT SOLVE IS BUILT AND VERIFIED -- 14-Oct-2026, `settings.directSolve`.**  It is GMRES over
     # `RandomPhase.sourceMap`, so no matrix is assembled, and it converges in about ten Krylov steps where no
