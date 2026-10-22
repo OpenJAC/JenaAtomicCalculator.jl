@@ -695,40 +695,102 @@ end
 
 """
 `struct  Plasma.ChargeStage`
-    ... one charge state ("ionization stage") entering a Plasma.KineticChargeBalanceScheme: identified by two reference
-        configurations of a shared electron count, a ground configuration and one excited configuration, from which a
-        small 2-level reference Multiplet is built (mean-field orbitals + CI) whenever the scheme needs real computed
-        levels for that stage (cf. Plasma.AbstractRateTreatment). Keeping exactly two configurations per stage is a
-        deliberate simplification -- enough to give the within-stage processes (PhotoEmission, ImpactExcitation) a real
-        transition to compute, without the larger shell-generation machinery Plasma.CollisionalRadiativeScheme uses for
-        a single ion.
+    ... one charge state ("ionization stage") entering a Plasma.KineticChargeBalanceScheme, carrying one or several
+        reference configurations of a shared electron count and, for each of them, how many of its own lowest CI
+        levels to retain. The CLASSIC form -- exactly 2 configurations, 1 level each, built by the two-argument
+        constructor below -- is the only form a Plasma.EmpiricalTreatment or Plasma.SemiEmpiricalTreatment leg may
+        touch, because Empirical's own rate formulas resolve a CONFIGURATION, not a level: asking one of them for a
+        rate between two levels of the SAME configuration has no defined answer. A GENERAL stage (more configurations,
+        or more than one level from a configuration) is open only to Plasma.StructureBasedTreatment, which computes
+        from real levels throughout; Plasma.validateKineticChargeBalanceSupport raises, rather than guessing, if a
+        general stage is paired with an Empirical/SemiEmpirical leg.
 
-    + groundConfig    ::Configuration   ... the stage's ground configuration; also the one used by the cross-stage
-                                               processes (ImpactIonization, PhotoRecombination, ThreeBodyRecombination),
-                                               which connect ground levels only.
-    + excitedConfig   ::Configuration   ... one excited configuration of the same charge state, giving
-                                               PhotoEmission/ImpactExcitation a within-stage transition.
+        A SECOND constraint on a general stage is NOT checked by Plasma itself: a cross-stage leg (ImpactIonization,
+        PhotoRecombination, ThreeBodyRecombination) connects EVERY level of one stage to EVERY level of its
+        neighbour, and each such pair must be a genuine single-electron capture/ionization -- the same shells
+        occupied except for exactly one gained or lost. Re-deriving that check here would duplicate logic
+        ThreeBodyRecombination.capturedSubshell already gets right; an invalid pair is left to raise there instead,
+        which it does loudly and correctly (confirmed 22-Oct-2026: "found 2 subshells gained ... not exactly one").
+        Choosing a general stage's configurations so that every pair against its neighbour IS a valid single-electron
+        step is therefore the user's own responsibility, not a Plasma guarantee.
+
+        See Plasma.AbstractRateTreatment.
+
+    + configs    ::Array{Configuration,1}   ... reference configurations of this stage, lowest total energy expected
+                                                    first for the classic 2-configuration case (ground, then excited);
+                                                    for a general stage, order does not matter -- levels are sorted by
+                                                    computed energy once the Multiplet is built.
+    + nLevels    ::Array{Int64,1}            ... for each entry of configs, how many of its own lowest CI levels to
+                                                    retain (same length as configs); the classic constructor sets [1,1].
 """
 struct  ChargeStage
-    groundConfig      ::Configuration
-    excitedConfig     ::Configuration
+    configs    ::Array{Configuration,1}
+    nLevels    ::Array{Int64,1}
+end
+
+
+"""
+`Plasma.ChargeStage(groundConfig::Configuration, excitedConfig::Configuration)`
+    ... the CLASSIC two-configuration, one-level-each constructor -- the only form an Empirical or SemiEmpirical leg
+        may be applied to (cf. Plasma.ChargeStage). A Plasma.ChargeStage is returned.
+"""
+function ChargeStage(groundConfig::Configuration, excitedConfig::Configuration)
+    ChargeStage( [groundConfig, excitedConfig], [1, 1] )
+end
+
+
+"""
+`Plasma.ChargeStage(configs::Array{Configuration,1}; nLevels::Union{Nothing,Array{Int64,1}}=nothing)`
+    ... a GENERAL stage constructor: one or several reference configurations, each contributing nLevels[i] of its own
+        lowest CI levels (default: 1 each). Usable only with Plasma.StructureBasedTreatment (cf. Plasma.ChargeStage).
+        A Plasma.ChargeStage is returned.
+"""
+function ChargeStage(configs::Array{Configuration,1}; nLevels::Union{Nothing,Array{Int64,1}}=nothing)
+    nLevelsx = isnothing(nLevels) ? fill(1, length(configs)) : nLevels
+    if  length(nLevelsx) != length(configs)
+        error("Plasma.ChargeStage: nLevels must have the same length as configs ($(length(configs))), got $(length(nLevelsx)).")
+    end
+
+    return( ChargeStage(configs, nLevelsx) )
+end
+
+
+"""
+`Plasma.isClassicChargeStage(stage::Plasma.ChargeStage)`
+    ... tests whether stage is in the CLASSIC form (exactly 2 configurations, 1 level each) that an Empirical or
+        SemiEmpirical leg may be applied to (cf. Plasma.ChargeStage). A Bool is returned.
+"""
+function isClassicChargeStage(stage::Plasma.ChargeStage)
+
+    return( length(stage.configs) == 2  &&  all(stage.nLevels .== 1) )
 end
 
 
 """
 `abstract type Plasma.AbstractRateTreatment`
-    ... distinguishes, for ONE leg (one process) of a Plasma.KineticChargeBalanceScheme, whether that rate is obtained
-        from one of Empirical's tabulated/fitted approximations or from JAC's own ab-initio/semi-empirical structure
-        computation (SCF + CI, the full process module). Every leg (PhotoEmission, ImpactExcitation, ImpactIonization,
-        PhotoRecombination, ThreeBodyRecombination) carries its own AbstractRateTreatment, so a single scheme can mix
-        empirical and structure-based legs freely ("mixed use") -- this is the one thing the whole scheme is built to
-        make visible. This type is deliberately kept separate from Empirical.AbstractEmpiricalApproximation (it is NOT
-        a subtype of it): the two routes are different in kind, not two flavours of the same thing.
+    ... distinguishes, for ONE leg (one process) of a Plasma.KineticChargeBalanceScheme, the QUALITY of both the
+        atomic input (scaled/hydrogenic, or a real JAC-computed energy/rate) and the collision/radiative dynamics
+        model (a literature-fitted formula, or JAC's own cross-section computation) used for that rate. Every leg
+        (PhotoEmission, ImpactExcitation, ImpactIonization, PhotoRecombination, ThreeBodyRecombination) carries its
+        own AbstractRateTreatment, so a single scheme can mix the three tiers freely across legs ("mixed use") --
+        this is the one thing the whole scheme is built to make visible. The type is deliberately kept separate from
+        Empirical.AbstractEmpiricalApproximation (it is NOT a subtype of it): the three tiers are different in kind,
+        not flavours of the same thing.
 
-    + Plasma.EmpiricalTreatment        ... wraps one Empirical.AbstractEmpiricalApproximation singleton.
-    + Plasma.StructureBasedTreatment   ... selects the real computation; carries the one knob that differs between
-                                             models, an ImpactIonization.AbstractModel, read only by the
-                                             ImpactIonization/ThreeBodyRecombination legs and ignored by the other three.
+    + Plasma.EmpiricalTreatment        ... scaled/hydrogenic input AND a fitted formula; wraps one
+                                             Empirical.AbstractEmpiricalApproximation singleton; no SCF/CI anywhere.
+    + Plasma.SemiEmpiricalTreatment    ... a REAL, JAC-computed input (a cheap mean-field energy or Einstein-A) fed
+                                             into the SAME fitted formula the EmpiricalTreatment leg would use.
+                                             Supported today for PhotoEmission (Empirical.UsingJAC) and
+                                             ImpactExcitation (bridged through Empirical.GivenEinsteinA); NOT yet
+                                             supported for ImpactIonization/PhotoRecombination/ThreeBodyRecombination,
+                                             whose Empirical formulas have no hook to accept a real input --
+                                             Plasma.validateKineticChargeBalanceSupport raises rather than guessing.
+    + Plasma.StructureBasedTreatment   ... real input AND JAC's own cross-section/rate computation end-to-end; the
+                                             only tier open to a GENERAL (non-classic) Plasma.ChargeStage. Carries the
+                                             one knob that differs between models, an ImpactIonization.AbstractModel,
+                                             read only by the ImpactIonization/ThreeBodyRecombination legs and ignored
+                                             by the other three.
 """
 abstract type  AbstractRateTreatment                                             end
 
@@ -745,6 +807,32 @@ abstract type  AbstractRateTreatment                                            
                                                                    Empirical.Lotz1967().
 """
 struct  EmpiricalTreatment  <:  AbstractRateTreatment
+    approx     ::Empirical.AbstractEmpiricalApproximation
+end
+
+
+"""
+`struct  Plasma.SemiEmpiricalTreatment  <:  Plasma.AbstractRateTreatment`
+    ... selects the SAME fitted formula an Plasma.EmpiricalTreatment(approx) leg would use, but fed a REAL,
+        JAC-computed input instead of a scaled/hydrogenic one -- a cheap mean-field quantity, not a correlated (CI)
+        one, which is what keeps this tier cheaper in structure than Plasma.StructureBasedTreatment while being more
+        realistic in input than Plasma.EmpiricalTreatment. Usable only on a CLASSIC Plasma.ChargeStage (cf.
+        Plasma.ChargeStage), exactly like Plasma.EmpiricalTreatment.
+
+        Supported today for PhotoEmission, where approx must be Empirical.UsingJAC() -- Empirical's own mean-field
+        estimator -- and for ImpactExcitation, where approx must be Empirical.VanRegemorter1962() and the real
+        Einstein-A is obtained by calling Empirical.photoemissionEinsteinA(.., Empirical.UsingJAC()) and bridging the
+        result in as aSource=Empirical.GivenEinsteinA(..), the one aSource form impactExcitationCrossSection already
+        accepts. NOT YET supported for ImpactIonization/PhotoRecombination/ThreeBodyRecombination: their Empirical
+        formulas read the binding/threshold energy straight from Empirical.scaledBindingEnergy with no keyword to
+        override it, so there is no hook here to feed a real energy through without first changing module-Empirical.jl
+        itself (tracked, not implemented) -- any SemiEmpiricalTreatment on one of these three legs raises.
+
+    + approx   ::Empirical.AbstractEmpiricalApproximation   ... the formula this tier's real input is fed into;
+                                                                   Empirical.UsingJAC() for PhotoEmission,
+                                                                   Empirical.VanRegemorter1962() for ImpactExcitation.
+"""
+struct  SemiEmpiricalTreatment  <:  AbstractRateTreatment
     approx     ::Empirical.AbstractEmpiricalApproximation
 end
 
@@ -781,6 +869,12 @@ function Base.show(io::IO, treatment::EmpiricalTreatment)
 end
 
 
+# `Base.show(io::IO, treatment::SemiEmpiricalTreatment)`  ... provides a String notation for treatment::SemiEmpiricalTreatment.
+function Base.show(io::IO, treatment::SemiEmpiricalTreatment)
+    print(io, "semi-empirical ($(typeof(treatment.approx)), real input)")
+end
+
+
 # `Base.show(io::IO, treatment::StructureBasedTreatment)`  ... provides a String notation for treatment::StructureBasedTreatment.
 function Base.show(io::IO, treatment::StructureBasedTreatment)
     print(io, "structure-based (eiiModel = $(typeof(treatment.eiiModel)))")
@@ -800,14 +894,26 @@ end
         four processes do).
 
         EACH of the five legs carries its OWN Plasma.AbstractRateTreatment (peTreatment, ieTreatment, eiiTreatment,
-        rrTreatment, tbrTreatment), so a run can mix a cheap Empirical formula for some processes with JAC's own
-        structure computation for others, in any combination -- "mixed use". A run in which every leg is
-        Plasma.EmpiricalTreatment never calls a mean-field/CI computation at all and completes in well under a second;
-        the moment ANY leg is Plasma.StructureBasedTreatment, a small reference Multiplet (ground + excited
-        configuration, mean-field orbitals + frozen-orbital CI) is generated for EVERY stage -- not only the stage(s)
-        that leg touches -- since this is cheap here (one mean-field pass per stage) and a per-leg, per-stage decision
-        of which levels to generate would add real bookkeeping for little saved time. An Empirical leg still uses its
-        own Configuration-level formula regardless, so this costs extra computation, never wrong physics.
+        rrTreatment, tbrTreatment), so a run can mix all THREE tiers -- Empirical, SemiEmpirical, StructureBased --
+        across the five processes freely, in any combination ("mixed use"), and EACH chargeStages[k] independently
+        carries however many reference configurations/levels it needs (cf. Plasma.ChargeStage). A run in which every
+        leg is Plasma.EmpiricalTreatment never calls a mean-field/CI computation at all and completes in well under a
+        second; the moment ANY leg is Plasma.SemiEmpiricalTreatment or Plasma.StructureBasedTreatment, a reference
+        Multiplet is generated for EVERY stage -- not only the stage(s) that leg touches -- since this is cheap here
+        (one mean-field pass per stage) and a per-leg, per-stage decision of which levels to generate would add real
+        bookkeeping for little saved time. An Empirical leg still uses its own Configuration-level formula regardless,
+        so this costs extra computation, never wrong physics.
+
+        NOT every combination of (treatment tier, chargeStage shape) is supported, and this is INTENTIONAL rather
+        than an oversight: Plasma.EmpiricalTreatment and Plasma.SemiEmpiricalTreatment resolve rates at the
+        CONFIGURATION level, so they are usable only on a CLASSIC Plasma.ChargeStage (exactly 2 configurations, 1
+        level each, cf. Plasma.ChargeStage); a GENERAL (multi-configuration or multi-level) stage requires
+        Plasma.StructureBasedTreatment on every leg that touches it. Plasma.SemiEmpiricalTreatment is further
+        restricted to PhotoEmission and ImpactExcitation only (see Plasma.SemiEmpiricalTreatment for why the other
+        three legs are not yet supported). Plasma.validateKineticChargeBalanceSupport checks every leg against every
+        stage it touches BEFORE any Multiplet is generated, and RAISES -- naming the leg, the stage, and the nearest
+        supported alternative -- rather than silently guessing at an unsupported combination or returning a wrong
+        number (the error-over-guess pattern already used by corePolarization.doApply in module-PhotoEmission.jl).
 
     + chargeStages          ::Array{Plasma.ChargeStage,1}   ... the charge states, ordered from the LOWEST to the
                                                                    HIGHEST charge (fewest to most electrons removed);

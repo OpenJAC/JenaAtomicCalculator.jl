@@ -4,29 +4,100 @@
 
 """
 `Plasma.generateChargeStageMultiplet(stage::Plasma.ChargeStage, nm::Nuclear.Model, grid::Radial.Grid, asfSettings::AsfSettings)`
-    ... generates the small 2-level reference Multiplet of one charge stage: one shared mean-field orbital basis for
-        [stage.groundConfig, stage.excitedConfig], followed by Hamiltonian.performCIwithFrozenOrbitals for each
-        configuration separately and Basics.sortByEnergy over the combined pair -- the same generation policy as
-        Plasma.generateCollisionalRadiativeLevels, specialized to exactly two configurations. After sorting, level 1 is
-        always the lower-energy (ground) level and level 2 the higher-energy (excited) level, regardless of which
-        configuration happened to be passed as groundConfig/excitedConfig; a Multiplet is returned.
+    ... generates the reference Multiplet of one charge stage: one shared mean-field orbital basis for stage.configs,
+        followed by Hamiltonian.performCIwithFrozenOrbitals for each configuration separately, retaining its own
+        stage.nLevels[i] lowest CI levels (clipped if that configuration has fewer), and a single energy sort across
+        the combined set -- the same generation policy as Plasma.generateCollisionalRadiativeLevels, applied once per
+        configuration. A named tuple (multiplet::Multiplet=, configIndex::Array{Int64,1}=) is returned, where
+        configIndex[j] gives the index into stage.configs that multiplet.levels[j] was generated from (levels sorted
+        by energy, lowest first, so for a CLASSIC stage multiplet.levels[1] is always the ground level).
 """
 function generateChargeStageMultiplet(stage::Plasma.ChargeStage, nm::Nuclear.Model, grid::Radial.Grid, asfSettings::AsfSettings)
-    allConfigs = [stage.groundConfig, stage.excitedConfig]
+    allConfigs = stage.configs
     name       = "KineticChargeBalanceScheme stage multiplet"
     mfSettings = AtomicState.MeanFieldSettings()
     repBasis   = Representation(name, nm, grid, allConfigs, MeanFieldBasis(mfSettings))
     repOutput  = generate(repBasis, output=true)
     orbitals   = repOutput[ResultKeys.MeanFieldBasis].orbitals
 
-    levels = Level[]
-    for  conf in allConfigs
+    levels      = Level[]
+    configIndex = Int64[]
+    for  (ci, conf)  in  enumerate(allConfigs)
         mp = Hamiltonian.performCIwithFrozenOrbitals([conf], orbitals, nm, grid, asfSettings; printout=false)
         mp = Basics.sortByEnergy(mp)
-        push!(levels, mp.levels[1])
+        for  lv = 1:min(stage.nLevels[ci], length(mp.levels))
+            push!(levels, mp.levels[lv]);   push!(configIndex, ci)
+        end
     end
 
-    return( Basics.sortByEnergy( Multiplet(name, levels) ) )
+    order = sortperm([lv.energy for lv in levels])
+
+    return( (multiplet = Multiplet(name, levels[order]), configIndex = configIndex[order]) )
+end
+
+
+"""
+`Plasma.validateKineticChargeBalanceSupport(scheme::Plasma.KineticChargeBalanceScheme)`
+    ... checks every leg of scheme against the chargeStages it touches and raises -- listing every violation found,
+        each naming the leg, the stage(s) involved, and the nearest supported alternative -- if an unsupported
+        (treatment tier, stage shape) combination is requested. Called BEFORE any Multiplet is generated (cf.
+        Plasma.KineticChargeBalanceScheme), so an unsupported request fails fast and cheaply rather than part-way
+        through real computation. Nothing is returned if every leg/stage combination is supported; an error is
+        raised otherwise.
+"""
+function validateKineticChargeBalanceSupport(scheme::Plasma.KineticChargeBalanceScheme)
+    problems = String[]
+    nStages  = length(scheme.chargeStages)
+
+    # --- within-stage legs: PhotoEmission, ImpactExcitation. Empirical/SemiEmpirical need a CLASSIC stage. --------
+    for  (k, stage)  in  enumerate(scheme.chargeStages)
+        Plasma.isClassicChargeStage(stage)   &&   continue
+        for  (legName, treatment)  in  (("peTreatment", scheme.peTreatment), ("ieTreatment", scheme.ieTreatment))
+            if  !(treatment isa Plasma.StructureBasedTreatment)
+                push!(problems, "chargeStages[$k] is a GENERAL (non-classic) stage, but $legName = $treatment resolves " *
+                                 "rates at configuration level; either make chargeStages[$k] classic (2 configs, 1 " *
+                                 "level each), or set $legName = Plasma.StructureBasedTreatment().")
+            end
+        end
+    end
+
+    # --- cross-stage legs: ImpactIonization, PhotoRecombination, ThreeBodyRecombination. ---------------------------
+    # SemiEmpiricalTreatment is not yet supported here at all, regardless of stage shape.
+    for  (legName, treatment)  in  (("eiiTreatment", scheme.eiiTreatment), ("rrTreatment", scheme.rrTreatment), ("tbrTreatment", scheme.tbrTreatment))
+        if  treatment isa Plasma.SemiEmpiricalTreatment
+            push!(problems, "$legName = Plasma.SemiEmpiricalTreatment is not yet supported -- Empirical's threshold-energy " *
+                             "formula for this leg has no hook to accept a real computed input; use Plasma.EmpiricalTreatment " *
+                             "or Plasma.StructureBasedTreatment instead.")
+        end
+    end
+    for  k = 1:nStages-1
+        bothClassic = Plasma.isClassicChargeStage(scheme.chargeStages[k])  &&  Plasma.isClassicChargeStage(scheme.chargeStages[k+1])
+        bothClassic   &&   continue
+        for  (legName, treatment)  in  (("eiiTreatment", scheme.eiiTreatment), ("rrTreatment", scheme.rrTreatment), ("tbrTreatment", scheme.tbrTreatment))
+            if  !(treatment isa Plasma.StructureBasedTreatment)
+                push!(problems, "chargeStages[$k]/[$(k+1)] are not both classic stages, but $legName = $treatment resolves " *
+                                 "rates at configuration level; either keep both stages classic, or set $legName = " *
+                                 "Plasma.StructureBasedTreatment().")
+            end
+        end
+    end
+
+    # --- SemiEmpiricalTreatment's own approx requirement, for the two legs that DO support it. ----------------------
+    if  scheme.peTreatment isa Plasma.SemiEmpiricalTreatment  &&  !(scheme.peTreatment.approx isa Empirical.UsingJAC)
+        push!(problems, "peTreatment = Plasma.SemiEmpiricalTreatment requires approx = Empirical.UsingJAC(), got " *
+                         "$(typeof(scheme.peTreatment.approx)).")
+    end
+    if  scheme.ieTreatment isa Plasma.SemiEmpiricalTreatment  &&  !(scheme.ieTreatment.approx isa Empirical.VanRegemorter1962)
+        push!(problems, "ieTreatment = Plasma.SemiEmpiricalTreatment requires approx = Empirical.VanRegemorter1962(), got " *
+                         "$(typeof(scheme.ieTreatment.approx)).")
+    end
+
+    if  length(problems) > 0
+        error("Plasma.KineticChargeBalanceScheme: $(length(problems)) unsupported treatment/stage combination(s) requested:\n  - " *
+              join(problems, "\n  - "))
+    end
+
+    return( nothing )
 end
 
 
@@ -45,18 +116,21 @@ function structureBasedRrRateCoefficient(groundLevel::Level, higherLevel::Level,
     initialMp = Multiplet("RR initial", [higherLevel])
 
     gridGL     = Radial.GridGL(Radial.GridGaussLegendreFinite(), 0., 30*Te_au, 16; printout=false)
+    # PhotoRecombination.Settings() leaves maxKappa = 0, which admits NO partial wave and would raise outright
+    # (cf. PhotoRecombination.checkPartialWavesAreAdmitted); 4 matches what the PhotoRecombination example branches use.
     prSettings = PhotoRecombination.Settings(PhotoRecombination.Settings(); multipoles=[Basics.E1], gauges=[UseCoulomb, UseBabushkin],
-                     electronEnergies=gridGL.t, printBefore=false)
+                     electronEnergies=gridGL.t, maxKappa=4, printBefore=false)
     lines = PhotoRecombination.computeLines(finalMp, initialMp, nm, grid, prSettings; output=true)
 
-    # Energies are matched by VALUE, not by list position: PhotoRecombination.computeLines is not documented to
-    # preserve the order of settings.electronEnergies, and a single level pair makes an exact-value lookup safe.
-    weightOf = Dict{Float64,Float64}( gridGL.t[n] => gridGL.wt[n]  for n = 1:gridGL.nt )
-
+    # Energies are matched by NEAREST VALUE, not exact equality: PhotoRecombination.computeLines does not return
+    # settings.electronEnergies unchanged (it passes through its own internal unit handling first), so an exact
+    # Dict lookup on the returned line.electronEnergy misses -- found by actually running this function for the
+    # first time (it was committed but never exercised until a general multi-level stage called it).
     factor = Defaults.convertUnits("length: from atomic to cm", 1.0)^3 / Defaults.convertUnits("time: from atomic to sec", 1.0)
     alphaC = 0.;   alphaB = 0.
     for  line  in  lines
-        wt     = weightOf[line.electronEnergy]
+        n      = argmin(abs.(gridGL.t .- line.electronEnergy))
+        wt     = gridGL.wt[n]
         fe     = Distribution.electronEnergyDistribution(Distribution.ElectronMaxwell(Te_au), line.electronEnergy)
         alphaC = alphaC + line.crossSection.Coulomb   * sqrt(2*line.electronEnergy) * fe * wt
         alphaB = alphaB + line.crossSection.Babushkin * sqrt(2*line.electronEnergy) * fe * wt
@@ -69,8 +143,8 @@ end
 """
 `Plasma.displayKineticChargeBalanceTreatments(stream::IO, scheme::Plasma.KineticChargeBalanceScheme)`
     ... prints, once per leg, which Plasma.AbstractRateTreatment was used -- the user-facing provenance table that
-        lets a reader recognize, at a glance, at which (empirical or structure-based) level each process was treated,
-        without having to read the scheme's fields back out of the code that built it.
+        lets a reader recognize, at a glance, at which (empirical, semi-empirical or structure-based) tier each
+        process was treated, without having to read the scheme's fields back out of the code that built it.
 """
 function displayKineticChargeBalanceTreatments(stream::IO, scheme::Plasma.KineticChargeBalanceScheme)
     println(stream, "\n  Plasma.KineticChargeBalanceScheme -- rate treatment per leg:")
@@ -88,33 +162,38 @@ function displayKineticChargeBalanceTreatments(stream::IO, scheme::Plasma.Kineti
         println(stream, "    " * TableStrings.flushleft(28, name) * TableStrings.flushleft(13, kind) * TableStrings.flushleft(40, string(treatment)))
     end
     println(stream, "  ", TableStrings.hLine(80))
+    println(stream, "    chargeStages: " * join( ["$(length(s.configs)) config(s)/" * string(sum(s.nLevels)) * " level(s)"
+                                                    for s in scheme.chargeStages], ", " ))
 
     return( nothing )
 end
 
 
 """
-`Plasma.displayKineticChargeBalanceResults(stream::IO, scheme::Plasma.KineticChargeBalanceScheme, Ne::Float64, popVectors::Dict)`
-    ... prints a table of the relative populations (Coulomb/Babushkin) of every (stage, ground/excited) slot, one row
+`Plasma.displayKineticChargeBalanceResults(stream::IO, scheme::Plasma.KineticChargeBalanceScheme, Ne::Float64,
+                                           popVectors::Dict, levelCounts::Array{Int64,1})`
+    ... prints a table of the relative populations (Coulomb/Babushkin) of every (stage, local level) slot, one row
         per (slot, temperature) pair, following JAC's usual table style.
 """
-function displayKineticChargeBalanceResults(stream::IO, scheme::Plasma.KineticChargeBalanceScheme, Ne::Float64, popVectors::Dict)
+function displayKineticChargeBalanceResults(stream::IO, scheme::Plasma.KineticChargeBalanceScheme, Ne::Float64, popVectors::Dict,
+                                            levelCounts::Array{Int64,1})
     nx = 100
     println(stream, "\n  Kinetic charge-balance relative populations (Ne = $Ne cm^-3):")
     println(stream, "  ", TableStrings.hLine(nx))
-    sa = "    " * TableStrings.flushleft(20, "Stage") * TableStrings.flushleft(10, "Slot") *
+    sa = "    " * TableStrings.flushleft(20, "Stage") * TableStrings.flushleft(10, "Level") *
                   TableStrings.flushright(14, "Temperature") * TableStrings.flushright(22, "Population") * TableStrings.flushright(22, "Population")
     sb = "    " * TableStrings.flushleft(20, "") * TableStrings.flushleft(10, "") *
                   TableStrings.flushright(14, "[K]") * TableStrings.flushright(22, "(Coulomb)") * TableStrings.flushright(22, "(Babushkin)")
     println(stream, sa);   println(stream, sb)
     println(stream, "  ", TableStrings.hLine(nx))
+    offset = cumsum([0; levelCounts[1:end-1]])
     for  (k, stage)  in  enumerate(scheme.chargeStages)
-        stageLabel = string(stage.groundConfig)
-        for  slot  in  ("ground", "excited")
-            idx = slot == "ground" ? 2k-1 : 2k
+        stageLabel = string(stage.configs[1])
+        for  loc = 1:levelCounts[k]
+            idx = offset[k] + loc
             for  temp  in  sort(collect(keys(popVectors)))
                 pv = popVectors[temp]
-                sc = "    " * TableStrings.flushleft(20, stageLabel) * TableStrings.flushleft(10, slot) *
+                sc = "    " * TableStrings.flushleft(20, stageLabel) * TableStrings.flushleft(10, "#$loc") *
                               TableStrings.flushright(14, @sprintf("%.4e", temp)) *
                               TableStrings.flushright(22, @sprintf("%.4e", pv.Coulomb[idx])) *
                               TableStrings.flushright(22, @sprintf("%.4e", pv.Babushkin[idx]))
@@ -170,53 +249,70 @@ function computeKineticChargeBalance(scheme::Plasma.KineticChargeBalanceScheme, 
     if  output    results = Dict{String, Any}()    else    results = nothing    end
     nStages = length(scheme.chargeStages)
 
+    Plasma.validateKineticChargeBalanceSupport(scheme)
+
     @warn("Plasma.KineticChargeBalanceScheme: DielectronicRecombination is deliberately not included (see the scheme's " *
           "own docstring), and the cross-stage legs (ImpactIonization, PhotoRecombination, ThreeBodyRecombination) " *
-          "connect GROUND levels of adjacent stages only -- the excited slot of a stage is populated/depopulated by " *
-          "PhotoEmission/ImpactExcitation alone, never by ionization or recombination directly.")
+          "connect only the level pairs they are configured for -- on a classic stage pair that is the ground levels " *
+          "only; a non-ground level is populated/depopulated by PhotoEmission/ImpactExcitation alone, never directly " *
+          "by ionization or recombination, unless the corresponding leg is Plasma.StructureBasedTreatment.")
 
     treatments = (scheme.peTreatment, scheme.ieTreatment, scheme.eiiTreatment, scheme.rrTreatment, scheme.tbrTreatment)
-    anyStructureBased = any( t -> t isa Plasma.StructureBasedTreatment, treatments )
+    anyNonEmpirical = any( t -> !(t isa Plasma.EmpiricalTreatment), treatments )
 
-    stageMultiplets = Vector{Union{Nothing,Multiplet}}(nothing, nStages)
-    if  anyStructureBased
-        println(">> Plasma.KineticChargeBalanceScheme: at least one leg is structure-based; generating a small " *
-                "reference Multiplet for every one of the $nStages charge stages.")
-        for  k = 1:nStages    stageMultiplets[k] = Plasma.generateChargeStageMultiplet(scheme.chargeStages[k], nm, grid, asf)    end
+    multipletData = Vector{Any}(nothing, nStages)
+    levelCounts   = fill(2, nStages)
+    if  anyNonEmpirical
+        println(">> Plasma.KineticChargeBalanceScheme: at least one leg is not Plasma.EmpiricalTreatment; generating " *
+                "a reference Multiplet for every one of the $nStages charge stages.")
+        for  k = 1:nStages
+            multipletData[k] = Plasma.generateChargeStageMultiplet(scheme.chargeStages[k], nm, grid, asf)
+            levelCounts[k]   = length(multipletData[k].multiplet.levels)
+        end
     else
         println(">> Plasma.KineticChargeBalanceScheme: every leg is Plasma.EmpiricalTreatment; no SCF/CI is performed.")
     end
 
     Plasma.displayKineticChargeBalanceTreatments(stdout, scheme)
 
-    N             = 2*nStages
-    groundIndex(k)  = 2k-1
-    excitedIndex(k) = 2k
+    offset        = cumsum([0; levelCounts[1:end-1]])
+    globalIndex(k, loc) = offset[k] + loc
+    N             = sum(levelCounts)
     temperatures  = scheme.electronTemperatures
     rateFactor    = Defaults.convertUnits("rate: from atomic to 1/s", 1.0)
     coeffFactor   = Defaults.convertUnits("length: from atomic to cm", 1.0)^3 / Defaults.convertUnits("time: from atomic to sec", 1.0)
 
     # -------------------------------------------------------------------------------------------------------
-    # (1) Within-stage PhotoEmission, excited -> ground: temperature-independent, computed once.
+    # (1) Within-stage PhotoEmission: temperature-independent, computed once. peTransitions[k] lists every
+    #     (iLoc, jLoc, rateC, rateB) radiative-decay pair found for stage k, in its OWN local level numbering.
     # -------------------------------------------------------------------------------------------------------
-    peRatesC = zeros(nStages);   peRatesB = zeros(nStages)
-    einsteinAs = Vector{Any}(undef, nStages)                                 # keep (multipole, energy, rate) for the IE detailed balance below
+    TransitionT = NamedTuple{(:iLoc,:jLoc,:rateC,:rateB), Tuple{Int64,Int64,Float64,Float64}}
+    peTransitions = Vector{Vector{TransitionT}}(undef, nStages)
+    einsteinAs    = Vector{Any}(undef, nStages)                                  # classic-stage IE detailed balance only
     for  k = 1:nStages
-        stage = scheme.chargeStages[k]
+        stage       = scheme.chargeStages[k]
+        transitions = TransitionT[]
         if  scheme.peTreatment isa Plasma.StructureBasedTreatment
+            mp         = multipletData[k].multiplet
             peSettings = PhotoEmission.Settings(PhotoEmission.Settings(); gauges=[UseCoulomb, UseBabushkin], printBefore=false)
-            peLines    = PhotoEmission.computeLines(stageMultiplets[k], stageMultiplets[k], grid, peSettings; output=true)
+            peLines    = PhotoEmission.computeLines(mp, mp, grid, peSettings; output=true)
             for  line  in  peLines
-                if  line.initialLevel.index == 2  &&  line.finalLevel.index == 1
-                    peRatesC[k] = rateFactor * line.photonRate.Coulomb;   peRatesB[k] = rateFactor * line.photonRate.Babushkin
-                end
+                push!(transitions, (iLoc=line.initialLevel.index, jLoc=line.finalLevel.index,
+                                     rateC=rateFactor*line.photonRate.Coulomb, rateB=rateFactor*line.photonRate.Babushkin))
             end
-            einsteinAs[k] = Empirical.photoemissionEinsteinA(stage.excitedConfig, stage.groundConfig, Empirical.ScaledHydrogenic(); printout=false)
-        else
-            ea = Empirical.photoemissionEinsteinA(stage.excitedConfig, stage.groundConfig, scheme.peTreatment.approx; printout=false)
-            peRatesC[k] = peRatesB[k] = rateFactor * ea.rate
+            if  Plasma.isClassicChargeStage(stage)
+                einsteinAs[k] = Empirical.photoemissionEinsteinA(stage.configs[2], stage.configs[1], Empirical.ScaledHydrogenic(); printout=false)
+            end
+        elseif  scheme.peTreatment isa Plasma.SemiEmpiricalTreatment
+            ea = Empirical.photoemissionEinsteinA(stage.configs[2], stage.configs[1], Empirical.UsingJAC(); printout=false)
+            push!(transitions, (iLoc=2, jLoc=1, rateC=rateFactor*ea.rate, rateB=rateFactor*ea.rate))
+            einsteinAs[k] = ea
+        else                                                                     # Plasma.EmpiricalTreatment
+            ea = Empirical.photoemissionEinsteinA(stage.configs[2], stage.configs[1], scheme.peTreatment.approx; printout=false)
+            push!(transitions, (iLoc=2, jLoc=1, rateC=rateFactor*ea.rate, rateB=rateFactor*ea.rate))
             einsteinAs[k] = ea
         end
+        peTransitions[k] = transitions
     end
 
     popVectors = Dict{Float64, NamedTuple{(:Coulomb,:Babushkin), Tuple{Array{Float64,1},Array{Float64,1}}}}()
@@ -225,110 +321,150 @@ function computeKineticChargeBalance(scheme::Plasma.KineticChargeBalanceScheme, 
         Te_au   = Defaults.convertUnits("temperature: from Kelvin to (Hartree) units", TeK)
         cMatrix = zeros(N, N);   bMatrix = zeros(N, N)
 
-        # ---------------------------------------------------------------------------------------------------
+        # -----------------------------------------------------------------------------------------------------
         # (2) Within-stage legs: PhotoEmission (precomputed above) and ImpactExcitation (both directions).
-        # ---------------------------------------------------------------------------------------------------
+        # -----------------------------------------------------------------------------------------------------
         for  k = 1:nStages
             stage = scheme.chargeStages[k]
-            gIdx  = groundIndex(k);   eIdx = excitedIndex(k)
 
-            if  isfinite(peRatesC[k])   cMatrix[eIdx,gIdx] += peRatesC[k];   cMatrix[eIdx,eIdx] -= peRatesC[k]   end
-            if  isfinite(peRatesB[k])   bMatrix[eIdx,gIdx] += peRatesB[k];   bMatrix[eIdx,eIdx] -= peRatesB[k]   end
+            for  t  in  peTransitions[k]
+                gi = globalIndex(k, t.iLoc);   gj = globalIndex(k, t.jLoc)       # gi = source (initial/excited), gj = destination (final/ground)
+                cMatrix[gi,gj] += t.rateC;   cMatrix[gi,gi] -= t.rateC
+                bMatrix[gi,gj] += t.rateB;   bMatrix[gi,gi] -= t.rateB
+            end
 
             if  scheme.ieTreatment isa Plasma.StructureBasedTreatment
-                ieSettings = ImpactExcitation.Settings(ImpactExcitation.Settings(); calcRateCoefficient=true, printBefore=false,
-                                 lineSelection=LineSelection(true; indexPairs=[(1,2)]), temperatures=[TeK])
-                ieLines, _ = ImpactExcitation.computeLines(stageMultiplets[k], stageMultiplets[k], nm, grid, ieSettings; output=true)
-                ieRates    = ImpactExcitation.computeRateCoefficients(ieLines, ieSettings)
-                if  length(ieRates) > 0
-                    rc        = ieRates[1]
-                    excRate   = rc.alphas[1]
-                    gUpper    = Float64(Basics.twice(rc.finalLevel.J) + 1)
-                    deExcRate = 8.6291269e-6 * rc.effOmegas[1] / (gUpper * sqrt(TeK))
-                else
-                    excRate = deExcRate = 0.
+                mp    = multipletData[k].multiplet
+                L     = levelCounts[k]
+                pairs = [ (i,j)  for i = 1:L  for j = i+1:L ]
+                if  length(pairs) > 0
+                    ieSettings = ImpactExcitation.Settings(ImpactExcitation.Settings(); calcRateCoefficient=true, printBefore=false,
+                                     lineSelection=LineSelection(true; indexPairs=pairs), temperatures=[TeK])
+                    ieLines, _ = ImpactExcitation.computeLines(mp, mp, nm, grid, ieSettings; output=true)
+                    ieRates    = ImpactExcitation.computeRateCoefficients(ieLines, ieSettings)
+                    for  rc  in  ieRates
+                        gLower    = globalIndex(k, rc.initialLevel.index);   gUpperIdx = globalIndex(k, rc.finalLevel.index)
+                        excRate   = rc.alphas[1]
+                        gUpper    = Float64(Basics.twice(rc.finalLevel.J) + 1)
+                        deExcRate = 8.6291269e-6 * rc.effOmegas[1] / (gUpper * sqrt(TeK))
+                        if  isfinite(excRate)                                    # source = gLower (ground), destination = gUpperIdx (excited)
+                            cMatrix[gLower,gUpperIdx] += excRate*Ne;   cMatrix[gLower,gLower] -= excRate*Ne
+                            bMatrix[gLower,gUpperIdx] += excRate*Ne;   bMatrix[gLower,gLower] -= excRate*Ne
+                        end
+                        if  isfinite(deExcRate)                                  # source = gUpperIdx (excited), destination = gLower (ground)
+                            cMatrix[gUpperIdx,gLower] += deExcRate*Ne;   cMatrix[gUpperIdx,gUpperIdx] -= deExcRate*Ne
+                            bMatrix[gUpperIdx,gLower] += deExcRate*Ne;   bMatrix[gUpperIdx,gUpperIdx] -= deExcRate*Ne
+                        end
+                    end
                 end
-            else
-                eDist   = Distribution.ElectronMaxwell(Te_au)
-                excRate = coeffFactor * Empirical.impactExcitationPlasmaAlpha(eDist, stage.groundConfig, stage.excitedConfig;
-                                            approx=scheme.ieTreatment.approx, aSource=Empirical.ScaledHydrogenic(), printout=false)
-                # Detailed balance for the (empirical) de-excitation rate coefficient:  g_g C_exc(Te) = g_e C_deexc(Te) exp(-dE/Te).
-                gi        = Basics.extractFromConfiguration(Basics.Multiplicity(), stage.groundConfig)
-                ge        = Basics.extractFromConfiguration(Basics.Multiplicity(), stage.excitedConfig)
-                deExcRate = (gi/ge) * excRate * exp( einsteinAs[k].energy / Te_au )
-            end
+            else                                                                 # Empirical or SemiEmpirical, classic stage
+                gIdx = globalIndex(k, 1);   eIdx = globalIndex(k, 2)
+                if  scheme.ieTreatment isa Plasma.SemiEmpiricalTreatment
+                    bridge  = Empirical.photoemissionEinsteinA(stage.configs[2], stage.configs[1], Empirical.UsingJAC(); printout=false)
+                    aSource = Empirical.GivenEinsteinA(bridge.multipole, bridge.energy, bridge.rate)
+                    eDist   = Distribution.ElectronMaxwell(Te_au)
+                    excRate = coeffFactor * Empirical.impactExcitationPlasmaAlpha(eDist, stage.configs[1], stage.configs[2];
+                                                approx=scheme.ieTreatment.approx, aSource=aSource, printout=false)
+                    deltaE  = bridge.energy
+                else
+                    eDist   = Distribution.ElectronMaxwell(Te_au)
+                    excRate = coeffFactor * Empirical.impactExcitationPlasmaAlpha(eDist, stage.configs[1], stage.configs[2];
+                                                approx=scheme.ieTreatment.approx, aSource=Empirical.ScaledHydrogenic(), printout=false)
+                    deltaE  = einsteinAs[k].energy
+                end
+                # Detailed balance for the (empirical/semi-empirical) de-excitation rate coefficient:
+                #   g_ground C_exc(Te) = g_excited C_deexc(Te) exp(-dE/Te).
+                gi        = Basics.extractFromConfiguration(Basics.Multiplicity(), stage.configs[1])
+                ge        = Basics.extractFromConfiguration(Basics.Multiplicity(), stage.configs[2])
+                deExcRate = (gi/ge) * excRate * exp( deltaE / Te_au )
 
-            if  isfinite(excRate)
-                cMatrix[gIdx,eIdx] += excRate*Ne;   cMatrix[gIdx,gIdx] -= excRate*Ne
-                bMatrix[gIdx,eIdx] += excRate*Ne;   bMatrix[gIdx,gIdx] -= excRate*Ne
-            end
-            if  isfinite(deExcRate)
-                cMatrix[eIdx,gIdx] += deExcRate*Ne;   cMatrix[eIdx,eIdx] -= deExcRate*Ne
-                bMatrix[eIdx,gIdx] += deExcRate*Ne;   bMatrix[eIdx,eIdx] -= deExcRate*Ne
+                if  isfinite(excRate)                                           # source = gIdx (ground), destination = eIdx (excited)
+                    cMatrix[gIdx,eIdx] += excRate*Ne;   cMatrix[gIdx,gIdx] -= excRate*Ne
+                    bMatrix[gIdx,eIdx] += excRate*Ne;   bMatrix[gIdx,gIdx] -= excRate*Ne
+                end
+                if  isfinite(deExcRate)                                         # source = eIdx (excited), destination = gIdx (ground)
+                    cMatrix[eIdx,gIdx] += deExcRate*Ne;   cMatrix[eIdx,eIdx] -= deExcRate*Ne
+                    bMatrix[eIdx,gIdx] += deExcRate*Ne;   bMatrix[eIdx,eIdx] -= deExcRate*Ne
+                end
             end
         end
 
         # ---------------------------------------------------------------------------------------------------
-        # (3) Cross-stage legs, ground(k) <-> ground(k+1): ImpactIonization (up), PhotoRecombination +
-        #     ThreeBodyRecombination (down, summed into the same matrix entry).
+        # (3) Cross-stage legs, stage(k) <-> stage(k+1): ImpactIonization (up), PhotoRecombination +
+        #     ThreeBodyRecombination (down, summed into the same matrix entry). On a classic stage pair with
+        #     an Empirical leg this connects ground levels only, exactly as before; a StructureBasedTreatment
+        #     leg connects EVERY level pair between the two stages' multiplets.
         # ---------------------------------------------------------------------------------------------------
         for  k = 1:nStages-1
             stageLo = scheme.chargeStages[k];   stageHi = scheme.chargeStages[k+1]
-            iLo = groundIndex(k);   iHi = groundIndex(k+1)
 
-            if  scheme.eiiTreatment isa Plasma.StructureBasedTreatment
-                groundLo = stageMultiplets[k].levels[1];   groundHi = stageMultiplets[k+1].levels[1]
-                sh          = ThreeBodyRecombination.capturedSubshell(groundHi, groundLo)
-                eiiSettings = ThreeBodyRecombination.Settings(ThreeBodyRecombination.Settings(); eiiModel=scheme.eiiTreatment.eiiModel,
-                                                              electronTemperature=TeK, printBefore=false)
-                eiiRate     = ThreeBodyRecombination.eiiRateCoefficient(sh, groundLo, nm, grid, eiiSettings)
-            else
-                eDist   = Distribution.ElectronMaxwell(Te_au)
-                eiiRate = coeffFactor * Empirical.impactIonizationPlasmaAlpha(eDist, stageLo.groundConfig, stageHi.groundConfig;
-                                            approx=scheme.eiiTreatment.approx, printout=false)
+            # A CLASSIC stage pair connects ground levels only, regardless of treatment -- this is the scheme's own
+            # documented scope decision (cf. Plasma.KineticChargeBalanceScheme), not a side effect of which
+            # treatment happens to be selected; branch (b) of example-Ji.jl relies on exactly this to keep its
+            # already-published ~135x finding reproducible. Only a GENERAL (non-classic) stage, which the guard
+            # already restricts to Plasma.StructureBasedTreatment on every leg that touches it, uses all level pairs.
+            bothClassicPair = Plasma.isClassicChargeStage(stageLo)  &&  Plasma.isClassicChargeStage(stageHi)
+            eiiPairs = bothClassicPair ? [ (1,1) ] : [ (i,j) for i=1:levelCounts[k] for j=1:levelCounts[k+1] ]
+            for  (iLo, iHi)  in  eiiPairs
+                gLo = globalIndex(k, iLo);   gHi = globalIndex(k+1, iHi)
+                if  scheme.eiiTreatment isa Plasma.StructureBasedTreatment
+                    levelLo     = multipletData[k].multiplet.levels[iLo];   levelHi = multipletData[k+1].multiplet.levels[iHi]
+                    sh          = ThreeBodyRecombination.capturedSubshell(levelHi, levelLo)
+                    eiiSettings = ThreeBodyRecombination.Settings(ThreeBodyRecombination.Settings(); eiiModel=scheme.eiiTreatment.eiiModel,
+                                                                  electronTemperature=TeK, printBefore=false)
+                    eiiRate     = ThreeBodyRecombination.eiiRateCoefficient(sh, levelLo, nm, grid, eiiSettings)
+                else
+                    eDist   = Distribution.ElectronMaxwell(Te_au)
+                    eiiRate = coeffFactor * Empirical.impactIonizationPlasmaAlpha(eDist, stageLo.configs[1], stageHi.configs[1];
+                                                approx=scheme.eiiTreatment.approx, printout=false)
+                end
+                eiiTerm = eiiRate * Ne
+                if  isfinite(eiiTerm)
+                    cMatrix[gLo,gHi] += eiiTerm;   cMatrix[gLo,gLo] -= eiiTerm
+                    bMatrix[gLo,gHi] += eiiTerm;   bMatrix[gLo,gLo] -= eiiTerm
+                end
             end
 
-            if  scheme.rrTreatment isa Plasma.StructureBasedTreatment
-                groundLo = stageMultiplets[k].levels[1];   groundHi = stageMultiplets[k+1].levels[1]
-                rr      = Plasma.structureBasedRrRateCoefficient(groundLo, groundHi, nm, grid, TeK)
-                rrRateC = rr.Coulomb;   rrRateB = rr.Babushkin
-            else
-                eDist    = Distribution.ElectronMaxwell(Te_au)
-                rrRateAU = coeffFactor * Empirical.photorecombinationPlasmaAlpha(eDist, stageHi.groundConfig, stageLo.groundConfig;
-                                            approx=scheme.rrTreatment.approx, printout=false)
-                rrRateC = rrRateB = rrRateAU
-            end
+            downPairs = bothClassicPair ? [ (1,1) ] : [ (i,j) for i=1:levelCounts[k] for j=1:levelCounts[k+1] ]
+            for  (iLo, iHi)  in  downPairs
+                gLo = globalIndex(k, iLo);   gHi = globalIndex(k+1, iHi)
 
-            if  scheme.tbrTreatment isa Plasma.StructureBasedTreatment
-                groundLo = stageMultiplets[k].levels[1];   groundHi = stageMultiplets[k+1].levels[1]
-                tbrSettings = ThreeBodyRecombination.Settings(ThreeBodyRecombination.Settings(); eiiModel=scheme.tbrTreatment.eiiModel,
-                                                              electronTemperature=TeK, printBefore=false)
-                finalMp     = Multiplet("TBR final",   [groundLo]);   initialMp = Multiplet("TBR initial", [groundHi])
-                tbrLines    = ThreeBodyRecombination.computeLines(finalMp, initialMp, nm, grid, tbrSettings; output=true)
-                tbrRate     = length(tbrLines) > 0 ? tbrLines[1].rateCoefficient : 0.
-            else
-                eDist   = Distribution.ElectronMaxwell(Te_au)
-                tbrRate = coeffFactor * Empirical.threeBodyRecombinationPlasmaAlpha(eDist, stageHi.groundConfig, stageLo.groundConfig;
-                                            approx=scheme.tbrTreatment.approx, printout=false)
-            end
+                if  scheme.rrTreatment isa Plasma.StructureBasedTreatment
+                    levelLo = multipletData[k].multiplet.levels[iLo];   levelHi = multipletData[k+1].multiplet.levels[iHi]
+                    rr      = Plasma.structureBasedRrRateCoefficient(levelLo, levelHi, nm, grid, TeK)
+                    rrRateC = rr.Coulomb;   rrRateB = rr.Babushkin
+                else
+                    eDist    = Distribution.ElectronMaxwell(Te_au)
+                    rrRateAU = coeffFactor * Empirical.photorecombinationPlasmaAlpha(eDist, stageHi.configs[1], stageLo.configs[1];
+                                                approx=scheme.rrTreatment.approx, printout=false)
+                    rrRateC = rrRateB = rrRateAU
+                end
 
-            eiiTerm   = eiiRate * Ne
-            downTermC = (rrRateC + tbrRate) * Ne;   downTermB = (rrRateB + tbrRate) * Ne
+                if  scheme.tbrTreatment isa Plasma.StructureBasedTreatment
+                    levelLo     = multipletData[k].multiplet.levels[iLo];   levelHi = multipletData[k+1].multiplet.levels[iHi]
+                    tbrSettings = ThreeBodyRecombination.Settings(ThreeBodyRecombination.Settings(); eiiModel=scheme.tbrTreatment.eiiModel,
+                                                                  electronTemperature=TeK, printBefore=false)
+                    finalMp     = Multiplet("TBR final",   [levelLo]);   initialMp = Multiplet("TBR initial", [levelHi])
+                    tbrLines    = ThreeBodyRecombination.computeLines(finalMp, initialMp, nm, grid, tbrSettings; output=true)
+                    tbrRate     = length(tbrLines) > 0 ? tbrLines[1].rateCoefficient : 0.
+                else
+                    eDist   = Distribution.ElectronMaxwell(Te_au)
+                    tbrRate = coeffFactor * Empirical.threeBodyRecombinationPlasmaAlpha(eDist, stageHi.configs[1], stageLo.configs[1];
+                                                approx=scheme.tbrTreatment.approx, printout=false)
+                end
 
-            if  isfinite(eiiTerm)
-                cMatrix[iLo,iHi] += eiiTerm;   cMatrix[iLo,iLo] -= eiiTerm
-                bMatrix[iLo,iHi] += eiiTerm;   bMatrix[iLo,iLo] -= eiiTerm
+                downTermC = (rrRateC + tbrRate) * Ne;   downTermB = (rrRateB + tbrRate) * Ne
+                if  isfinite(downTermC)   cMatrix[gHi,gLo] += downTermC;   cMatrix[gHi,gHi] -= downTermC   end
+                if  isfinite(downTermB)   bMatrix[gHi,gLo] += downTermB;   bMatrix[gHi,gHi] -= downTermB   end
             end
-            if  isfinite(downTermC)   cMatrix[iHi,iLo] += downTermC;   cMatrix[iHi,iHi] -= downTermC   end
-            if  isfinite(downTermB)   bMatrix[iHi,iLo] += downTermB;   bMatrix[iHi,iHi] -= downTermB   end
         end
 
         popVectors[TeK] = (Coulomb = Plasma.solveCollisionalRadiativeBalance(cMatrix), Babushkin = Plasma.solveCollisionalRadiativeBalance(bMatrix))
     end
 
-    Plasma.displayKineticChargeBalanceResults(stdout, scheme, Ne, popVectors)
+    Plasma.displayKineticChargeBalanceResults(stdout, scheme, Ne, popVectors, levelCounts)
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
-    if  printSummary   Plasma.displayKineticChargeBalanceResults(iostream, scheme, Ne, popVectors)   end
+    if  printSummary   Plasma.displayKineticChargeBalanceResults(iostream, scheme, Ne, popVectors, levelCounts)   end
 
     if output    results = Base.merge( results, Dict("populations:" => popVectors) )   end
 
