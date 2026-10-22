@@ -7,9 +7,11 @@
 module Plasma
 
 using  Dates, JLD2, LinearAlgebra, Printf, SpecialFunctions, ..ResultKeys
-using  ..AngularMomentum, ..Atomic, ..AtomicState, ..Basics, ..Bsplines, ..Continuum, ..Defaults, ..DielectronicRecombination, ..Empirical, ..Hamiltonian, ..ImpactExcitation,
-       ..ManyElectron, ..Nuclear, ..Radial, ..RadialIntegrals,
-       ..Semiempirical, ..TableStrings, ..FormFactor, ..PhotoEmission, ..PhotoIonization, ..AutoIonization, ..SelfConsistent
+using  ..AngularMomentum, ..Atomic, ..AtomicState, ..Basics, ..Bsplines, ..Continuum, ..Defaults, ..DielectronicRecombination,
+       ..Distribution, ..Empirical, ..Hamiltonian, ..ImpactExcitation, ..ImpactIonization,
+       ..ManyElectron, ..Nuclear, ..PhotoRecombination, ..Radial, ..RadialIntegrals,
+       ..Semiempirical, ..TableStrings, ..FormFactor, ..PhotoEmission, ..PhotoIonization, ..AutoIonization, ..SelfConsistent,
+       ..ThreeBodyRecombination
 
 
 """
@@ -27,6 +29,12 @@ using  ..AngularMomentum, ..Atomic, ..AtomicState, ..Basics, ..Bsplines, ..Conti
     + struct CollisionalRadiativeScheme
         ... to compute the (relative) collisional-radiative population balance among a small set of
             levels of one ion.
+    + struct KineticChargeBalanceScheme
+        ... the cross-charge-state sibling of CollisionalRadiativeScheme: a kinetic (rate-based, non-LTE)
+            population balance across several adjacent charge states, with PhotoEmission + ImpactExcitation
+            within each stage and ImpactIonization + PhotoRecombination + ThreeBodyRecombination between
+            adjacent stages. Each of the five legs independently selects an Empirical (tabulated/fitted) or
+            a structure-based (ab-initio/semi-empirical) treatment -- see Plasma.AbstractRateTreatment.
     + struct SuperConfigurationOpacityScheme
         ... to build one SuperConfigurations.Group per reference configuration, report its Boltzmann
             population at a given plasma temperature, build a SuperConfigurations.TransitionArray for every
@@ -686,6 +694,199 @@ end
 
 
 """
+`struct  Plasma.ChargeStage`
+    ... one charge state ("ionization stage") entering a Plasma.KineticChargeBalanceScheme: identified by two reference
+        configurations of a shared electron count, a ground configuration and one excited configuration, from which a
+        small 2-level reference Multiplet is built (mean-field orbitals + CI) whenever the scheme needs real computed
+        levels for that stage (cf. Plasma.AbstractRateTreatment). Keeping exactly two configurations per stage is a
+        deliberate simplification -- enough to give the within-stage processes (PhotoEmission, ImpactExcitation) a real
+        transition to compute, without the larger shell-generation machinery Plasma.CollisionalRadiativeScheme uses for
+        a single ion.
+
+    + groundConfig    ::Configuration   ... the stage's ground configuration; also the one used by the cross-stage
+                                               processes (ImpactIonization, PhotoRecombination, ThreeBodyRecombination),
+                                               which connect ground levels only.
+    + excitedConfig   ::Configuration   ... one excited configuration of the same charge state, giving
+                                               PhotoEmission/ImpactExcitation a within-stage transition.
+"""
+struct  ChargeStage
+    groundConfig      ::Configuration
+    excitedConfig     ::Configuration
+end
+
+
+"""
+`abstract type Plasma.AbstractRateTreatment`
+    ... distinguishes, for ONE leg (one process) of a Plasma.KineticChargeBalanceScheme, whether that rate is obtained
+        from one of Empirical's tabulated/fitted approximations or from JAC's own ab-initio/semi-empirical structure
+        computation (SCF + CI, the full process module). Every leg (PhotoEmission, ImpactExcitation, ImpactIonization,
+        PhotoRecombination, ThreeBodyRecombination) carries its own AbstractRateTreatment, so a single scheme can mix
+        empirical and structure-based legs freely ("mixed use") -- this is the one thing the whole scheme is built to
+        make visible. This type is deliberately kept separate from Empirical.AbstractEmpiricalApproximation (it is NOT
+        a subtype of it): the two routes are different in kind, not two flavours of the same thing.
+
+    + Plasma.EmpiricalTreatment        ... wraps one Empirical.AbstractEmpiricalApproximation singleton.
+    + Plasma.StructureBasedTreatment   ... selects the real computation; carries the one knob that differs between
+                                             models, an ImpactIonization.AbstractModel, read only by the
+                                             ImpactIonization/ThreeBodyRecombination legs and ignored by the other three.
+"""
+abstract type  AbstractRateTreatment                                             end
+
+
+"""
+`struct  Plasma.EmpiricalTreatment  <:  Plasma.AbstractRateTreatment`
+    ... selects one of Empirical's own tabulated/fitted approximations for one leg of a Plasma.KineticChargeBalanceScheme;
+        no SCF or CI is performed for a stage whose every leg uses this treatment. The quantity computed is otherwise
+        identical in kind (a plasma rate coefficient, or a spontaneous rate for PhotoEmission) to what
+        Plasma.StructureBasedTreatment returns for the same leg -- only the INPUT to that same rate equation differs,
+        which is the comparison this scheme exists to make legible.
+
+    + approx   ::Empirical.AbstractEmpiricalApproximation   ... e.g. Empirical.ScaledHydrogenic(), Empirical.VanRegemorter1962(),
+                                                                   Empirical.Lotz1967().
+"""
+struct  EmpiricalTreatment  <:  AbstractRateTreatment
+    approx     ::Empirical.AbstractEmpiricalApproximation
+end
+
+
+"""
+`struct  Plasma.StructureBasedTreatment  <:  Plasma.AbstractRateTreatment`
+    ... selects JAC's own ab-initio/semi-empirical structure computation for one leg of a Plasma.KineticChargeBalanceScheme.
+        Despite the name, this is NOT one uniform level of rigor across the five processes: PhotoEmission and
+        ImpactExcitation are intrinsically ab-initio (there is no other JAC route for them); ImpactIonization and
+        ThreeBodyRecombination are semi-empirical, since eiiModel itself selects a BEB/BED/... cross-section model over
+        REAL computed levels; PhotoRecombination is ab-initio, a genuine structure-based cross section. A scheme prints
+        which is which (see Plasma.displayKineticChargeBalanceTreatments); this field exists only to carry the one knob
+        that the EII/TBR legs still need.
+
+    + eiiModel   ::ImpactIonization.AbstractModel   ... read only by the ImpactIonization and ThreeBodyRecombination legs;
+                                                           ignored otherwise.
+"""
+struct  StructureBasedTreatment  <:  AbstractRateTreatment
+    eiiModel     ::ImpactIonization.AbstractModel
+end
+
+
+"""
+`Plasma.StructureBasedTreatment()`  ... constructor with the default eiiModel = ImpactIonization.BEBmodel().
+"""
+function StructureBasedTreatment()
+    StructureBasedTreatment( ImpactIonization.BEBmodel() )
+end
+
+
+# `Base.show(io::IO, treatment::EmpiricalTreatment)`  ... provides a String notation for treatment::EmpiricalTreatment.
+function Base.show(io::IO, treatment::EmpiricalTreatment)
+    print(io, "empirical ($(typeof(treatment.approx)))")
+end
+
+
+# `Base.show(io::IO, treatment::StructureBasedTreatment)`  ... provides a String notation for treatment::StructureBasedTreatment.
+function Base.show(io::IO, treatment::StructureBasedTreatment)
+    print(io, "structure-based (eiiModel = $(typeof(treatment.eiiModel)))")
+end
+
+
+"""
+`struct  Plasma.KineticChargeBalanceScheme  <:  Plasma.AbstractPlasmaScheme`
+    ... a kinetic (rate-based, non-LTE) population balance across SEVERAL adjacent charge states of one element -- the
+        cross-charge-state sibling to Plasma.CollisionalRadiativeScheme, which is confined by design to one fixed charge
+        state. Every chargeStages[k] is connected to itself by PhotoEmission (radiative decay, excited -> ground) and
+        ImpactExcitation (collisional excitation/de-excitation, both directions, by detailed balance from one
+        computed/estimated rate), and to chargeStages[k+1] by ImpactIonization (up, ground -> ground) and by
+        PhotoRecombination + ThreeBodyRecombination (down, ground -> ground, added into the same matrix entry).
+        DielectronicRecombination is deliberately NOT included here (an explicit scope decision, not an oversight --
+        its resonant capture-then-stabilize mechanism does not reduce to a single rate coefficient the way the other
+        four processes do).
+
+        EACH of the five legs carries its OWN Plasma.AbstractRateTreatment (peTreatment, ieTreatment, eiiTreatment,
+        rrTreatment, tbrTreatment), so a run can mix a cheap Empirical formula for some processes with JAC's own
+        structure computation for others, in any combination -- "mixed use". A run in which every leg is
+        Plasma.EmpiricalTreatment never calls a mean-field/CI computation at all and completes in well under a second;
+        the moment ANY leg is Plasma.StructureBasedTreatment, a small reference Multiplet (ground + excited
+        configuration, mean-field orbitals + frozen-orbital CI) is generated for EVERY stage -- not only the stage(s)
+        that leg touches -- since this is cheap here (one mean-field pass per stage) and a per-leg, per-stage decision
+        of which levels to generate would add real bookkeeping for little saved time. An Empirical leg still uses its
+        own Configuration-level formula regardless, so this costs extra computation, never wrong physics.
+
+    + chargeStages          ::Array{Plasma.ChargeStage,1}   ... the charge states, ordered from the LOWEST to the
+                                                                   HIGHEST charge (fewest to most electrons removed);
+                                                                   chargeStages[k] and chargeStages[k+1] must differ by
+                                                                   exactly one electron in their groundConfig.
+    + electronTemperatures ::Array{Float64,1}               ... electron temperatures [K] at which the balance is solved.
+    + peTreatment           ::Plasma.AbstractRateTreatment  ... within-stage PhotoEmission.
+    + ieTreatment           ::Plasma.AbstractRateTreatment  ... within-stage ImpactExcitation.
+    + eiiTreatment          ::Plasma.AbstractRateTreatment  ... cross-stage ImpactIonization (up).
+    + rrTreatment           ::Plasma.AbstractRateTreatment  ... cross-stage PhotoRecombination (down).
+    + tbrTreatment          ::Plasma.AbstractRateTreatment  ... cross-stage ThreeBodyRecombination (down).
+"""
+struct  KineticChargeBalanceScheme  <:  Plasma.AbstractPlasmaScheme
+    chargeStages           ::Array{Plasma.ChargeStage,1}
+    electronTemperatures   ::Array{Float64,1}
+    peTreatment            ::Plasma.AbstractRateTreatment
+    ieTreatment            ::Plasma.AbstractRateTreatment
+    eiiTreatment           ::Plasma.AbstractRateTreatment
+    rrTreatment            ::Plasma.AbstractRateTreatment
+    tbrTreatment           ::Plasma.AbstractRateTreatment
+end
+
+
+"""
+`Plasma.KineticChargeBalanceScheme()`  ... constructor for a default instance of a Plasma.KineticChargeBalanceScheme.
+"""
+function KineticChargeBalanceScheme()
+    KineticChargeBalanceScheme( Plasma.ChargeStage[], [1.0e4],
+                                EmpiricalTreatment(Empirical.ScaledHydrogenic()),
+                                EmpiricalTreatment(Empirical.VanRegemorter1962()),
+                                EmpiricalTreatment(Empirical.Lotz1967()),
+                                EmpiricalTreatment(Empirical.ScaledHydrogenic()),
+                                EmpiricalTreatment(Empirical.Lotz1967()) )
+end
+
+
+"""
+`Plasma.KineticChargeBalanceScheme(scheme::Plasma.KineticChargeBalanceScheme;`
+
+        chargeStages=..,          electronTemperatures=..,
+        peTreatment=..,           ieTreatment=..,           eiiTreatment=..,          rrTreatment=..,        tbrTreatment=..)
+
+    ... constructor for modifying the given Plasma.KineticChargeBalanceScheme by 'overwriting' the previously selected
+        parameters.
+"""
+function KineticChargeBalanceScheme(scheme::Plasma.KineticChargeBalanceScheme;
+    chargeStages::Union{Nothing,Array{Plasma.ChargeStage,1}}=nothing,
+    electronTemperatures::Union{Nothing,Array{Float64,1}}=nothing,
+    peTreatment::Union{Nothing,Plasma.AbstractRateTreatment}=nothing,
+    ieTreatment::Union{Nothing,Plasma.AbstractRateTreatment}=nothing,
+    eiiTreatment::Union{Nothing,Plasma.AbstractRateTreatment}=nothing,
+    rrTreatment::Union{Nothing,Plasma.AbstractRateTreatment}=nothing,
+    tbrTreatment::Union{Nothing,Plasma.AbstractRateTreatment}=nothing)
+
+    if  isnothing(chargeStages)           chargeStagesx          = scheme.chargeStages          else   chargeStagesx          = chargeStages          end
+    if  isnothing(electronTemperatures)   electronTemperaturesx  = scheme.electronTemperatures  else   electronTemperaturesx  = electronTemperatures  end
+    if  isnothing(peTreatment)            peTreatmentx           = scheme.peTreatment           else   peTreatmentx           = peTreatment            end
+    if  isnothing(ieTreatment)            ieTreatmentx           = scheme.ieTreatment           else   ieTreatmentx           = ieTreatment            end
+    if  isnothing(eiiTreatment)           eiiTreatmentx          = scheme.eiiTreatment          else   eiiTreatmentx          = eiiTreatment           end
+    if  isnothing(rrTreatment)            rrTreatmentx           = scheme.rrTreatment           else   rrTreatmentx           = rrTreatment            end
+    if  isnothing(tbrTreatment)           tbrTreatmentx          = scheme.tbrTreatment          else   tbrTreatmentx          = tbrTreatment           end
+
+    KineticChargeBalanceScheme( chargeStagesx, electronTemperaturesx, peTreatmentx, ieTreatmentx, eiiTreatmentx, rrTreatmentx, tbrTreatmentx )
+end
+
+
+# `Base.show(io::IO, scheme::KineticChargeBalanceScheme)`  ... prepares a proper printout of the scheme::KineticChargeBalanceScheme.
+function Base.show(io::IO, scheme::KineticChargeBalanceScheme)
+    println(io, "chargeStages:          $(length(scheme.chargeStages)) stage(s)  ")
+    println(io, "electronTemperatures:  $(scheme.electronTemperatures)  ")
+    println(io, "peTreatment:           $(scheme.peTreatment)  ")
+    println(io, "ieTreatment:           $(scheme.ieTreatment)  ")
+    println(io, "eiiTreatment:          $(scheme.eiiTreatment)  ")
+    println(io, "rrTreatment:           $(scheme.rrTreatment)  ")
+    println(io, "tbrTreatment:          $(scheme.tbrTreatment)  ")
+end
+
+
+"""
 `struct  Plasma.SuperConfigurationOpacityScheme  <:  Plasma.AbstractPlasmaScheme`
     ... a type for a superconfiguration-based plasma computation: ONE Gaussian `SuperConfigurations.Group`
         per reference configuration (a shared orbital set is built once, from ALL of `refConfigs` together),
@@ -1281,6 +1482,7 @@ include("module-Plasma-inc-line-shifts.jl")
 include("module-Plasma-inc-saha-boltzmann-mixture.jl")
 include("module-Plasma-inc-satellite-diagnostic.jl")
 include("module-Plasma-inc-collisional-radiative.jl")
+include("module-Plasma-inc-kinetic-charge-balance.jl")
 include("module-Plasma-inc-superconfiguration-opacity.jl")
 include("module-Plasma-inc-superconfiguration-ionization.jl")
 include("module-Plasma-inc-superconfiguration-mixture.jl")

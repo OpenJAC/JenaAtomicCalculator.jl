@@ -630,6 +630,78 @@ function testModule_SuperConfigurationMixtureOpacity(; short::Bool=true)
 end
 
 
+"""
+`TestFrames.testModule_KineticChargeBalance(; short::Bool=true)`
+    ... tests `Plasma.KineticChargeBalanceScheme` on a 3-stage carbon chain (C^3+/C^4+/C^5+), restricted to
+        `Plasma.EmpiricalTreatment` for every leg so the test stays fast (no SCF/CI). Checks: the scheme runs
+        through the generic `perform()` route; the returned (Coulomb, Babushkin) population vectors are
+        non-negative and sum to 1; at T_e = 1e4 K the lowest-charge stage's ground slot holds essentially all
+        the population (carbon's ionization potentials vastly exceed kT there); the `nStages < 2` guard raises;
+        and -- the regression this test exists for -- the global "nuclear: charge" default is restored to
+        whatever it was BEFORE the call, not left at the scheme's own nuclearModel.Z (Empirical's plasma-rate
+        functions read that global default rather than taking Z as an argument; a run that leaves it changed
+        would silently corrupt whatever the caller computes next in the same session). A success::Bool is
+        returned.
+"""
+function testModule_KineticChargeBalance(; short::Bool=true)
+    printstyled("\n\nTest the module  Plasma (KineticChargeBalanceScheme)  ... \n", color=:cyan)
+    success = true
+
+    ni   = Nuclear.Model(6.)
+    grid = Radial.Grid(true)
+
+    stages = [ Plasma.ChargeStage(Configuration("1s^2 2s^1"), Configuration("1s^2 2p^1")),
+               Plasma.ChargeStage(Configuration("1s^2"),      Configuration("1s^1 2p^1")),
+               Plasma.ChargeStage(Configuration("1s^1"),      Configuration("2p^1"))      ]
+    scheme = Plasma.KineticChargeBalanceScheme(Plasma.KineticChargeBalanceScheme(); chargeStages=stages, electronTemperatures=[1.0e4])
+    comp   = Plasma.Computation(Plasma.Computation(); scheme=scheme, nuclearModel=ni, grid=grid,
+                                settings=Plasma.Settings(0., 1.0e10, true))
+
+    oldZ = Defaults.getDefaults("nuclear: charge");   Defaults.setDefaults("nuclear: charge", 99.0)
+    wb = redirect_stdout(devnull) do
+             perform(comp; output=true)
+         end
+    if  Defaults.getDefaults("nuclear: charge") != 99.0
+        success = false
+        println("  ** the global \"nuclear: charge\" default was left at $(Defaults.getDefaults("nuclear: charge")) " *
+                 "instead of being restored to 99.0")
+    end
+    Defaults.setDefaults("nuclear: charge", oldZ)
+
+    popVectors = wb["populations:"]
+    pv = popVectors[1.0e4]
+    for  (label, pop)  in  (("Coulomb", pv.Coulomb), ("Babushkin", pv.Babushkin))
+        if  any(pop .< 0.)
+            success = false;   println("  ** $label populations contain a negative entry: $pop")
+        end
+        if  abs(sum(pop) - 1.0) > 1.0e-8
+            success = false;   println("  ** $label populations do not sum to 1: $(sum(pop))")
+        end
+        if  pop[1] < 0.999999
+            success = false
+            println("  ** at T_e = 1e4 K the lowest-charge stage's ground slot should hold essentially all the " *
+                     "population, got $label = $(pop[1])")
+        end
+    end
+
+    oneStageScheme = Plasma.KineticChargeBalanceScheme(scheme; chargeStages=[stages[1]])
+    oneStageComp   = Plasma.Computation(comp; scheme=oneStageScheme)
+    try
+        redirect_stdout(devnull) do
+            perform(oneStageComp; output=true)
+        end
+        success = false;   println("  ** a 1-stage KineticChargeBalanceScheme should raise, but did not")
+    catch  ex
+        if  ex isa UndefVarError || ex isa MethodError
+            success = false;   println("  ** the 1-stage guard raised the wrong kind of error: $(typeof(ex))")
+        end
+    end
+
+    testPrint("testModule_KineticChargeBalance()::", success)
+    return( success )
+end
+
+
 ## PlasmaShift: no test exists and none is planned here. The former testModule_PlasmaShift was deleted
 ## on 09-Aug-2026 as obsolete: PlasmaShift is no longer an Atomic property but a Plasma.Computation
 ## scheme, so a test for it belongs with the Plasma module and has to be written afresh.

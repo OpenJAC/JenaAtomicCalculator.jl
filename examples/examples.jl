@@ -160,6 +160,8 @@ elseif  char == 'J'
     println("Jf) Apply & test the Plasma.SuperConfigurationOpacityScheme (populations, oscillator strengths, and a summed opacity spectrum).")
     println("Jg) Apply & test the Plasma.SuperConfigurationIonizationScheme (equilibrium ionization balance across configurations).")
     println("Jh) Apply & test the Plasma.SuperConfigurationMixtureOpacityScheme (a multi-species mixture, Planck mean opacity).")
+    println("Ji) Apply & test the Plasma.KineticChargeBalanceScheme (kinetic population balance across several charge states,")
+    println("    with a per-process empirical/structure-based rate-treatment switch).")
     #
 elseif  char == 'K'
     println("K)  Examples, tests & development of deep-learning applications")

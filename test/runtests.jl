@@ -265,6 +265,14 @@ end
                                                     ## Empirical.freeFreeAbsorptionCoefficient, the same
                                                     ## backward-compatibility proof, plus two literal spot values
                                                     ## of the embedded Sutherland (1998) Gaunt-factor table.
+        @test TestFrames.testModule_KineticChargeBalance()
+                                                    ## added 22-Oct-2026; 3-stage carbon chain (C^3+/C^4+/C^5+),
+                                                    ## every leg Plasma.EmpiricalTreatment so the test stays fast:
+                                                    ## populations non-negative and summing to 1, essentially all
+                                                    ## population on the lowest-charge stage at T_e = 1e4 K, the
+                                                    ## nStages < 2 guard raising, and -- the regression this test
+                                                    ## exists for -- the global "nuclear: charge" default restored
+                                                    ## to its PRIOR value rather than left at the scheme's own Z.
     end
 
     @testset "JAC strongfield" begin
