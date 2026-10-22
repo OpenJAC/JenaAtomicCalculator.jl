@@ -297,7 +297,9 @@ end
 `DalgarnoLewis.solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, targetSubshell::Subshell,
                       sourceOrbital::Orbital, potential::Radial.Potential, primitives::Bsplines.Primitives;
                       settings::DalgarnoLewis.Settings=DalgarnoLewis.Settings(),
-                      extraSource::Union{Nothing,Array{Float64,1}}=nothing, staticDrive::Bool=false)`
+                      extraSource::Union{Nothing,Array{Float64,1}}=nothing, staticDrive::Bool=false,
+                      coreOrbitals::Union{Nothing,Dict{Subshell,Orbital}}=nothing,
+                      coreOccupations::Union{Nothing,Dict{Subshell,Float64}}=nothing)`
     ... solves (H_eff - targetEnergy) |chi> = O^(multipole, gauge) |sourceOrbital> for chi, in the
         kappa-channel of targetSubshell, where H_eff is the one-body Dirac Hamiltonian for `potential` on
         the SAME B-spline primitives sourceOrbital was (or could have been) generated from, and
@@ -315,14 +317,31 @@ end
         this is the hook `RandomPhase` uses to couple several such equations together (an induced potential's
         matrix elements, in this module's own primitive basis) WITHOUT this module needing any notion of what
         that extra term represents; `nothing` (the default) reproduces every existing caller unchanged.
+        `coreOrbitals` and `coreOccupations`, given TOGETHER, add the nonlocal Dirac-Fock exchange operator of
+        `Bsplines.setupExchangeMatrix` to the left-hand side, so that H_eff becomes Dirac-Fock rather than
+        Dirac-Hartree; omitting both keeps the purely local operator every existing caller gets. They must then
+        describe the same field `potential` does, and in its CANONICAL form -- the full Hartree term over every
+        occupied subshell, with no (w_a-1) and no own-subshell local exchange -- since the exchange is built over
+        every occupied subshell including the source orbital's own. Measured on Ne (21-Oct-2026): with AL orbitals
+        the eigenstate residual the guard below reports falls from 1.22/1.23 to 1.2e-03, and the static dipole
+        polarizability from 3.759245 (Dirac-Hartree-Slater) to 1.976847 a.u., box-independent over rbox = 20/40/70
+        to all seven digits. That remaining 1e-03 is not convergence (a 40-fold tightening moves it nowhere) and
+        not the grid (a 2.5-fold refinement likewise); it is CONSISTENT with, though not proven to be, the
+        difference between plain and kink-aware Slater quadrature.
         A chi::DalgarnoLewis.PerturbedOrbital is returned.
 """
 function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, targetSubshell::Subshell,
                 sourceOrbital::Orbital, potential::Radial.Potential, primitives::Bsplines.Primitives;
                 settings::DalgarnoLewis.Settings=DalgarnoLewis.Settings(),
-                extraSource::Union{Nothing,Array{Float64,1}}=nothing, staticDrive::Bool=false)
+                extraSource::Union{Nothing,Array{Float64,1}}=nothing, staticDrive::Bool=false,
+                coreOrbitals::Union{Nothing,Dict{Subshell,Orbital}}=nothing,
+                coreOccupations::Union{Nothing,Dict{Subshell,Float64}}=nothing)
     kappa = targetSubshell.kappa;   grid = primitives.grid;   nsL = grid.nsL;   nsS = grid.nsS
     targetEnergy = sourceOrbital.energy + omega
+    isnothing(coreOrbitals) != isnothing(coreOccupations)   &&
+        error("\n\nDalgarnoLewis.solve(): `coreOrbitals` and `coreOccupations` go together -- one without the "   *
+              "other cannot build an exchange operator. Pass both to make the left-hand side Dirac-Fock, or "      *
+              "neither to keep it local.\n")
 
     if  settings.printBefore
         @printf(">> DalgarnoLewis.solve():  kappa = %d, multipole = %s, gauge = %s, omega = %.8f, targetEnergy = %.8f\n",
@@ -336,6 +355,21 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, targetSub
     matrixB = zeros(nsL+nsS, nsL+nsS)
     matrixB[1:nsL,1:nsL]                 = Bsplines.generateTTpMatrix!("LL-overlap", 0, primitives, storage)
     matrixB[nsL+1:nsL+nsS,nsL+1:nsL+nsS] = Bsplines.generateTTpMatrix!("SS-overlap", 0, primitives, storage)
+    # (1a) THE NONLOCAL EXCHANGE, WHICH MAKES THE LEFT-HAND SIDE DIRAC-FOCK INSTEAD OF DIRAC-HARTREE.
+    #      EVERY occupied subshell enters, INCLUDING the source orbital's own, and `potential` must therefore be
+    #      the FULL Hartree term over every occupied subshell -- no (w_a-1), no own-subshell local exchange.
+    #      **THAT IS NOT A CONVENTION BUT THE ONLY CHOICE THAT GIVES ONE OPERATOR FOR ALL CHANNELS**, and for a
+    #      closed subshell it is identical to the average-of-configuration form: the k = 0 same-subshell
+    #      exchange is w_a/(2j_a+1) = 1, which turns the direct w_a into (w_a-1) by itself, and for k >= 2 the
+    #      canonical w_a*CL^2/(2j_a+1)^2 equals the average-of-configuration (w_a-1)*CL^2/(2j_a(2j_a+1)).  The
+    #      difference is that the canonical form does not depend on WHICH subshell is being perturbed, so every
+    #      occupied orbital is an eigenstate of the SAME H_0 and one target spectrum serves every channel.
+    #      MEASURED 21-Oct-2026, which is how the per-subshell form was rejected: with a (w_a-1) potential Ne's
+    #      2s channel contributed -0.0549 to the static polarizability (-0.5348 if the exchange double-counted
+    #      subshell a as well), and every term of alpha must be positive.
+    if  !isnothing(coreOrbitals)
+        matrixA = matrixA + Bsplines.setupExchangeMatrix(kappa, primitives, coreOrbitals, coreOccupations)
+    end
     shifted = matrixA - targetEnergy * matrixB
 
     # (2) THE BOUNDARY-DROPPED INDICES KEPT, identical to Bsplines.diagonalizeLocalMatrix: the leading and
@@ -382,6 +416,12 @@ function solve(multipole::EmMultipole, gauge::EmGauge, omega::Float64, targetSub
     storageSrc = Dict{String,Array{Float64,2}}()
     kappaSrc   = sourceOrbital.subshell.kappa
     matrixASrc = Bsplines.setupLocalMatrix(kappaSrc, primitives, potential, storageSrc)
+    #      The guard's matrix carries the SAME exchange, over the SAME core with nothing excluded, because that
+    #      is precisely the claim under test: that sourceOrbital is an eigenstate of the operator chi is
+    #      propagated by.  Only kappa differs, and with it the boundary drops.
+    if  !isnothing(coreOrbitals)
+        matrixASrc = matrixASrc + Bsplines.setupExchangeMatrix(kappaSrc, primitives, coreOrbitals, coreOccupations)
+    end
     dpS, dqS, tpS, tqS = Bsplines.boundaryDropCounts(kappaSrc, grid)
     keepSrc    = vcat( collect(dpS+1:nsL-tpS), collect(nsL+dqS+1:nsL+nsS-tqS) )
     cProj = matrixB[keepSrc,keepSrc] \ bOverlap[keepSrc]
