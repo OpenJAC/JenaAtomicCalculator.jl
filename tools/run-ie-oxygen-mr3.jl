@@ -10,6 +10,10 @@
 #   DCSE      energies (eV) at which the DCS is computed  (default 30,50,100, where DCS measurements exist; "all" for every energy)
 #   CBKAPPA   upper |kappa| of the Coulomb-Bethe partial waves (default 100)
 #   LINES     "i:f,i:f" level-index pairs instead of all (convergence tests)
+#   MAXKAPPA  upper |kappa| of the distorted partial waves (default 20)
+#   TOPUP     true: geometric top-up of the integrated cross section beyond the last partial wave (the DCS is not topped up)
+#   SHIFT     "term=eV,term=eV": energy added to the outgoing electron of that term's lines, e.g. 3s3S=1.101,3d3D=1.004
+#             moves the MR_3 thresholds (10.62, 13.09 eV) onto the measured ones (9.521, 12.087 eV)
 #   OUT       output prefix                               (default oxygen-mr3)
 #
 # Run from <JAC-root>:  OPENBLAS_NUM_THREADS=2 julia --project=. -t 8 tools/run-ie-oxygen-mr3.jl
@@ -28,6 +32,9 @@ const MODELS   = Symbol.(split(get(ENV, "EXCH", "FurnessMcCarthy,nonlocal"), ","
 const OUT      = get(ENV, "OUT", "oxygen-mr3")
 const DCSE     = get(ENV, "DCSE", "30,50,100") == "all" ? ENERGIES : parse.(Float64, split(get(ENV, "DCSE", "30,50,100"), ","))
 const CBKAPPA  = parse(Int, get(ENV, "CBKAPPA", "100"))
+const MAXKAPPA = parse(Int, get(ENV, "MAXKAPPA", "20"))
+const TOPUP    = get(ENV, "TOPUP", "false") == "true"
+const SHIFT    = Dict(String(split(x, "=")[1]) => parse(Float64, split(x, "=")[2]) for x in split(get(ENV, "SHIFT", ""), ",") if !isempty(x))
 const GRID     = Radial.Grid(Radial.Grid(true), rnt = 2.0e-6, h = 5.0e-2, hp = 1.0e-2, rbox = 45.0)
 const ANGLES   = collect(0.0:1.0:180.0)
 
@@ -97,15 +104,18 @@ fsr = open(OUT * "-fs.csv", "w");      println(fsr, "model,energy,Ji_level,Jf_le
 # The DCS costs the angular sum at every partial wave, so it is computed only at the energies in DCSE: one call with and one without.
 for model in MODELS
     results = ImpactExcitation.Line[]
-    for (energies, dcs) in ((filter(E -> E in DCSE, ENERGIES), true), (filter(E -> !(E in DCSE), ENERGIES), false))
+    # The energy shift is one number per call, so the lines of each term go into their own call when SHIFT is given.
+    groups = isempty(SHIFT) ? [(pairs, 0.0)] :
+             [([p for p in pairs if p[2] in fi], get(SHIFT, name, 0.0)) for (name, fi) in terms if any(p -> p[2] in fi, pairs)]
+    for (energies, dcs) in ((filter(E -> E in DCSE, ENERGIES), true), (filter(E -> !(E in DCSE), ENERGIES), false)), (gpairs, shift) in groups
         isempty(energies)  &&  continue
-        set = ImpactExcitation.Settings(ImpactExcitation.Settings(); electronEnergies = energies, calcRateCoefficient = false, maxKappa = 20,
+        set = ImpactExcitation.Settings(ImpactExcitation.Settings(); electronEnergies = energies, calcRateCoefficient = false, maxKappa = MAXKAPPA,
                                         coulombBetheKappa = CBKAPPA, asymptoticTail = true, printBefore = false, continuumExchange = model,
                                         orthogonalizeContinuum = model == :nonlocal, calcDCS = dcs, angles = dcs ? ANGLES : Float64[],
-                                        lineSelection = LineSelection(true, indexPairs = pairs))
+                                        topUp = TOPUP, energyShift = shift, lineSelection = LineSelection(true, indexPairs = gpairs))
         st    = redirect_stdout(devnull) do;   @timed ImpactExcitation.computeLines(mp, mp, Nuclear.Model(8.), GRID, set, output=true);   end
         append!(results, st.value)
-        @printf("%-16s %d energies (DCS %s) in %.1f s\n", model, length(energies), dcs, st.time);   flush(stdout)
+        @printf("%-16s %d energies (DCS %s, shift %.3f eV) in %.1f s\n", model, length(energies), dcs, shift, st.time);   flush(stdout)
     end
     Ea    = [Defaults.convertUnits("energy: to atomic", E) for E in ENERGIES]
     for (k, E) in enumerate(ENERGIES)
