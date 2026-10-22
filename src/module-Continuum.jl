@@ -408,6 +408,145 @@ end
 
 
 """
+`Continuum.checkContinuumAmplitude(P::Array{Float64,1}, energy::Float64, grid::Radial.Grid)`
+    ... checks that a NORMALIZED continuum orbital's large component does not blow up in the interior relative to its own
+        asymptotic amplitude, which is how a radial mesh too coarse for the requested energy makes itself visible in the orbital
+        it produced rather than in the grid it was produced on.  A NamedTuple
+        `(ok, checked, interior, asymptotic, ratio, required, rIndex, note)` is returned; nothing is raised here, so that the
+        CALLER judges -- the same contract as `checkNormalizationRadius` below.
+
+        WHY A POSTERIOR CHECK IS NEEDED AT ALL, when three guards already look at the grid.  `gridConsistency` compares
+        `grid.hp` with the shortest de Broglie wavelength and requires 15 points across it; `checkNormalizationRadius` asks
+        whether the normalization point lies outside the atom; `Bsplines.checkGridRepresentation` and `checkOrbitalBox` test
+        BOUND orbitals.  **ALL THREE ARE A PRIORI** -- they judge the mesh against the energy, before any orbital exists -- and
+        a mesh can satisfy every one of them and still fail.  Measured 22-Oct-2026 on the 3.583e+04 Hartree electron of the
+        207Pb K-shell internal-conversion case, Z = 82, kappa = -4, where BOTH meshes below pass `gridConsistency`:
+
+            points per oscillation   15.65        46.94
+            max|P| anywhere          2.03e+08     6.59e-02
+            max|P| asymptotically    6.12e-02     5.77e-02
+            RATIO                    3.32e+09     1.14
+
+        The 15.65 mesh is the one `example-Dq.jl` used, and the orbital it returns is wrong by ~4e+09 in amplitude and ~1e+19 in
+        amplitude SQUARED while every a-priori guard is satisfied.  The spike sits at r = 6e-05 a.u., i.e. in the innermost
+        region, where a continuum orbital goes as r^gamma and must therefore be SMALL -- which is what makes the ratio a sharp
+        instrument rather than a heuristic.
+
+        THE THRESHOLD IS MEASURED, AND THE RATIO IS CONVENTION-INDEPENDENT.  Over 144 cases spanning Z = 2, 18, 54, 92,
+        energies 0.01 to 50 Hartree and kappa from -1 to 8 -- including near-threshold and high centrifugal barriers, the two
+        regimes where a legitimately large interior amplitude might be expected -- the WORST ratio was 1.269, while the failing
+        cases give 3.3e+09 and 2.3e+10.  So `required = 1.0e3` sits three orders above anything legitimate yet measured and six
+        orders below the defect.  And because the ratio divides one amplitude by another, the normalization CONSTANT cancels:
+        the same good case gives 1.141 under all four of `PureSineNorm`, `CoulombSineNorm`, `OngRussekNorm` and `AlokNorm`, so
+        one threshold serves every convention and the check cannot be evaded by changing the global.
+
+        NOT CHECKED IS NOT PASSED, and `checked` is the field that keeps the two apart.  A grid with fewer than 400 points has
+        no asymptotic region to measure against, and an identically vanishing asymptotic amplitude leaves the ratio undefined;
+        both return `ok = true` because nothing failed, and a caller reading only `ok` would take either for a clean bill of
+        health.
+"""
+function checkContinuumAmplitude(P::Array{Float64,1}, energy::Float64, grid::Radial.Grid)
+    required = 2.0;     fatal = 1.0e2
+    if  length(P) < 400
+        return( (ok = true, checked = false, interior = NaN, asymptotic = NaN, ratio = NaN, required = required, fatal = fatal, rIndex = 0,
+                 nWindow = 0, note = "not checked: fewer than 400 grid points, so there is no asymptotic region to compare against") )
+    end
+    # THE WINDOW IS SIZED BY THE WAVELENGTH, NOT BY A FIXED POINT COUNT, and that is the whole correctness of the
+    # measure rather than a refinement of it.  A window shorter than half an oscillation samples the outgoing wave at
+    # one arbitrary phase, so landing near a node makes the "asymptotic amplitude" arbitrarily small and the ratio
+    # arbitrarily large.  Measured 22-Oct-2026: a fixed 300-point window at hp = 5e-3 and E = 0.05 Hartree spans
+    # 1.5 a.u. of a 19.87 a.u. wavelength -- 0.075 of one oscillation -- and inflated 8 of 120 SOUND screened orbitals
+    # above 2, the worst to 3.96.  Half a wavelength always contains one antinode, so it cannot miss the amplitude.
+    wavenb   = sqrt( 2energy + energy * Defaults.getDefaults("alpha")^2 )
+    nHalf    = wavenb > 0.0  &&  grid.hp > 0.0  ?  Int64(ceil( (pi/wavenb) / grid.hp ))  :  300
+    nWindow  = min( max(nHalf, 300), div(length(P), 3) )
+    if  nWindow < 300
+        return( (ok = true, checked = false, interior = maximum( abs.(P) ), asymptotic = NaN, ratio = NaN,
+                 required = required, fatal = fatal, rIndex = argmax( abs.(P) ), nWindow = nWindow,
+                 note = "not checked: the box holds less than three asymptotic windows, so interior and asymptotic " *
+                        "regions cannot be separated") )
+    end
+    asymptotic = maximum( abs.(P[end-nWindow+1:end]) )
+    interior   = maximum( abs.(P) );     rIndex = argmax( abs.(P) )
+    if  asymptotic <= 0.0
+        return( (ok = true, checked = false, interior = interior, asymptotic = asymptotic, ratio = NaN, required = required,
+                 fatal = fatal, rIndex = rIndex, nWindow = nWindow,
+                 note = "not checked: the asymptotic amplitude vanishes identically, so the ratio is undefined") )
+    end
+    ratio = interior / asymptotic
+
+    return( (ok = ratio <= required, checked = true, interior = interior, asymptotic = asymptotic, ratio = ratio,
+             required = required, fatal = fatal, rIndex = rIndex, nWindow = nWindow, note = "") )
+end
+
+
+"""
+`Continuum.reportContinuumAmplitude(P::Array{Float64,1}, cOrbital::Orbital, grid::Radial.Grid, sa::String)`
+    ... applies `Continuum.checkContinuumAmplitude` to the normalized large component `P` of `cOrbital` and emits a warning
+        where the check fails, naming the convention `sa` that produced it; `nothing` is returned.
+
+        THE WARNING GOES TO `stderr` AND IS THEREFORE NOT SUPPRESSED by a `printout = false` path or by a
+        `redirect_stdout(devnull)`, which is deliberate: the orbital it concerns is unusable for every observable, and the
+        failure is otherwise entirely silent.  It WARNS rather than raises, following `checkNormalizationRadius` below, whose
+        own note records why a normalization check is not promoted to an `error` -- there the penalty for violating the
+        criterion is observable-dependent by four orders.  That reasoning is respected here and is also why the threshold is
+        set six orders below the measured defect rather than at the edge of the legitimate range.
+
+        THE GRID IS AN ARGUMENT AND MUST BE, although an `Orbital` carries a `grid` field of its own: on this path that field
+        comes back EMPTY -- `length(cOrbital.grid.r) == 0` for an orbital produced by `generateOrbitalLocalPotential` -- so
+        reading the spike radius from it yields `NaN` and the most useful line of the warning says nothing.  Measured
+        22-Oct-2026 while calibrating this check.
+"""
+function reportContinuumAmplitude(P::Array{Float64,1}, cOrbital::Orbital, grid::Radial.Grid, sa::String)
+    wa = Continuum.checkContinuumAmplitude(P, cOrbital.energy, grid)
+    if  wa.checked  &&  wa.ratio > wa.fatal
+        # THE TWO TIERS DO DIFFERENT JOBS AND THE SPLIT IS MEASURED, not a hedge.  The normalization is fixed by the
+        # ASYMPTOTIC amplitude, so a ratio of a few means the observable is off by percent at worst -- refusing such a
+        # run is the mistake `checkNormalizationRadius` below records as its own reason for warning rather than
+        # raising.  A ratio of 1e2 or more cannot be read that way: the orbital carries no usable amplitude at all,
+        # the three sibling conventions already refuse the same grid on their `abs(N) > 30` test, and every number
+        # built from it is wrong by that factor or its square.
+        error("\n\nContinuum.normalizeOrbital" * sa * "():  STOP -- the continuum orbital is not represented on this grid.\n" *
+              Continuum.continuumAmplitudeReport(wa, cOrbital, grid) )
+    elseif  wa.checked  &&  !wa.ok
+        @warn("\n\nContinuum.normalizeOrbital" * sa * "():  the continuum orbital may not be represented on this grid.\n" *
+              Continuum.continuumAmplitudeReport(wa, cOrbital, grid) )
+    end
+
+    return( nothing )
+end
+
+
+"""
+`Continuum.continuumAmplitudeReport(wa::NamedTuple, cOrbital::Orbital, grid::Radial.Grid)`
+    ... formats the measurement from `Continuum.checkContinuumAmplitude` into the explanatory block that both the warning and
+        the refusal in `Continuum.reportContinuumAmplitude` print, so that the two cannot drift apart; a `report::String` is
+        returned.
+"""
+function continuumAmplitudeReport(wa::NamedTuple, cOrbital::Orbital, grid::Radial.Grid)
+    energy   = cOrbital.energy
+    wavenb   = sqrt( 2energy + energy * Defaults.getDefaults("alpha")^2 );      wavelgth = 2pi / wavenb
+    rSpike   = wa.rIndex <= length(grid.r) ? grid.r[wa.rIndex] : NaN
+
+    return( @sprintf("    subshell, energy         = %s,  %.4e Hartree\n", string(cOrbital.subshell), energy) *
+            @sprintf("    max|P| anywhere          = %.4e   at r = %.3e a.u.\n", wa.interior, rSpike) *
+            @sprintf("    max|P| asymptotically    = %.4e   (over the outer %d points = %.2f oscillations)\n",
+                     wa.asymptotic, wa.nWindow, wa.nWindow * grid.hp / wavelgth) *
+            @sprintf("    interior / asymptotic    = %.4e   (above %.1f is suspect, above %.1e unusable)\n",
+                     wa.ratio, wa.required, wa.fatal) *
+            "A continuum orbital goes as r^gamma near the origin and oscillates with a nearly constant amplitude outside " *
+            "the atom, so\nthis ratio is 1.27 or below for every case it has been measured on -- 264 of them, Z = 2 to 92, " *
+            "0.01 to 3.6e+04\nHartree, l up to 6, bare and screened potentials, all four normalization conventions.  A " *
+            "larger value means the radial\nmesh cannot follow the orbital's own oscillation, so the amplitude -- and any " *
+            "rate, cross section or coefficient built\nfrom it -- is wrong by about that factor or its square.\n" *
+            "NOTHING ELSE CATCHES THIS: the mesh satisfies Continuum.gridConsistency's 15-points-per-oscillation rule, " *
+            "which is an\na-priori test of the step against the energy and cannot see the orbital that was produced.\n" *
+            ">>> Reduce grid.hp to at most " * @sprintf("%.3e", wavelgth/40.0) * " a.u. (about 40 points per oscillation " *
+            "at this\n    energy), or lower the highest continuum energy.\n" )
+end
+
+
+"""
 `Continuum.checkNormalizationRadius(pot::Radial.Potential)`
     ... checks that the point at which a continuum orbital's normalization and phase are fixed lies far enough
         outside the atom, and raises with the measurement behind it otherwise; `nothing` is returned.
@@ -632,6 +771,7 @@ function normalizeOrbitalPureSine(cOrbital::Orbital, grid::Radial.Grid, settings
     if abs(N) > 30.0   error("Pure-sine normalized N=" * @sprintf("%.4e",N) * "==> enlarge box-size")   end
     
     P = N .* cOrbital.P;   Q = N .* cOrbital.Q;   Pprime = N .* cOrbital.Pprime;   Qprime = N .* cOrbital.Qprime;   
+    Continuum.reportContinuumAmplitude(P, cOrbital, grid, "PureSine")
     newOrbital = Orbital( cOrbital.subshell, cOrbital.isBound, cOrbital.useStandardGrid, cOrbital.energy, 
                             P, Q, Pprime, Qprime, cOrbital.grid)
 
@@ -686,6 +826,7 @@ function normalizeOrbitalCoulombSine(cOrbital::Orbital, pot::Radial.Potential, s
     if abs(N) > 30.0   error("Coulomb-sine normalized N=" * @sprintf("%.4e",N) * "==> enlarge box-size")   end
     
     P = N .* cOrbital.P;   Q = N .* cOrbital.Q;   Pprime = N .* cOrbital.Pprime;   Qprime = N .* cOrbital.Qprime;   
+    Continuum.reportContinuumAmplitude(P, cOrbital, pot.grid, "CoulombSine")
     newOrbital = Orbital( cOrbital.subshell, cOrbital.isBound, cOrbital.useStandardGrid, cOrbital.energy, 
                             P, Q, Pprime, Qprime, cOrbital.grid)
 
@@ -724,6 +865,7 @@ function normalizeOrbitalOngRussek(cOrbital::Orbital, pot::Radial.Potential, set
     if abs(N) > 100.0   error("WKB (Ong-Russek) normalized N=" * @sprintf("%.4e",N) * "==> enlarge box-size")   end
     
     P = N .* cOrbital.P;   Q = N .* cOrbital.Q;   Pprime = N .* cOrbital.Pprime;   Qprime = N .* cOrbital.Qprime;   
+    Continuum.reportContinuumAmplitude(P, cOrbital, pot.grid, "OngRussek")
     newOrbital = Orbital( cOrbital.subshell, cOrbital.isBound, cOrbital.useStandardGrid, cOrbital.energy, 
                             P, Q, Pprime, Qprime, cOrbital.grid)
 
@@ -825,10 +967,15 @@ function normalizeOrbitalAlok(cOrbital::Orbital, pot::Radial.Potential, settings
     N = N * sqrt(q / pi / energy)
 
     P = N .* cOrbital.P  ;   Q = N .* cOrbital.Q  ;   Pprime = N .* cOrbital.Pprime  ;   Qprime = N .* cOrbital.Qprime  ;   
+    Continuum.reportContinuumAmplitude(P, cOrbital, pot.grid, "Alok")
     newOrbital = Orbital( cOrbital.subshell, cOrbital.isBound, cOrbital.useStandardGrid, cOrbital.energy, 
                             P, Q, Pprime, Qprime, cOrbital.grid)
     
-    println(">> $sa:   r = $(pot.grid.r[mtp]),   iPhase = $δ,   cPhase = $Δ ")
+    # The CONVENTION and its constant belong in this line, not only the phases.  The absolute scale of every
+    # continuum-derived quantity depends on which of the four `Defaults.GBL_CONT_NORMALIZATION` conventions is in
+    # force, and that is a session global a user never sees; a number printed without it cannot be read back.
+    println(">> Alok-normalized continuum orbital (" * sa * ") with normalization constant N=" * @sprintf("%.4e",N) *
+            ":   r = $(pot.grid.r[mtp]),   iPhase = $δ,   cPhase = $Δ ")
 
     return( newOrbital, δ + Δ, N )
 end
