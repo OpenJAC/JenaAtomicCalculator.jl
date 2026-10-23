@@ -1818,12 +1818,13 @@ export  AbstractMesh, Cartesian2DMesh, GLegenreMesh, LinearMesh, PolarMesh, Sphe
     + IonSphereModel                ... Ion-sphere model; supported for IPD shifts, not yet for the screened CI matrix / amplitudes
                                         (InteractionStrength.XL_plasma_ionSphere).
     + StewartPyattModel             ... Stewart-Pyatt model; supported for IPD shifts only, cf. IonSphereModel.
+    + EckerKroellModel              ... Ecker-Kroell model; supported for IPD shifts only, cf. IonSphereModel.
     + WithoutAutoionizationModel    ... Just excludes all autoionizing levels; no original plasma model.
 
-    Ecker-Kröll (1963) is a further, moderate-complexity IPD model, deliberately NOT (yet) implemented here: a reliable closed-form
-    statement of its strong-coupling branch could not be confirmed from the secondary literature reachable during development. Do not add an
-    EckerKroellModel without first checking the formula against the primary reference [G. Ecker & W. Kröll, Phys. Fluids 6, 62 (1963)] or an
-    equally authoritative source.
+    The note that stood here until 23-Oct-2026 -- that Ecker-Kroell was deliberately not implemented because its strong-coupling
+    branch could not be confirmed from the secondary literature -- has been DISCHARGED exactly as it asked: the primary reference was
+    read, and Basics.EckerKroellModel below carries what it says together with the three places where the secondary literature states
+    it differently.
 """
 abstract type  AbstractPlasmaModel                                    end
 struct         NoPlasmaModel                <:  AbstractPlasmaModel   end
@@ -1941,7 +1942,75 @@ function Base.show(io::IO, model::StewartPyattModel)
     print(io, sa)
 end
 
-export  AbstractPlasmaModel, NoPlasmaModel, DebyeHueckelModel, DebyeBox, IonSphereModel, StewartPyattModel
+
+"""
+`struct  Basics.EckerKroellModel   <:  AbstractPlasmaModel`
+    ... defines the Ecker-Kroell plasma model [G. Ecker & W. Kroell, Phys. Fluids 6, 62 (1963)] for the IPD shifts
+        (Plasma.determineIpShifts); it is not (yet) supported for the screened CI matrix / amplitudes, cf. IonSphereModel.
+
+        The model is PIECEWISE in the total free-particle density n = n_e + n_i, switching at the critical density n_cr of its
+        Eq. (47).  Below n_cr it is Debye-Hueckel; above it the screening length is no longer the ion-sphere radius but the mean
+        separation r_0 of ALL free particles, electrons included, which is what makes it predict a markedly larger depression
+        than Stewart-Pyatt at high density.  In atomic units, and with q the net charge of the ion BEFORE the ionization step:
+
+            Delta I(q) = - (q+1) / lambda_D            for  n <= n_cr          ... Eq. (56), reduced
+            Delta I(q) = - cEK * (q+1) / r_0           for  n >  n_cr          ... Eq. (57), reduced
+
+        with  r_0 = (3/(4 pi (n_e+n_i)))^(1/3)  and  n_cr = (3/(4 pi)) * (kT / qmax^2)^3,  both derived on-the-fly in
+        Plasma.determineIpShifts from the densities and the temperature it already receives, and therefore NOT stored here --
+        the same division of labour as StewartPyattModel, which stores lambda and derives R0.
+
+        THREE POINTS WHERE THE SECONDARY LITERATURE DIFFERS FROM THE PAPER, each checked against the original on 23-Oct-2026,
+        because each would silently give a different number:
+        * the charge in n_cr is the LARGEST IONIC CHARGE PRESENT in the plasma (the paper's e_(beta max), Eq. 47), not the atomic
+          number.  The two coincide only when fully-stripped ions are present, which is how "Z, the atomic number" entered the
+          secondary literature.
+        * lambda_D is built from ALL charged components, electrons AND ions (Eq. 26, a sum over every component), i.e. exactly the
+          screening density JAC already forms in Plasma.updateIpdPlasmaModel.  An electron-only Debye length is NOT this model.
+        * cEK is NOT 1 in the paper.  Ecker and Kroell fix it by requiring the two branches to join at n_cr (Eq. 53) and evaluate
+          the resulting lattice constant as 1.73, calling the factor itself "somewhat uncertain".  The value 1 that the modern
+          literature uses is an EXPERIMENTAL choice -- it is what reproduces the LCLS aluminium measurement -- and not the
+          paper's own number.  Both are therefore offered, neither is hidden in the code, and a user who quotes a coefficient
+          should say which one they used.
+
+    + radius            ::Float64    ... the Wigner-Seitz radius R [a_o], carried for symmetry with IonSphereModel and
+                                         StewartPyattModel; the model's own radius r_0 is the all-free-particle one above.
+    + electronDensity   ::Float64    ... the electron density n_e (T) [a_o^-3].
+    + lambda            ::Float64    ... the Debye screening length lambda_D [a_o], the same quantity as
+                                         DebyeHueckelModel.debyeLength.
+    + cEK               ::Float64    ... the coefficient of the strong-coupling branch; 1.0 reproduces the modern literature and
+                                         1.73 is the paper's own value.  See the third point above before quoting either.
+"""
+struct  EckerKroellModel            <:  AbstractPlasmaModel
+    radius            ::Float64
+    electronDensity   ::Float64 
+    lambda            ::Float64 
+    cEK               ::Float64 
+end 
+
+
+"""
+`Basics.EckerKroellModel()`  ... constructor for the default settings of Basics.EckerKroellModel().
+"""
+function EckerKroellModel()
+    EckerKroellModel( 0., 0., 0., 1.0 )
+end
+
+
+# `Base.show(io::IO, model::EckerKroellModel)`  ... prepares a proper printout of the variable model::EckerKroellModel.
+function Base.show(io::IO, model::EckerKroellModel) 
+    # cEK is NAMED in the printout rather than left as a bare number: 1.0 and 1.73 are both defensible and give
+    # IPD shifts differing by 73 %, so a user must be able to see which one produced their number.
+    if      model.cEK == 1.0    sb = " (the value that reproduces the LCLS measurement; Ecker & Kroell's own analysis gives 1.73)"
+    elseif  model.cEK == 1.73   sb = " (Ecker & Kroell's own value; the modern literature uses 1.0)"
+    else                        sb = " (neither the modern 1.0 nor Ecker & Kroell's own 1.73 -- a deliberate choice of the caller)"
+    end
+    sa = "Ecker-Kroell plasma model with (Wigner-Seitz radius) R = $(model.radius) a_o, electron density n_e (T) = "  *
+         "$(model.electronDensity), lambda = $(model.lambda), and cEK = $(model.cEK)" * sb
+    print(io, sa)
+end
+
+export  AbstractPlasmaModel, NoPlasmaModel, DebyeHueckelModel, DebyeBox, EckerKroellModel, IonSphereModel, StewartPyattModel
 
 #################################################################################################################################
 #################################################################################################################################
