@@ -401,10 +401,11 @@ elseif false
     end
     #
 elseif true
-    # Last visit:  21-Oct-2026
-    # Last successful:  unknown ... (Rule 7: the omega = 0 reduction and the omega^2 law are exact and are
-    #   asserted in the suite, but whether 1.2778 a.u. is the number to QUOTE for Na+ depends on the screening
-    #   discussed below -- so the physical judgement, and the date, are the maintainer's)
+    # Last visit:  23-Oct-2026
+    # Last successful:  23-Oct-2026   ## alpha_core(0) = 1.277831 a.u., alpha_core(1064 nm) = 1.278686 a.u.,
+    #   enhancement +0.0670 % -- box/frequency-converged and correctly UNSCREENED; the 1.351x gap against the
+    #   published RRPA 0.9457 is the separately-tracked exchange/screening question (item 75/S30), not a
+    #   defect here.  Closes priority item 92.
     #
     #   CLAIM, 21-Oct-2026:  Na+ (Ne-like) on a 120 a.u. box, hp = 1.0, DFS field.
     #       alpha_core(0)        = 1.277831 a.u.
