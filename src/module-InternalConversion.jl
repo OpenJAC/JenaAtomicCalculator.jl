@@ -17,19 +17,33 @@
         two-particle Coulomb operator -- so this module combines `AutoIonization`'s pipeline shape
         with `PhotoEmission`'s one-particle spin-angular machinery.
 
-        Core formulas follow Raman, Nestor, Ichihara & Trzhaskovskaya, Phys. Rev. C 66, 044312
-        (2002), Eqs. (2)-(8): alpha_i^(tau L) = sum_kappa_f |B_if^(tau L) * R_if^(tau L)|^2, with
-        B_if a Clebsch-Gordan x Racah-W geometric factor and R_if built from radial integrals of a
-        "transition potential" X_Lambda(kr) -- here the simplest "no-penetration" (Rose) model,
-        X_Lambda(kr) = h_Lambda(kr), a spherical HANKEL function (h_L = j_L + i*y_L), reflecting the
-        ejected electron's outgoing-wave boundary condition; this makes R_if -- and hence
-        InternalConversion.Channel.amplitude -- genuinely COMPLEX (not because of any photon
-        helicity/gauge ambiguity, but because of this outgoing-wave near-field character).
+        CORE FORMULAS FOLLOW Rysavy & Dragoun, Report NPI Rez-TH-03/2000 (arXiv:nucl-ex/0006009), whose
+        Eqs. (1)-(8) were read verbatim from the source and are the equation numbers used throughout this
+        module. **The citation was WRONG until 23-Oct-2026 and is corrected here**: every "Raman Eq. ..." in
+        this file pointed at Raman, Nestor, Ichihara & Trzhaskovskaya, Phys. Rev. C 66, 044312 (2002), which
+        is the MEASUREMENT this module is compared against (its Table VII gives the 207Pb alpha_K) and not
+        the source of the formalism. Nothing in the code changed with the correction; only the labels.
 
-        Note on validation (28/29-Jul-2026): the B_if^(tau L) angular factor was validated by
-        implementing Eq. (4) literally with JAC's own AngularMomentum.ClebschGordan/Wigner_6j and
-        comparing numerically, across 92 (kappa_i,kappa_f,L) combinations, against
-        AngularMomentum.CL_reduced_me (then called CL_reduced_me_sms): the magnitude ratio collapsed
+          Eq. (1)      alpha_i(tau L) = alpha*pi*omega * (2j_i+1)/(L(L+1)) * sum_kappa_f |C * (R + T)|^2,
+                       with C the Clebsch-Gordan C^(j_f,-1/2)_(j_i,-1/2;L,0);
+          Eqs. (2)/(3) the magnetic and electric radial factors R^(ML) and R^(EL);
+          Eqs. (4)/(5)/(6) the bilinear orbital combinations F^(0), F and F^(-1) those integrate;
+          Eqs. (7)/(8) the intranuclear PENETRATION term T, which this module does NOT implement --
+                       the "no-penetration" (Rose) model, X_Lambda(kr) = h_Lambda(kr) everywhere. Section 3.7
+                       of that report puts T's effect at 1e-2 % to 10 % for non-hindered transitions, so it is
+                       a real but bounded omission and cannot account for a large discrepancy.
+
+        In this module's own naming, the summand of Eq. (1) is split as B_if^(tau L) * R_if^(tau L): B_if a
+        Clebsch-Gordan x Racah-W geometric factor, R_if the radial factor of Eq. (2) or (3). Because the kernel
+        is a spherical HANKEL function (h_L = j_L + i*y_L), reflecting the ejected electron's outgoing-wave
+        boundary condition, R_if -- and hence InternalConversion.Channel.amplitude -- is genuinely COMPLEX;
+        not because of any photon helicity/gauge ambiguity, but because of that outgoing-wave near-field
+        character.
+
+        Note on validation (28/29-Jul-2026): the B_if^(tau L) angular factor was validated by implementing the
+        published angular factor -- the Clebsch-Gordan of Eq. (1) together with the standard Racah-W recoupling
+        -- literally with JAC's own AngularMomentum.ClebschGordan/Wigner_6j and comparing numerically, across
+        92 (kappa_i,kappa_f,L) combinations, against AngularMomentum.CL_reduced_me: the magnitude ratio collapsed
         EXACTLY to 1/sqrt(L(L+1))
         (independent of kappa_i,kappa_f) in every case -- strong evidence the literal transcription
         (Clebsch-Gordan order, and the standard Racah W(j1j2j3j4;j5j6) = (-1)^(j1+j2+j3+j4) *
@@ -51,13 +65,14 @@
         55, i.e. the residual phase question is untouched by the consolidation, and this module's decision to
         use its own literal implementation stands.
 
-        STAGE 1 (implemented here): single-active-electron, closed-shell-plus-one case (Raman
-        Eqs. 2-8) -- already sufficient to compare against the Rosel/Raman/Bilous literature values
-        used in examples/example-Dq.jl. STAGE 2 (explicitly NOT implemented): open-shell
+        STAGE 1 (implemented here): single-active-electron, closed-shell-plus-one case (Eqs. (1)-(6) above)
+        -- sufficient for the two literature anchors that examples/example-Dq.jl actually compares against,
+        which are Raman et al. (207Pb, branch b) and Nica et al. (119Sn, branch c). STAGE 2 (explicitly NOT
+        implemented): open-shell
         multi-electron spectator coupling (an extra 6-j recoupling factor, needed only for IC from
         excited/open-shell configurations as in Bilous et al., Phys. Rev. A 95, 032503 (2017)).
 
-        STATUS, 22-Oct-2026: THE ABSOLUTE COEFFICIENTS NOW REPRODUCE TWO INDEPENDENT LITERATURE ANCHORS and the
+        STATUS, 23-Oct-2026: THE ABSOLUTE COEFFICIENTS NOW REPRODUCE TWO INDEPENDENT LITERATURE ANCHORS and the
         45-order discrepancy of the note below is explained. Whether the module counts as un-parked is the maintainer's
         call: the hard refusal that the 15-Aug note installed has been replaced by a printed note on scope, and he may
         put the refusal back.
@@ -111,10 +126,19 @@ using Printf, GSL, ..AngularMomentum, ..Basics, ..Continuum, ..Defaults, ..ManyE
     ... defines the settings for computing internal conversion coefficients between an initial
         (bound) and a final (ion + ejected electron) multiplet.
 
-    + multipoles     ::Array{EmMultipole,1}   ... nuclear transition multipolarities (mixed
-                                                   multipolarity supported, e.g. [M1,E2]); no
-                                                   "gauge" concept applies to this near-field
-                                                   nuclear interaction, unlike a real photon field.
+    + multipoles     ::Array{EmMultipole,1}   ... nuclear transition multipolarities. **ONE PER RUN: this
+                                                   is NOT a mixed-multipolarity facility, and the docstring
+                                                   claimed it was until 23-Oct-2026.** Every multipole given
+                                                   has its channels summed INCOHERENTLY into one ICC, whereas
+                                                   a genuinely mixed transition has
+                                                   alpha = (alpha(M1) + delta^2 alpha(E2))/(1 + delta^2) with
+                                                   the NUCLEAR mixing ratio delta, which this module neither
+                                                   receives nor could know. So an array of more than one entry
+                                                   returns a sum with no physical meaning; compute each
+                                                   multipole separately and combine them where delta is known
+                                                   (examples/example-Dq.jl branch d). No "gauge" concept
+                                                   applies to this near-field nuclear interaction, unlike a
+                                                   real photon field.
     + gammaEnergy    ::Float64                ... the nuclear transition energy (Hartree) -- an
                                                    explicit, externally-known input, NOT derived
                                                    from atomic level energies.
@@ -190,9 +214,14 @@ end
     + multipole  ::EmMultipole      ... nuclear transition multipolarity (tau, L) of this contribution.
     + kappa      ::Int64            ... relativistic kappa of the ejected (continuum) electron.
     + symmetry   ::LevelSymmetry    ... total J/parity of the (final ion + continuum electron) coupled state.
-    + amplitude  ::ComplexF64       ... the B_if^(tau L) * R_if^(tau L) product (Raman Eq. 2); complex
-                                        because the transition potential X_Lambda(kr) is a spherical
-                                        Hankel function (outgoing-wave near field), not because of any
+    + amplitude  ::ComplexF64       ... the MANY-ELECTRON REDUCED amplitude of this channel, i.e. the CSF-pair
+                                        sum of the one-particle B_if^(tau L) * R_if^(tau L) products of Eq. (1)
+                                        weighted by the spin-angular coefficients and the mixing coefficients --
+                                        NOT the bare one-particle product, as this entry said until 23-Oct-2026.
+                                        Being REDUCED, it still needs the (2L+1) that
+                                        InternalConversion.computeAmplitudesProperties applies before squaring.
+                                        It is complex because the kernel h_L(omega r) is a spherical Hankel
+                                        function (outgoing-wave near field), not because of any
                                         photon-helicity/gauge ambiguity.
 """
 struct  Channel
@@ -245,7 +274,7 @@ end
 
 #################################################################################################################################
 #################################################################################################################################
-## Angular (B_if) and radial (R_if) machinery, Raman et al., Phys. Rev. C 66, 044312 (2002), Eqs. (2)-(8).
+## Angular (B_if) and radial (R_if) machinery, Rysavy & Dragoun, arXiv:nucl-ex/0006009, Eqs. (1)-(6).
 
 
 """
@@ -274,11 +303,15 @@ end
 
 """
 `InternalConversion.reducedBif(mp::EmMultipole, kappaInitial::Int64, kappaFinal::Int64)`
-    ... computes the angular factor B_if^(tau L) (Raman Eqs. 4/6, magnitude-validated against
-        AngularMomentum.CL_reduced_me; see the module docstring) for a nuclear multipole `mp`
-        between a bound orbital of kappaInitial and a continuum orbital of kappaFinal. For magnetic
-        multipoles, l_f is replaced by l_bar_f = 2*j_f - l_f (Raman Eq. 6). A value::Float64 is
-        returned (real; only the radial part R_if is complex).
+    ... computes the angular factor B_if^(tau L) for a nuclear multipole `mp` between a bound orbital of
+        kappaInitial and a continuum orbital of kappaFinal: the Clebsch-Gordan of Eq. (1) times a Racah-W
+        recoupling, magnitude-validated against AngularMomentum.CL_reduced_me as the module docstring records.
+        For magnetic multipoles l_f is replaced by l_bar_f = 2*j_f - l_f, which is the standard device for
+        writing the magnetic factor in the same Clebsch-Gordan form as the electric one; it is this module's
+        own transcription and no equation number is claimed for it. The normalisation carried here INCLUDES
+        the published (2j_i+1)/(L(L+1)) of Eq. (1), which is why
+        InternalConversion.computeAmplitudesProperties must not apply it again. A value::Float64 is returned
+        (real; only the radial factor R_if is complex).
 """
 function reducedBif(mp::EmMultipole, kappaInitial::Int64, kappaFinal::Int64)
     li, ji = kappaToLJ(kappaInitial)
@@ -299,7 +332,7 @@ end
     ... the spherical Hankel function of the first kind, h_L(x) = j_L(x) + i*y_L(x), built from
         GSL's regular (sf_bessel_jl) and irregular (sf_bessel_yl) spherical Bessel functions -- both
         already used elsewhere in JAC (module-RadialIntegrals.jl, module-InteractionStrength.jl's
-        Breit density kernel), just not previously combined this way. A value::ComplexF64 is returned.
+        Breit density kernel). A value::ComplexF64 is returned.
 """
 function sphericalHankel1(L::Int64, x::Float64)
     return  GSL.sf_bessel_jl(L, x) + im * GSL.sf_bessel_yl(L, x)
@@ -353,10 +386,11 @@ end
 
 """
 `InternalConversion.icRadialIntegral(kind::Int64, L::Int64, k::Float64, a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid)`
-    ... computes one of the three radial integrals of Raman Eqs. (8a-c) (the "no-penetration"/Rose
-        model, X_Lambda(kr) = h_Lambda(kr) everywhere -- the simpler of the two models in Raman,
-        sufficient for Stage 1), using JAC's orbital.P/.Q fields directly as Raman's G(r)=r*g(r),
-        F(r)=r*f(r):
+    ... computes one of the three radial integrals out of which the R_if of Eqs. (2) and (3) are assembled;
+        they are the bilinear orbital combinations F^(0), F and F^(-1) of Eqs. (4), (5) and (6) integrated
+        against the Hankel kernel. This is the "no-penetration" (Rose) model, X_Lambda(kr) = h_Lambda(kr)
+        everywhere, i.e. the T term of Eqs. (7)/(8) is omitted. JAC's orbital.P/.Q are used directly as the
+        report's G(r) = r*g(r) and F(r) = r*f(r), its v and u respectively:
 
         kind=1: R_1 = int G_a(r) F_b(r) h_L(kr) dr
         kind=2: R_2 = int F_a(r) G_b(r) h_L(kr) dr
@@ -389,8 +423,14 @@ end
 """
 `InternalConversion.electronMomentum(energy::Float64)`
     ... the relativistic electron momentum (atomic units) for kinetic energy `energy` (Hartree),
-        q = sqrt(energy*(energy+2c^2))/c, identical to the formula already used internally by
-        Continuum.jl (e.g. module-Continuum.jl:507) for continuum-orbital generation.
+        q = sqrt(energy*(energy + 2c^2))/c, the same expression Continuum uses when it generates a continuum
+        orbital. A value::Float64 is returned.
+
+        **NOTHING IN THIS MODULE CALLS IT any more, as of 23-Oct-2026**, and that is deliberate rather than an
+        oversight: the Hankel kernel takes the PHOTON wavenumber omega/c, and using the electron momentum here
+        was one of the three defects repaired that day. It is kept only so that the distinction stays visible,
+        and whether to retire it is the maintainer's call -- but it must NOT be reintroduced into
+        InternalConversion.amplitude.
 """
 function electronMomentum(energy::Float64)
     wc = Defaults.getDefaults("speed of light: c")
@@ -400,8 +440,9 @@ end
 
 """
 `InternalConversion.reducedRif(mp::EmMultipole, kappaInitial::Int64, kappaFinal::Int64, k::Float64, orbitalInitial::Radial.Orbital, orbitalFinal::Radial.Orbital, grid::Radial.Grid)`
-    ... computes the radial factor R_if^(tau L) (Raman Eqs. 5/7) from the icRadialIntegral building
-        blocks. A value::ComplexF64 is returned.
+    ... computes the radial factor R_if^(tau L) from the InternalConversion.icRadialIntegral building blocks:
+        Eq. (2) for a magnetic multipole, which is the single integral of F^(0), and Eq. (3) for an electric
+        one, which is the two-term combination carrying h_(L-1) beside h_L. A value::ComplexF64 is returned.
 """
 function reducedRif(mp::EmMultipole, kappaInitial::Int64, kappaFinal::Int64, k::Float64,
                      orbitalInitial::Radial.Orbital, orbitalFinal::Radial.Orbital, grid::Radial.Grid)
@@ -527,7 +568,7 @@ end
 
 """
 `InternalConversion.computeAmplitudesProperties(line::InternalConversion.Line, nm::Nuclear.Model, grid::Radial.Grid, nrContinuum::Int64, settings::InternalConversion.Settings)`
-    ... fills in a Line's channels and total ICC (Raman Eq. 2, summed over multipoles and kappa),
+    ... fills in a Line's channels and total ICC (Eq. (1), summed over multipoles and kappa),
         mirroring AutoIonization.computeAmplitudesProperties: generates the continuum orbital for
         each channel's kappa via Continuum.generateOrbitalForLevel(...), attaches it to the final
         level, and calls InternalConversion.amplitude(...). A line::InternalConversion.Line is returned.
