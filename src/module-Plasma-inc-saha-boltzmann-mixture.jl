@@ -362,6 +362,39 @@ function determineIpShifts(pm::Basics.AbstractPlasmaModel, temp::Float64, ni::Fl
             ratio = pm.lambda / R0
             deltaIp[ionClass.q] = - 3 * (ionClass.q + 1) / (2*R0) * ( (1. + ratio^3)^(2/3) - ratio^2 )
         end
+    elseif  typeof(pm) == Basics.EckerKroellModel
+        # Ecker & Kroell (1963), Phys. Fluids 6, 62.  Their Eqs. (56)/(57) are multi-component; reduced to one ion
+        # species the bracket [(q+1)^2 - q^2 + 1] collapses to 2(q+1), leaving
+        #   Delta I(q) = -(q+1) / lambda_D        for  n <= n_cr       ... Eq. (56), and identical to DebyeHueckelModel
+        #   Delta I(q) = -cEK (q+1) / r_0         for  n >  n_cr       ... Eq. (57)
+        # The switch is their critical density, Eq. (47).  ABOVE it the screening length is r_0, the mean separation of
+        # ALL free particles (their Eq. 23 counts electrons AND ions), and NOT the ion-sphere radius R0 that
+        # Stewart-Pyatt uses -- which is the whole of why this model predicts a markedly larger depression at high
+        # density.  Note r_0 = R0 / (1+Zbar)^(1/3), the form in which the secondary literature usually writes it.
+        nFree = pm.electronDensity + ni
+        r0    = ( 3 / (4pi * nFree) )^(1/3)
+        # The paper's e_(beta max) is the LARGEST IONIC CHARGE PRESENT, not the atomic number;  qMax is taken over this
+        # isotopic class, the same idiom the caller uses.  For a mixture of elements the paper's own quantity is the
+        # maximum over the WHOLE plasma, so a multi-element run switches branches at a slightly too high density here.
+        qMax  = 0;   for ionClass  in  isoClass.ionClasses   qMax = max(qMax, ionClass.q)   end
+        # qMax = 0 is a gas of neutrals: no charged component, no critical density, and the Debye branch is the one.
+        if  qMax == 0   ncr = Inf   else   ncr = 3 / (4pi) * (temp / qMax^2)^3   end
+        #
+        if  nFree <= ncr
+            for ionClass  in  isoClass.ionClasses   deltaIp[ionClass.q] = - (ionClass.q + 1) / pm.lambda          end
+            sbranch = "weak-coupling (Debye-Hueckel) branch, Eq. (56)"
+        else
+            for ionClass  in  isoClass.ionClasses   deltaIp[ionClass.q] = - pm.cEK * (ionClass.q + 1) / r0        end
+            sbranch = "strong-coupling (all-free-particle) branch, Eq. (57)"
+        end
+        # cEK is PRINTED with its meaning, not left as a bare number: 1.0 and the paper's own 1.73 differ by 73 % in
+        # the shift, so a user must see which one produced their result without reading the source.
+        if      pm.cEK == 1.0    scek = "1.0, the value that reproduces the LCLS measurement (Ecker & Kroell's own is 1.73)"
+        elseif  pm.cEK == 1.73   scek = "1.73, Ecker & Kroell's own value (the modern literature uses 1.0)"
+        else                     scek = "$(pm.cEK), neither the modern 1.0 nor the paper's 1.73 -- the caller's own choice"
+        end
+        println(">> Ecker-Kroell IPD:  cEK = $scek;")
+        println("     n = $nFree, n_cr = $ncr  (qMax = $qMax)  ->  $sbranch.")
     else
         error("Undefined plasma model.")
     end
@@ -1084,6 +1117,12 @@ function updateIpdPlasmaModel(pm::Basics.AbstractPlasmaModel, temp::Float64, ne:
     elseif  typeof(pm) == Basics.StewartPyattModel
         lambda = sqrt( temp / (4pi * screeningDensity()) )
         npm = Basics.StewartPyattModel(pm.radius, ne, lambda)
+    elseif  typeof(pm) == Basics.EckerKroellModel
+        # The same screening density as above, and it is exactly the sum over all charged components of Ecker &
+        # Kroell's Eq. (26) -- electrons AND ions.  An electron-only Debye length is not this model;  cEK is the
+        # caller's and is carried through unchanged.
+        lambda = sqrt( temp / (4pi * screeningDensity()) )
+        npm = Basics.EckerKroellModel(pm.radius, ne, lambda, pm.cEK)
     else
         error("Undefined plasma model.")
     end
