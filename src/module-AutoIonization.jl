@@ -430,7 +430,7 @@ function computeAmplitudesProperties(line::AutoIonization.Line, nm::Nuclear.Mode
             if  amplitude != ComplexF64(0.)     @warn ">>> TEA contributions start from non-zero amplitude = $amplitude"    end
             println(">>> Normal Auger for ($symi --> $symi) transition with amplitude = $amplitude")
             amp = AutoIonization.computeTeaAmplitude(settings.operator, pw.kappa, phase, newcLevel, settings.gMultiplet,
-                                                     newiLevel, grid, printout=printout)
+                                                     newiLevel, grid, nucPot, printout=printout)
             amplitude = amplitude + amp
         end
 
@@ -703,13 +703,14 @@ end
 
 """
 `AutoIonization.computeTeaAmplitude(kind::AbstractEeInteraction, kappa::Int64, phase::Float64, continuumLevel::Level,
-                                    gMultiplet::Multiplet, initialLevel::Level, grid::Radial.Grid; printout::Bool=true)`
+                                    gMultiplet::Multiplet, initialLevel::Level, grid::Radial.Grid,
+                                    nuclearPotential::Radial.Potential; printout::Bool=true)`
     ... to compute the kind in  CoulombInteraction(), BreitInteraction(), CoulombBreit() total Auger amplitude for the two-electron Auger
         transitions via the gMultiplet as the resonant Green function:
         
         <(alpha_f J_f, kappa) J_i || O^(TEA, kind) || alpha_i J_i> 
         
-                    <(alpha_f J_f, kappa) J_i || O^(Auger, kind) || alpha_in J_n> <J_n || O^(e-e, kind) || alpha_i J_i>
+                    <(alpha_f J_f, kappa) J_i || O^(Auger, kind) || alpha_in J_n> <J_n || H - E || alpha_i J_i>
                 = ---------------------------------------------------------------------------------------------------
                                                                     E_i  -  E_n
                                                                     
@@ -717,9 +718,23 @@ end
         given kind of interaction. The outgoing-electron factor i^l exp(-i*phase) is applied to the total, exactly as in
         AutoIonization.amplitude, so that the two may be added coherently; it is a pure phase and does not affect a rate on its own.
         A value::ComplexF64 is returned.
+        
+        THE TWO MATRIX ELEMENTS CARRY DIFFERENT OPERATORS, AND THAT IS THE PHYSICS RATHER THAN AN INCONSISTENCY.  The JUNCTION
+        <J_n || H - E || alpha_i J_i> couples two BOUND states that differ in ONE orbital of the same kappa -- for Ar it is 3p -> 2p --
+        and there the one-body part of H does not vanish: <b|h|a> cancels V^(e-e)'s spectator direct+exchange terms <b|U_HF|a> down to the
+        residual <b|(U_HF - U)|a>, which is the first-order mixing coefficient of perturbation theory.  Using V^(e-e) there returns the
+        WHOLE mean field, counted a second time after it had already generated both orbitals.  The DECAY step
+        <(alpha_f J_f, kappa) J_i || O^(Auger, kind) || alpha_in J_n> keeps V^(e-e), for two reasons that point the same way: the two
+        states differ in TWO orbitals, where H - E reduces to V^(e-e) identically, and the final state carries a CONTINUUM orbital whose
+        overlap with the bound set does not vanish, so the one-body term there would need the -E <f|n> counterterm that
+        ManyElectron.matrixElement_HminusE does not yet implement.  Putting H - E on the decay step would therefore add an uncancelled
+        one-body term precisely where the cancellation is missing.
+        
+        `nuclearPotential` must be the nuclear potential on `grid`; it enters the one-body integral of the junction only.
 """
 function computeTeaAmplitude(kind::AbstractEeInteraction, kappa::Int64, phase::Float64, continuumLevel::Level,
-                                gMultiplet::Multiplet, initialLevel::Level, grid::Radial.Grid; printout::Bool=true)
+                                gMultiplet::Multiplet, initialLevel::Level, grid::Radial.Grid,
+                                nuclearPotential::Radial.Potential; printout::Bool=true)
 
     # Always ensure the same subshell list for all initial, intermediate and final (continuum) levels. The
     # INTERMEDIATE list has to enter the merge as well: a Green multiplet that carries an orbital the initial and
@@ -756,15 +771,18 @@ function computeTeaAmplitude(kind::AbstractEeInteraction, kappa::Int64, phase::F
             for  s = 1:ni
                 syms = LevelSymmetry(iLevel.basis.csfs[s].J, iLevel.basis.csfs[s].parity);  if  syms != symi    continue    end
 
-                #   Compute <alpha_f J_i || V^(e-e) || alpha_n J_i> <alpha_n J_i || V^(e-e) || alpha_i J_i>
+                #   Compute <alpha_f J_i || V^(e-e) || alpha_n J_i> <alpha_n J_i || H - E || alpha_i J_i>
                 #   The intermediate Green-function level is, in general, multi-configurational; the two matrix
-                #   elements therefore run over two INDEPENDENT CSF indices t, tp of that same level.
+                #   elements therefore run over two INDEPENDENT CSF indices t, tp of that same level.  The
+                #   JUNCTION carries H - E and the decay step carries V^(e-e); see this function's docstring for
+                #   why the two differ, which is physics and not an oversight.
                 for  t = 1:nn
                     if  nLevel.mc[t] == 0.  continue    end
                     Vae = ManyElectron.matrixElement_Vee(kind, fLevel.basis, r, nLevel.basis, t, grid)
                     for  tp = 1:nn
                         if  nLevel.mc[tp] == 0.  continue    end
-                        Vee = ManyElectron.matrixElement_Vee(kind, nLevel.basis, tp, iLevel.basis, s, grid)
+                        Vee = ManyElectron.matrixElement_HminusE(Basics.HminusE(kind), nLevel.basis, tp,
+                                                                  iLevel.basis, s, grid, nuclearPotential)
                         amp = amp + fLevel.mc[r] * Vae * nLevel.mc[t] * nLevel.mc[tp] * Vee * iLevel.mc[s] / (eni - enn)
                     end
                 end
