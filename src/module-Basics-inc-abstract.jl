@@ -1289,6 +1289,71 @@ CoulombBreit(factor::Float64) = CoulombBreit(factor, :direct)
 
 export  AbstractEeInteraction, DiagonalCoulomb, CoulombInteraction, CoulombGaunt, BreitInteraction, CoulombBreit
 
+
+"""
+`abstract type Basics.AbstractTransitionOperator`
+    ... defines an abstract and a number of types for specifying WHICH OPERATOR carries a transition amplitude.  It answers a different
+        question from AbstractEeInteraction, which says which TERMS OF THE HAMILTONIAN are included, and the two are deliberately kept
+        disjoint: an AbstractEeInteraction is consumed by seventeen `typeof(kind) in [...]` lists across six modules, so a transition
+        operator smuggled in as a subtype of it would fall silently through every one of them -- the failure mode that lost CoulombGaunt in
+        ImpactExcitation.  A transition operator CARRIES an interaction; it is not one.
+
+    + struct VeeOnly(kind)       ... the bare electron-electron interaction, i.e. the historical shortcut.
+    + struct HminusE(kind)       ... the operator H - E, which is what a transition amplitude actually requires.
+
+        WHY THE DISTINCTION IS NOT COSMETIC.  An Auger-like amplitude is <f| H - E |i>.  Where the two states are built on ONE orthonormal
+        orbital set and differ in TWO or more orbitals, the one-body part of H cannot connect them and the overlap vanishes, so H - E
+        reduces exactly to V_ee -- which is why VeeOnly has carried every validated first-order Auger, DR and cascade number in JAC.  The
+        shortcut fails in two places, and both are now live:
+          * states differing in ONE orbital a -> b, which is what a SECOND-ORDER sum produces at its Green-multiplet junctions.  There
+            <b|h|a> = -<b|U|a> cancels V_ee's spectator direct+exchange <b|U_HF|a> down to the residual <b|(U_HF - U)|a>, and keeping only
+            V_ee returns the WHOLE mean field.  Measured 23-Oct-2026 on Ar 2p^-2 -> 3p^-3: V_ee gives 43.5x the measured rate and dropping
+            the spectator terms by hand gives 12x too little, a factor 523 apart and bracketing the measurement.
+          * NON-ORTHOGONAL orbital sets, where <f|i> no longer vanishes and the -E<f|i> term is what represents it.  THAT HALF IS NOT
+            YET IMPLEMENTED: the term vanishes under the orthonormality JAC assumes throughout, so HminusE carries no E field until the
+            biorthogonal route lifts the assumption and something would actually read it.
+        THE ONE-BODY TERM IS THE BARE h, not -U, and that is the point: it needs no knowledge of which mean field produced the orbitals and
+        it stays correct when they are eigenfunctions of nothing.
+
+        AND `kind` MUST MATCH THE HAMILTONIAN THAT PRODUCED THE LEVELS AND THEIR ENERGY E.  E is an eigenvalue of that Hamiltonian, so a
+        Coulomb-only multiplet paired with a Coulomb+Breit H - E subtracts against the wrong E and returns a wrong number in silence.
+        Breit on top of Coulomb-only levels is an ADDITIONAL perturbation and carries no one-body counterterm, since it sits in neither U
+        nor E.  Parameterising on the interaction lets a contraction be defined for matching pairs only, so a mismatch raises a MethodError
+        naming both types instead.
+"""
+abstract type  AbstractTransitionOperator                                  end
+
+struct     VeeOnly{K <: AbstractEeInteraction}   <:  AbstractTransitionOperator
+    kind  ::K
+end
+
+struct     HminusE{K <: AbstractEeInteraction}   <:  AbstractTransitionOperator
+    kind  ::K
+end
+
+@doc "... the bare electron-electron interaction as the transition operator -- the historical shortcut, exact wherever the two " *
+     "states are built on one orthonormal orbital set and differ in two or more orbitals.  Every validated first-order Auger, DR " *
+     "and cascade number in JAC is a VeeOnly number."                                                                           VeeOnly
+@doc "... the operator H - E, with `kind` the e-e interaction of the Hamiltonian that produced the levels.  Required wherever " *
+     "the VeeOnly shortcut fails: a ONE-orbital difference, as every second-order sum produces at its Green-multiplet junctions.  " *
+     "`kind` must match the Hamiltonian behind the levels' energy, or the cancellation is referenced to the wrong one.  NO `E` " *
+     "FIELD: the -E<r|s> term vanishes under the orthonormality JAC already assumes, so nothing would read it;  it returns with " *
+     "the biorthogonal route that lifts that assumption."                                                                       HminusE
+
+
+# `Base.show(io::IO, op::VeeOnly)`  ... prepares a proper printout of the variable op::VeeOnly.
+function Base.show(io::IO, op::VeeOnly)
+    print(io, "V^(e-e) only [$(op.kind)]")
+end
+
+
+# `Base.show(io::IO, op::HminusE)`  ... prepares a proper printout of the variable op::HminusE.
+function Base.show(io::IO, op::HminusE)
+    print(io, "H - E [$(op.kind)]")
+end
+
+export  AbstractTransitionOperator, VeeOnly, HminusE
+
 # `Base.show(io::IO, CoulombBreit}::)`  ... prepares a proper printout of the variable CoulombBreit}::.
 function Base.show(io::IO, eeint::BreitInteraction) 
     sa = "$(typeof(eeint)) [factor=$(eeint.factor)]";                print(io, sa)

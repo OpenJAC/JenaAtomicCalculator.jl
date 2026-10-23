@@ -65,6 +65,10 @@ end
                                                      ## complete eigenbasis of the SAME matrix -- a pure identity
         @test TestFrames.testModule_RandomPhase()    ## added 11-Oct-2026; the independent-particle limit adds no
                                                      ## physics of its own; the couplingEnabled guard fires
+        @test TestFrames.testModule_matrixElementHminusE()  ## added 23-Oct-2026 (item 98); H - E must reproduce
+                                                            ## V^(e-e) EXACTLY on a two-orbital difference and must
+                                                            ## DIFFER on a same-kappa one-orbital one -- both
+                                                            ## populations asserted non-empty, or it tests nothing
     end
 
     @testset "JAC structs" begin

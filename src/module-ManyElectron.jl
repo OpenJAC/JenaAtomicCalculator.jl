@@ -830,6 +830,7 @@ end
 
 
 # Functions/methods that are later added to the module ManyElectron
+function matrixElement_HminusE                                  end
 function matrixElement_Mab                                      end
 function matrixElement_Vee                                      end
 function provideSubshellStates                                  end

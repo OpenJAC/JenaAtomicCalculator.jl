@@ -3304,6 +3304,74 @@ end
 
 
 """
+`TestFrames.testModule_matrixElementHminusE(; short::Bool=true)`  ... tests ManyElectron.matrixElement_HminusE against
+        ManyElectron.matrixElement_Vee; a success::Bool is returned.
+"""
+function testModule_matrixElementHminusE(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-matrixElementHminusE-new.sum")
+    printstyled("\n\nTest the transition operator  H - E  against  V^(e-e)  ... \n", color=:cyan)
+    # ManyElectron.matrixElement_HminusE adds the ONE-BODY part that ManyElectron.matrixElement_Vee omits.  Two
+    # assertions, and the SECOND is what stops the first from being decoration:
+    #   (1) where the two CSFs differ in TWO orbitals, the one-body operator cannot connect them, so H - E must
+    #       reproduce V^(e-e) EXACTLY -- that is the inertness every validated first-order Auger, DR and cascade
+    #       number depends on;
+    #   (2) where they differ in ONE orbital OF THE SAME kappa, the two must DIFFER.  The kappa qualifier is not
+    #       decoration either: h_D is diagonal in kappa, so a 2s -> 2p excitation gives zero one-body term and
+    #       would make this check vacuous.  2s -> 3s is the case that bites, and it is the same shape as the
+    #       3p -> 2p junction of a second-order Auger sum.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    grid    = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 1.0e-2, rbox = 10.0)
+    nm      = Nuclear.Model(10.)
+    # 2p^2 is what supplies the TWO-orbital pairs (2s^2 <-> 2p^2);  without it the first assertion is vacuous,
+    # which is exactly what the calibration below caught when this list was shorter.
+    configs = [Configuration("1s^2 2s^2"), Configuration("1s^2 2s 3s"), Configuration("1s^2 2s 2p"),
+               Configuration("1s^2 2p^2")]
+    asf     = AsfSettings(AsfSettings(), scField=Basics.HSField())
+    basis   = SelfConsistent.performSCF(configs, nm, grid, asf; printout=false).levels[1].basis
+    pot     = Nuclear.nuclearPotential(nm, grid)
+    opV     = CoulombInteraction();     opH = Basics.HminusE(CoulombInteraction())
+    occ(c)  = [c.occupation[i] for i in 1:length(c.occupation)]
+    nDiff(a, b) = Int(round(sum(abs.(occ(a) .- occ(b))) / 2))
+
+    nTwo = 0;   nOneSame = 0
+    for  r = 1:length(basis.csfs),  s = 1:length(basis.csfs)
+        if  LevelSymmetry(basis.csfs[r].J, basis.csfs[r].parity) !=
+            LevelSymmetry(basis.csfs[s].J, basis.csfs[s].parity)      continue    end
+        d = nDiff(basis.csfs[r], basis.csfs[s]);        if  d == 0    continue    end
+        wv = ManyElectron.matrixElement_Vee(opV, basis, r, basis, s, grid)
+        wh = ManyElectron.matrixElement_HminusE(opH, basis, r, basis, s, grid, pot)
+        if      d == 2
+            nTwo = nTwo + 1
+            if  wh != wv
+                success = false
+                if printTest   info(iostream, "matrixElement_HminusE must equal matrixElement_Vee EXACTLY for a " *
+                                              "two-orbital difference (r=$r, s=$s): $wh != $wv")   end
+            end
+        elseif  d == 1  &&  abs(wv) > 1.0e-10  &&  abs(wh - wv) > 1.0e-08
+            nOneSame = nOneSame + 1
+        end
+    end
+    # The calibration: both populations must be non-empty, or the assertions above tested nothing at all.
+    if  nTwo == 0  ||  nOneSame == 0
+        success = false
+        if printTest   info(iostream, "the H - E calibration is VACUOUS: $nTwo two-orbital pairs and $nOneSame " *
+                                      "differing one-orbital pairs were found; both must be non-zero")   end
+    end
+    println("  $nTwo two-orbital pairs reproduce V^(e-e) exactly;  $nOneSame same-kappa one-orbital pairs differ.")
+    println(iostream, "matrixElement_HminusE: the one-body part is inert exactly where it must be -- $nTwo CSF pairs " *
+                      "differing in TWO orbitals reproduce matrixElement_Vee bit for bit, which is the inertness every " *
+                      "validated first-order Auger, DR and cascade number relies on -- and it bites where it must, on " *
+                      "$nOneSame pairs differing in ONE orbital of the SAME kappa. Both populations are asserted " *
+                      "non-empty, since h_D is diagonal in kappa and a different-kappa excitation would make the second " *
+                      "assertion vacuous. No approved data is used.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_matrixElementHminusE()::", success)
+
+    return( success )
+end
+
+
+"""
 `TestFrames.testModule_RandomPhase(; short::Bool=true)`  ... tests on module RandomPhase; a success::Bool is returned.
 """
 function testModule_RandomPhase(; short::Bool=true)
