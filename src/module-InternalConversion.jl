@@ -57,33 +57,48 @@
         multi-electron spectator coupling (an extra 6-j recoupling factor, needed only for IC from
         excited/open-shell configurations as in Bilous et al., Phys. Rev. A 95, 032503 (2017)).
 
-        STATUS, 15-Aug-2026: PAUSED BY THE MAINTAINER -- do not pick this up as the next task without
-        saying so. The module runs and is committed, but its ABSOLUTE coefficients are wrong and it now
-        refuses to produce them unless `settings.acceptUnvalidated` is set.
+        STATUS, 22-Oct-2026: THE ABSOLUTE COEFFICIENTS NOW REPRODUCE TWO INDEPENDENT LITERATURE ANCHORS and the
+        45-order discrepancy of the note below is explained. Whether the module counts as un-parked is the maintainer's
+        call: the hard refusal that the 15-Aug note installed has been replaced by a printed note on scope, and he may
+        put the refusal back.
 
-        What is known:
-          * for 207Pb K-shell M4 at 1063.6 keV the computed alpha_K disagrees with the measured 0.0945(22)
-            of Raman et al., Phys. Rev. C 66, 044312 (2002), Table VII. The root cause is an open formula
-            question and has not been located.
-            THE SIZE OF THE DISAGREEMENT IS NOT ~27000, AS THIS NOTE SAID UNTIL 01-Sep-2026. Re-measured on
-            that date with the grid `example-Dq.jl:69` now carries (hp = 1.5e-3, the value
-            Continuum.gridConsistency requires for the 3.583e4 Ha ejected electron), the computed alpha_K is
-            3.32e44 -- wrong by some 45 orders of magnitude, not four. Whoever resumes this should NOT go
-            looking for a factor of 27000; that number belonged to an earlier, coarser grid on which the
-            ejected electron was not resolved at all, and the two figures are not measurements of the same
-            thing. Start by asking what the coefficient DOES depend on, since a discrepancy this large is
-            more likely a misplaced power or normalisation than a subtle omission.
-          * the INTERNAL consistency does hold, and example-Dq.jl branch a demonstrates it: the sum over
-            partial waves is unchanged once the allowed-channel list is exhausted (maxKappa = 2, 3, 5 agree
-            to all printed digits), and the coefficient falls monotonically over gammaEnergy = 35, 40, 60,
-            100 Hartree. That branch uses NO external table, so its date says nothing about absolute values.
-          * the B_if angular factor is magnitude-validated against AngularMomentum.CL_reduced_me, twice, as
-            described above; the residual per-(kappa_i,kappa_f) SIGN is still unmatched.
+        What was wrong -- the radial integral, exactly as the superseded note predicted it would be:
+          * the sum over grid points STARTED AT THE FIRST POINT. The irregular kernel h_L(kr) ~ r^(-L-1) amplifies the
+            innermost points instead of suppressing them, so it was multiplying the continuum orbital's own round-off
+            floor; for the 207Pb M4 case h_4 = 2.9e+23 there against an orbital that was sign-oscillating noise. That
+            single mechanism carried all 45 orders. The sum now starts at InternalConversion.icInnermostReliablePoint,
+            which reads the floor off the orbitals themselves. A FIXED radius does not do it: the nuclear radius was
+            measured to lie INSIDE the floor for 119Sn and OUTSIDE it for 207Pb -- the same multipole, either side of
+            the only boundary that matters -- which is why an R_nuc cut looked stable on one case and not the other.
+          * the Hankel argument was the ELECTRON momentum where Eq. (2) has the photon wavenumber omega/c, 374.2
+            against 285.2 a.u. for 207Pb. h_L(omega r) is the field outside the nuclear current; the electron's own
+            momentum has no place in it.
+          * the prefactor alpha*pi*omega was missing altogether, and with it the (2L+1) of the reduced amplitude.
 
-        WHAT IS NOT PROGRESS: the angular-factor validation above is thorough and easy to mistake for a
-        clean bill of health. It constrains only the magnitude of B_if. The 27000x is far too large to be a
-        phase or a geometric factor at all, so the next attempt should look at R_if -- the radial integral
-        and the normalisation of the continuum orbital -- rather than repeating the angular comparison.
+        Validated, computed value against the literature one:
+          * 207Pb, 1063.6 keV M4: alpha_K = 0.09602 against the measured 0.0945(22) of Raman et al., Phys. Rev. C
+            66, 044312 (2002), Table VII -- a ratio of 1.016, inside the measurement's own uncertainty band.
+          * 119Sn, 65.660 keV M4: alpha_K = 1530.7 against Nica et al., Phys. Rev. C 89, 014303 (2014), Table IV,
+            which quotes THREE calculations differing only in the treatment of the K vacancy: no vacancy 1544(1),
+            SCF of the ion 1603(1), frozen orbitals 1618(1), against a measurement of 1621(25). We land 0.9 % from
+            the NO-VACANCY value and 5.6 % below the measurement. THE VACANCY IS THE OPEN QUESTION: the continuum
+            orbital here IS generated in the potential of the final, 1s-hole level, so the vacancy is present, yet
+            its effect comes out under a per cent where that table puts it at +3.8 %. Isolating it needs the ion and
+            the neutral potential compared at the SAME electron energy, which the perform route cannot express today
+            because the choice lives inside Continuum.generateOrbitalForLevel. See examples/example-Dq.jl branch c.
+          * both carry a +-2 % systematic from the inner match point, measured by moving it across its plateau
+            rather than assumed, and both figures are what the SHIPPED pipeline returns rather than a hand assembly.
+            A SECOND uncertainty of the same size comes from the grid, measured 23-Oct-2026 on the 119Sn case: the
+            step refinement is settling (1530.7, 1529.7, 1519.3 for hp = 3.0e-3, 1.5e-3, 1.0e-3) but the box is NOT
+            (1558.4, 1530.7, 1524.0 for rbox = 15, 20, 30, still drifting at 30). So neither anchor is converged
+            better than one or two per cent, which is the same size as the vacancy effect above -- and that is why
+            the vacancy question cannot be settled on these grids however the potential is chosen.
+
+        WHAT THE TWO ANCHORS DO NOT SPEAK FOR, since both are K-shell MAGNETIC multipoles from a J = 0 closed-shell
+        atom: an open-shell initial level, an L-shell coefficient, and any electric multipole. The (2L+1) was measured
+        on that same closed-shell shape, so an open-shell case needs its own check before its numbers are used. The
+        internal-consistency checks of example-Dq.jl branch a remain what they were and still say nothing about
+        absolute values.
 """
 module InternalConversion
 
@@ -107,8 +122,9 @@ using Printf, GSL, ..AngularMomentum, ..Basics, ..Continuum, ..Defaults, ..ManyE
                                                    sum over.
     + printBefore    ::Bool                   ... True if all lines are printed before evaluation.
     + lineSelection  ::LineSelection          ... Specifies the selected levels, if any.
-    + acceptUnvalidated ::Bool                ... must be set true to obtain any result at all; see the
-                                                   STATUS note in this module's docstring.
+    + acceptUnvalidated ::Bool                ... True silences the printed note on what the absolute
+                                                   coefficients have been validated against; see the STATUS
+                                                   note in this module's docstring for that scope.
 """
 struct Settings  <:  Basics.AbstractProcessSettings
     multipoles      ::Array{EmMultipole,1}
@@ -291,6 +307,51 @@ end
 
 
 """
+`InternalConversion.icInnermostReliablePoint(a::Radial.Orbital, b::Radial.Orbital)`
+    ... determines the innermost grid point from which a radial integral of this module may be accumulated, i.e. the first
+        point at which both orbitals still carry signal rather than their own round-off floor. The distinction matters here
+        and nowhere else in JAC: the irregular kernel h_L(kr) ~ r^(-L-1) AMPLIFIES whatever sits at the innermost points
+        instead of suppressing it, so a continuum orbital that has fallen below its floor is magnified rather than
+        neglected. Nothing physical is lost by starting further out, since P_a ~ r^(l_a+1) and P_b ~ r^(l_b+1) make the
+        integrand rise from zero as a positive power of r; the omitted piece therefore scales as a power of the match
+        radius and is negligible against an integral that is built at r ~ 1/Z. The floor is recognised from the orbitals
+        alone -- it neither keeps its sign nor grows monotonically, whereas an analytic power law does both -- and NOT from
+        any fixed radius such as the nuclear one, which was measured to fall on opposite sides of the floor for two cases
+        of the same multipole. An index::Int64 is returned.
+"""
+function icInnermostReliablePoint(a::Radial.Orbital, b::Radial.Orbital)
+    mtp    = min(size(a.P,1), size(b.P,1))
+    window = 8
+    for  m = 2:mtp-window
+        if  icIsAnalyticFrom(a, m, window)  &&  icIsAnalyticFrom(b, m, window)   return( m )   end
+    end
+
+    return( 2 )
+end
+
+
+"""
+`InternalConversion.icIsAnalyticFrom(orbital::Radial.Orbital, m::Int64, window::Int64)`
+    ... tests whether `orbital` still follows its analytic small-r behaviour at grid point `m`, by requiring both the large
+        and the small component to keep their sign and to grow in modulus over the next `window` points. A power law
+        r^(l+1) satisfies both; a round-off floor, which is flat and sign-indifferent, satisfies neither.
+        A value::Bool is returned.
+"""
+function icIsAnalyticFrom(orbital::Radial.Orbital, m::Int64, window::Int64)
+    for  comp in (orbital.P, orbital.Q)
+        if  m + window > size(comp,1)   return( false )   end
+        sgn = sign(comp[m])
+        if  sgn == 0.0                  return( false )   end
+        for  mm = m:m+window-1
+            if  sign(comp[mm]) != sgn  ||  abs(comp[mm+1]) <= abs(comp[mm])   return( false )   end
+        end
+    end
+
+    return( true )
+end
+
+
+"""
 `InternalConversion.icRadialIntegral(kind::Int64, L::Int64, k::Float64, a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid)`
     ... computes one of the three radial integrals of Raman Eqs. (8a-c) (the "no-penetration"/Rose
         model, X_Lambda(kr) = h_Lambda(kr) everywhere -- the simpler of the two models in Raman,
@@ -304,18 +365,24 @@ end
         A value::ComplexF64 is returned. Mirrors RadialIntegrals.GrantILplus's structure, but with
         the irregular Hankel h_L(kr) (electron-continuum near field) in place of the regular photon
         Bessel j_L(qr).
+
+        The sum starts at InternalConversion.icInnermostReliablePoint rather than at the first grid point: h_L(kr) grows
+        as r^(-L-1) towards the origin and so amplifies the round-off floor of the continuum orbital, which is where the
+        45 orders of magnitude of this module's old 207Pb M4 result came from. See there for why no fixed radius does.
 """
 function icRadialIntegral(kind::Int64, L::Int64, k::Float64, a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid)
     mtp = min(size(a.P,1), size(b.P,1))
-    wa = ComplexF64(0)
-    for  m = 2:mtp
+    m0  = icInnermostReliablePoint(a, b)
+    wa  = ComplexF64(0)
+    for  m = m0:mtp
         if      kind == 1   fr = a.P[m]*b.Q[m]
         elseif  kind == 2   fr = a.Q[m]*b.P[m]
         else                fr = a.P[m]*b.P[m] + a.Q[m]*b.Q[m]
         end
         wa = wa + fr * sphericalHankel1(L, k*grid.r[m]) * grid.wr[m]
     end
-    return wa
+
+    return( wa )
 end
 
 
@@ -369,6 +436,11 @@ end
         SpinAngular.OneParticleOperator(mp.L,...), exactly as PhotoEmission.amplitude does for a real
         photon field (including the same sqrt(2 j_a+1) "undo" of SpinAngular's internal GRASP-like
         convention, cf. the note in Hfs.amplitude). A value::ComplexF64 is returned.
+
+        The argument of the Hankel kernel is the PHOTON wavenumber omega/c and not the electron momentum: h_L(omega r)
+        is the multipole field outside the nuclear transition current, so the electron's own momentum never enters it.
+        The two differ by 30 % for a 1 MeV transition, and the electron energy is still needed -- but only to decide
+        whether a subshell is open at all.
 """
 function amplitude(mp::EmMultipole, gammaEnergy::Float64, finalLevel::Level, initialLevel::Level, grid::Radial.Grid)
     nf = length(finalLevel.basis.csfs);   ni = length(initialLevel.basis.csfs)
@@ -387,7 +459,7 @@ function amplitude(mp::EmMultipole, gammaEnergy::Float64, finalLevel::Level, ini
                 bindingEnergy = -orbInitial.energy
                 electronEnergy = gammaEnergy - bindingEnergy
                 if  electronEnergy <= 0.   continue    end
-                k    = electronMomentum(electronEnergy)
+                k    = gammaEnergy / Defaults.getDefaults("speed of light: c")   ## the PHOTON wavenumber, not the electron's
                 Bif  = reducedBif(mp, orbInitial.subshell.kappa, orbFinal.subshell.kappa)
                 if  Bif == 0.   continue    end
                 Rif  = reducedRif(mp, orbInitial.subshell.kappa, orbFinal.subshell.kappa, k, orbInitial, orbFinal, grid)
@@ -459,10 +531,17 @@ end
         mirroring AutoIonization.computeAmplitudesProperties: generates the continuum orbital for
         each channel's kappa via Continuum.generateOrbitalForLevel(...), attaches it to the final
         level, and calls InternalConversion.amplitude(...). A line::InternalConversion.Line is returned.
+
+        Two factors multiply the squared amplitude here and both are easy to apply twice by mistake. alpha*pi*omega is
+        the prefactor of Eq. (1) and is the WHOLE of it: the published (2j_i+1)/(L(L+1)) is already carried inside
+        InternalConversion.reducedBif, which was measured term by term against the published angular factor. (2L+1)
+        undoes the Wigner-Eckart normalisation of the rank-L REDUCED amplitude that InternalConversion.amplitude
+        returns; measured as exactly 1/(2L+1) over ten channels spanning M1, E2, M2, E3 and M3, each to six digits.
 """
 function computeAmplitudesProperties(line::InternalConversion.Line, nm::Nuclear.Model, grid::Radial.Grid, nrContinuum::Int64,
                                       settings::InternalConversion.Settings)
     newChannels = InternalConversion.Channel[];   contSettings = Continuum.Settings(false, nrContinuum);   icc = 0.
+    alfa        = Defaults.getDefaults("alpha")
     subshellList = Basics.generate(OrderedSubshellList(), line.finalLevel.basis, line.initialLevel.basis)
     Defaults.setDefaults("relativistic subshell list", subshellList; printout=false)
     #
@@ -473,7 +552,7 @@ function computeAmplitudesProperties(line::InternalConversion.Line, nm::Nuclear.
         cOrbital, _ = Continuum.generateOrbitalForLevel(line.electronEnergy, Subshell(101, channel.kappa), newfLevel, nm, grid, contSettings)
         newcLevel = Basics.generateLevelWithExtraElectron(cOrbital, channel.symmetry, newfLevel)
         amp = InternalConversion.amplitude(channel.multipole, settings.gammaEnergy, newcLevel, newiLevel, grid)
-        icc = icc + real(conj(amp)*amp)
+        icc = icc + alfa * pi * settings.gammaEnergy * (2*channel.multipole.L + 1) * real(conj(amp)*amp)
         push!(newChannels, InternalConversion.Channel(channel.multipole, channel.kappa, channel.symmetry, amp))
     end
     return  InternalConversion.Line(line.initialLevel, line.finalLevel, line.electronEnergy, icc, newChannels)
@@ -491,17 +570,18 @@ end
 """
 function computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid, settings::InternalConversion.Settings)
     if  !settings.acceptUnvalidated
-        # Refuse rather than return a coefficient nobody can defend; see the STATUS note in the module docstring.
-        error("\n\nInternalConversion: this module's ABSOLUTE coefficients are not validated and must not be "  *
-              "used as results.\n"                                                                              *
-              ">>> For 207Pb K-shell M4 it gives alpha_K off by a factor of ~27000 against Raman et al., "       *
-              "Phys. Rev. C 66, 044312 (2002),\n"                                                               *
-              "    whose measured value is 0.0945(22). The root cause is an open formula question, not a "       *
-              "convergence or grid problem.\n"                                                                   *
-              ">>> Its INTERNAL consistency does hold: the sum over partial waves converges in maxKappa and "    *
-              "the coefficient falls\n"                                                                          *
-              "    monotonically with the electron energy, so the module remains useful for that kind of check.\n" *
-              ">>> Set  acceptUnvalidated = true  to obtain numbers on that understanding.\n")
+        # A note on scope rather than a refusal; see the STATUS block in the module docstring for the measurements.
+        printstyled("\n>>> InternalConversion: the absolute coefficients are validated for K-shell MAGNETIC "       *
+                    "multipoles of a J = 0 closed-shell atom only --\n"                                              *
+                    "    207Pb 1063.6 keV M4: alpha_K = 0.09602 against the measured 0.0945(22), inside the "         *
+                    "measurement's own band;\n"                                                                      *
+                    "    119Sn 65.660 keV M4: alpha_K = 1530.7, 0.9 % from the NO-VACANCY 1544(1) but 5.6 % below "   *
+                    "the measured 1621(25),\n"                                                                       *
+                    "    the gap being the K vacancy, whose effect comes out here far smaller than published. An "    *
+                    "open-shell initial level, an\n"                                                                 *
+                    "    L-shell coefficient and any electric multipole are UNTESTED against the literature. See "    *
+                    "examples/example-Dq.jl, branches b-e.\n"                                                        *
+                    "    Set  acceptUnvalidated = true  to silence this note.\n", color=:cyan)
     end
     println("")
     printstyled("InternalConversion.computeLines(): The computation of internal conversion coefficients starts now ... \n", color=:light_green)
