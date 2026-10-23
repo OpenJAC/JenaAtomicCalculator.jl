@@ -153,7 +153,13 @@ elseif  false
     #   The sign is NOT this branch's to fix: it is shared by DebyeHueckel, IonSphere and StewartPyatt, it
     #   predates the Ecker-Kroell model, and the accompanying normalization question (the partition function is
     #   formed from the FULL level list before any level is cut, so a cut does not conserve particles) is a
-    #   modelling decision rather than a typo.  It is on the priority list.
+    #   modelling decision rather than a typo.  It is PRIORITY ITEM 97, filed 23-Oct-2026.
+    #
+    #   WHAT THIS BRANCH IS FOR, in one sentence: it is the GUARD on that item.  The dated line above records the
+    #   degenerate state -- four models and no model giving one number -- so the day the sign and the partition
+    #   function are repaired together, this branch STOPS reproducing, and that is the intended signal rather than
+    #   a regression.  Whoever makes that repair updates these numbers and the ordering assertion below, which
+    #   should then read  NoPlasmaModel <= StewartPyatt <= EckerKroell  at n_i = 1.0e-3.
     #
     #   NO LITERATURE CLAIM is made here.  What is dated is (i), (ii) and the five numbers of (iii).
     #   COST: ten perform runs, MEASURED at 97 s in total on 23-Oct-2026 -- the first run carries the compilation
