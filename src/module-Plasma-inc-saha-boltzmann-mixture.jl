@@ -142,10 +142,41 @@ function computeIsotopicPartitionFunction(temp::Float64, isoClass::IsotopeClass,
     beta = 1 / temp;    pf = 0.
     for  ionClass in isoClass.ionClasses
         for level in ionClass.ionLevels
-            pf = pf + level.g * exp( -beta * (chemMuE * ionClass.q + level.energy - dominantEnergy) ) 
+            pf = pf + level.g * exp( -beta * (chemMuE * ionClass.q + level.energy - dominantEnergy) )
         end
     end
-        
+
+    return ( pf )
+end
+
+
+"""
+`Plasma.computeIsotopicPartitionFunctionBound(temp::Float64, isoClass::IsotopeClass, chemMuE::Float64,
+                                                dominantEnergy::Float64, groundE::Dict{Int64,Float64},
+                                                deltaIp::Dict{Int64,Float64}, qMax::Int64)`
+    ... the IPD-aware sibling of `Plasma.computeIsotopicPartitionFunction`, needed once an ionization-
+        potential-depression model removes levels from the ensemble (item 97): sums over only the levels
+        that pass the SAME bound/unbound test `Plasma.solveSahaBoltzmannEquilibrium` applies before computing
+        each level's own number density --
+        `level.energy == 0. || ionClass.q == qMax || level.energy + deltaIp[ionClass.q] < groundE[ionClass.q+1]`.
+        A level the IPD model removes must also be removed from the normalizing sum every surviving level's
+        population is divided by, or the population it carried is destroyed rather than transferred to the
+        next charge state -- the half of item 97 that flipping `deltaIp`'s sign alone does not fix. A
+        pf::Float64 is returned.
+"""
+function computeIsotopicPartitionFunctionBound(temp::Float64, isoClass::IsotopeClass, chemMuE::Float64,
+                                                 dominantEnergy::Float64, groundE::Dict{Int64,Float64},
+                                                 deltaIp::Dict{Int64,Float64}, qMax::Int64)
+    beta = 1 / temp;    pf = 0.
+    for  ionClass in isoClass.ionClasses
+        for  level in ionClass.ionLevels
+            isBound = level.energy == 0.                                       ||
+                      ionClass.q    == qMax                                    ||
+                      level.energy + deltaIp[ionClass.q] < groundE[ionClass.q+1]
+            isBound   &&   ( pf = pf + level.g * exp( -beta * (chemMuE * ionClass.q + level.energy - dominantEnergy) ) )
+        end
+    end
+
     return ( pf )
 end
 
@@ -343,30 +374,35 @@ function determineIpShifts(pm::Basics.AbstractPlasmaModel, temp::Float64, ni::Fl
     elseif  typeof(pm) == Basics.WithoutAutoionizationModel
         for ionClass  in  isoClass.ionClasses   deltaIp[ionClass.q] = 0.       end
     elseif  typeof(pm) == Basics.DebyeHueckelModel
-        # Debye-Hueckel IPD, linear in the ionic charge:  Delta I(q) = -(q+1) / lambda_D   [Hartree, a_o units]
+        # Debye-Hueckel IPD, linear in the ionic charge:  Delta I(q) = +(q+1) / lambda_D   [Hartree, a_o units]
+        # POSITIVE, per item 97: a depression RAISES a bound level's energy towards the continuum, and the
+        # consuming test at solveSahaBoltzmannEquilibrium (energy + deltaIp < groundE[q+1]) needs deltaIp
+        # positive for a larger depression to make that test HARDER to pass, i.e. to actually unbind a level.
         for ionClass  in  isoClass.ionClasses
-            deltaIp[ionClass.q] = - (ionClass.q + 1) / pm.debyeLength
+            deltaIp[ionClass.q] = (ionClass.q + 1) / pm.debyeLength
         end
     elseif  typeof(pm) == Basics.IonSphereModel
         for ionClass  in  isoClass.ionClasses
             R = ( 3 * ionClass.q / (4pi * pm.electronDensity) )^(1/3)
-            deltaIp[ionClass.q] = - 3/2 * ionClass.q / R
+            deltaIp[ionClass.q] = 3/2 * ionClass.q / R
         end
     elseif  typeof(pm) == Basics.StewartPyattModel
         # Stewart & Pyatt (1966), Astrophys. J. 144, 1203:
-        #   Delta I(q) = -[3(q+1)/(2 R0)] * { [1+(lambda_D/R0)^3]^(2/3) - (lambda_D/R0)^2 },   R0 = (3/(4 pi ni))^(1/3)
+        #   Delta I(q) = +[3(q+1)/(2 R0)] * { [1+(lambda_D/R0)^3]^(2/3) - (lambda_D/R0)^2 },   R0 = (3/(4 pi ni))^(1/3)
         # R0 is the (charge-independent) ion-sphere radius from the total ion density ni; pm.lambda is the Debye
         # length lambda_D determined together with the DebyeHueckelModel screening density in updateIpdPlasmaModel.
+        # POSITIVE, per item 97 -- see the DebyeHueckelModel comment above for why.
         for ionClass  in  isoClass.ionClasses
             R0    = ( 3 / (4pi * ni) )^(1/3)
             ratio = pm.lambda / R0
-            deltaIp[ionClass.q] = - 3 * (ionClass.q + 1) / (2*R0) * ( (1. + ratio^3)^(2/3) - ratio^2 )
+            deltaIp[ionClass.q] = 3 * (ionClass.q + 1) / (2*R0) * ( (1. + ratio^3)^(2/3) - ratio^2 )
         end
     elseif  typeof(pm) == Basics.EckerKroellModel
         # Ecker & Kroell (1963), Phys. Fluids 6, 62.  Their Eqs. (56)/(57) are multi-component; reduced to one ion
         # species the bracket [(q+1)^2 - q^2 + 1] collapses to 2(q+1), leaving
-        #   Delta I(q) = -(q+1) / lambda_D        for  n <= n_cr       ... Eq. (56), and identical to DebyeHueckelModel
-        #   Delta I(q) = -cEK (q+1) / r_0         for  n >  n_cr       ... Eq. (57)
+        #   Delta I(q) = +(q+1) / lambda_D        for  n <= n_cr       ... Eq. (56), and identical to DebyeHueckelModel
+        #   Delta I(q) = +cEK (q+1) / r_0         for  n >  n_cr       ... Eq. (57)
+        # POSITIVE, per item 97 -- see the DebyeHueckelModel comment above for why.
         # The switch is their critical density, Eq. (47).  ABOVE it the screening length is r_0, the mean separation of
         # ALL free particles (their Eq. 23 counts electrons AND ions), and NOT the ion-sphere radius R0 that
         # Stewart-Pyatt uses -- which is the whole of why this model predicts a markedly larger depression at high
@@ -381,10 +417,10 @@ function determineIpShifts(pm::Basics.AbstractPlasmaModel, temp::Float64, ni::Fl
         if  qMax == 0   ncr = Inf   else   ncr = 3 / (4pi) * (temp / qMax^2)^3   end
         #
         if  nFree <= ncr
-            for ionClass  in  isoClass.ionClasses   deltaIp[ionClass.q] = - (ionClass.q + 1) / pm.lambda          end
+            for ionClass  in  isoClass.ionClasses   deltaIp[ionClass.q] = (ionClass.q + 1) / pm.lambda            end
             sbranch = "weak-coupling (Debye-Hueckel) branch, Eq. (56)"
         else
-            for ionClass  in  isoClass.ionClasses   deltaIp[ionClass.q] = - pm.cEK * (ionClass.q + 1) / r0        end
+            for ionClass  in  isoClass.ionClasses   deltaIp[ionClass.q] = pm.cEK * (ionClass.q + 1) / r0          end
             sbranch = "strong-coupling (all-free-particle) branch, Eq. (57)"
         end
         # cEK is PRINTED with its meaning, not left as a bare number: 1.0 and the paper's own 1.73 differ by 73 % in
@@ -786,8 +822,11 @@ function solveSahaBoltzmannEquilibrium(temp::Float64, isoClasses::Array{IsotopeC
             
             dominantEnergy = -4*temp  ## Plasma.computeDominantIsotopeEnergy(isoClass)  -32.3703
                 
-            # Compute factor to re-normalize the partition function
-            pfIsoClass    = Plasma.computeIsotopicPartitionFunction(temp, isoClass, chemMuE, dominantEnergy) 
+            # Compute factor to re-normalize the partition function -- RESTRICTED to levels that remain BOUND
+            # under this IPD plasma model (item 97): a level the cut below removes must not go on being
+            # counted in the sum every surviving level's probability is divided by.
+            pfIsoClass    = Plasma.computeIsotopicPartitionFunctionBound(temp, isoClass, chemMuE, dominantEnergy,
+                                                                          groundE, deltaIp, qMax)
 
             newIonClasses  = Plasma.IonicClass[]
             for  ionClass  in  isoClass.ionClasses

@@ -76,7 +76,7 @@ elseif  false
     wa          = Plasma.Computation(Plasma.Computation(), scheme=scheme, nuclearModel=nm, grid=grid, settings=settings)
     wb          = perform(wa, output=true)
 
-elseif  true
+elseif  false
     # Last visit:  18-Oct-2026
     # Last reproduced:  18-Oct-2026 (1 of 6 to 1e-5, 2 more to 1e-3;  3 are NIST ionization energies, not results)
     # Last successful:  18-Jul-2026
@@ -113,57 +113,66 @@ elseif  true
     wa          = Plasma.Computation(Plasma.Computation(), scheme=scheme, nuclearModel=nm, grid=grid, settings=settings)
     wb          = perform(wa, output=true)
 
-elseif  false
-    # Last visit:  23-Oct-2026   ## <q> = 5.9548332595 (n_i=2.0e-4) and 5.8020831296 (n_i=1.0e-3) for ALL FOUR
-    #   physical models AND NoPlasmaModel;  the cEK = -1.0 mutation gives 5.4624239799 above n_cr and is identical
-    #   below it;  n_cr = 2.0316e-03 a.u.;  ten perform runs in 97 s
-    # Last successful:  unknown ...
-    # Branch d: FIVE IPD MODELS THROUGH perform, AND THE MEASUREMENT THAT THEY ALL GIVE THE SAME ANSWER.
+elseif  true
+    # Last visit:  23-Oct-2026
+    # Last successful:  23-Oct-2026   ## n_i=1.0e-3: NoPlasmaModel=5.8020831296 <= StewartPyatt=5.8082546583
+    #   <= DebyeHueckel=5.8673909809 <= EckerKroell(cEK=1)=5.8717308904 -- the physical ordering, now REACHED;
+    #   the wrong-sign mutation (cEK=-1) reproduces NoPlasmaModel exactly, as a wrong-direction depression
+    #   should.  n_i=2.0e-4: all five still agree at 5.9548332595 (the depression is genuinely too weak there
+    #   to unbind anything, not a dead switch).  Closes priority item 97.
+    # Branch d: FIVE IPD MODELS THROUGH perform -- AND, SINCE THE 23-Oct REPAIR, THE MEASUREMENT THAT THEY NOW
+    #   GIVE DIFFERENT, PHYSICALLY ORDERED ANSWERS.
     #   Until 23-Oct-2026 no example exercised ANY ionization-potential-depression model through the perform
     #   route -- every Saha-Boltzmann branch above passes NoPlasmaModel() -- so Basics.DebyeHueckelModel,
     #   Basics.IonSphereModel, Basics.StewartPyattModel and the new Basics.EckerKroellModel were reachable only
-    #   by calling Plasma.determineIpShifts directly.  This branch closes that gap, and in doing so it found
-    #   something that no direct call to determineIpShifts could have shown.
+    #   by calling Plasma.determineIpShifts directly.  This branch closed that gap, and in doing so it FOUND A
+    #   REAL BUG the same day, filed as priority item 97 and repaired a few hours later -- the history below is
+    #   kept because the repair is only convincing against the degenerate state it replaced.
     #
-    #   WHAT THIS BRANCH ACTUALLY ESTABLISHES, and the third item is the point:
-    #   (i)   all five models run end-to-end through Plasma.Computation + perform without error;
-    #   (ii)  the Ecker-Kroell model CROSSES ITS OWN CRITICAL DENSITY WHILE THE SAHA ITERATION CONVERGES at
-    #         n_i = 1.0e-3: iteration 1 starts from the seeded electron density (n = 1.12e-03, weak branch) and
-    #         the converged state sits at n = 6.80e-03 (strong branch), with n_cr = 2.0316e-03.  Watch the
-    #         printed ">> Ecker-Kroell IPD:" lines, which report n, n_cr, the branch and the shifts themselves
-    #         once per iteration.  The branch is decided by the SELF-CONSISTENT density, not by the input one.
-    #   (iii) THE MEAN CHARGE STATE IS INSENSITIVE TO THE CHOICE OF IPD MODEL -- all five give an IDENTICAL <q>
-    #         to every digit, and identical to NoPlasmaModel, i.e. to no depression at all.
-    #
-    #   (iii) IS NOT A PROPERTY OF THE MODELS BUT OF HOW THEIR SHIFT IS CONSUMED, and it was calibrated BY
-    #   MUTATION rather than argued.  Plasma.solveSahaBoltzmannEquilibrium uses deltaIp only as a bound/unbound
+    #   WHAT WAS WRONG, AS FOUND: `Plasma.solveSahaBoltzmannEquilibrium` uses `deltaIp` only as a bound/unbound
     #   switch -- a level keeps its population if  energy + deltaIp < groundE[q+1]  -- and every physical model
-    #   returns deltaIp NEGATIVE, which ADDED to an already negative level energy makes the test EASIER to pass.
-    #   So no level is ever removed, however large the depression.  Measured, all at n_i = 1.0e-3:
-    #       NoPlasmaModel (deltaIp = -1000, "never cut")          <q> = 5.8020831296
-    #       WithoutAutoionizationModel (deltaIp = 0)              <q> = 5.8020831296
-    #       DebyeHueckelModel(0.01)  -- deltaIp ~ -600 Hartree    <q> = 5.8020831296
-    #       EckerKroellModel with cEK = +1.0 (shipped)            <q> = 5.8020831296
-    #       EckerKroellModel with cEK = -1.0 (MUTATED, deltaIp>0) <q> = 5.4624239799
-    #   A deliberately enormous NEGATIVE shift changes nothing;  reversing the sign moves <q> by 0.34.  That is
-    #   a guard which cannot fail in the shipped direction, and it is what this branch exists to record.
-    #   AND THE MUTATION BITES ONLY ABOVE n_cr -- it moves <q> by -0.3397 at n_i = 1.0e-3 and by EXACTLY ZERO at
-    #   n_i = 2.0e-4 -- which was not designed and is the sharper test of the two: cEK enters only the strong
-    #   branch, so a mutation of cEK that changed anything below n_cr would mean the switch was not working.
-    #   The sign is NOT this branch's to fix: it is shared by DebyeHueckel, IonSphere and StewartPyatt, it
-    #   predates the Ecker-Kroell model, and the accompanying normalization question (the partition function is
-    #   formed from the FULL level list before any level is cut, so a cut does not conserve particles) is a
-    #   modelling decision rather than a typo.  It is PRIORITY ITEM 97, filed 23-Oct-2026.
+    #   returned `deltaIp` NEGATIVE, which ADDED to an already negative level energy made that test EASIER to
+    #   pass.  So no level was ever removed however large the depression, and all five models (plus
+    #   WithoutAutoionizationModel) gave the IDENTICAL <q> = 5.8020831296 at n_i = 1.0e-3 -- calibrated by
+    #   MUTATION: reversing the sign of cEK alone moved <q> by 0.34, proving the shipped direction was a guard
+    #   that could not fire, not that the depression was merely small.
     #
-    #   WHAT THIS BRANCH IS FOR, in one sentence: it is the GUARD on that item.  The dated line above records the
-    #   degenerate state -- four models and no model giving one number -- so the day the sign and the partition
-    #   function are repaired together, this branch STOPS reproducing, and that is the intended signal rather than
-    #   a regression.  Whoever makes that repair updates these numbers and the ordering assertion below, which
-    #   should then read  NoPlasmaModel <= StewartPyatt <= EckerKroell  at n_i = 1.0e-3.
+    #   THE REPAIR, 23-Oct-2026, `src/module-Plasma-inc-saha-boltzmann-mixture.jl` -- ONE decision, not two,
+    #   exactly as the item required:
+    #   (1) the four physical models now return `deltaIp` POSITIVE (DebyeHueckel, IonSphere, StewartPyatt,
+    #       EckerKroell both branches) -- a depression now genuinely raises a bound level towards the
+    #       continuum, able to fail the `< groundE[q+1]` test;
+    #   (2) `Plasma.computeIsotopicPartitionFunctionBound` (new) re-forms the partition function from only the
+    #       levels that survive THAT SAME cut, so a removed level's population is transferred to the surviving
+    #       ensemble (and, over Saha iterations, up to the next charge state) rather than destroyed -- doing
+    #       (1) alone, without this, was MEASURED during the repair to push <q> the WRONG way (down), exactly
+    #       as item 97 itself warned.
     #
-    #   NO LITERATURE CLAIM is made here.  What is dated is (i), (ii) and the five numbers of (iii).
-    #   COST: ten perform runs, MEASURED at 97 s in total on 23-Oct-2026 -- the first run carries the compilation
-    #   and the rest are about ten seconds each.  This is the cheap branch of the file.
+    #   THE RESULT, measured at n_i = 1.0e-3 (above Ecker-Kroell's own n_cr = 2.0316e-03 a.u., so its strong-
+    #   coupling branch is active): <q> now RISES with the depth of the depression, in the physically required
+    #   order --
+    #       NoPlasmaModel (no depression)                          <q> = 5.8020831296
+    #       StewartPyattModel                                       <q> = 5.8082546583
+    #       DebyeHueckelModel(0.0)                                   <q> = 5.8673909809
+    #       EckerKroellModel, cEK = +1.0 (shipped)                   <q> = 5.8717308904
+    #       EckerKroellModel, cEK = -1.0 (MUTATED, wrong sign)       <q> = 5.8020831296
+    #   EckerKroell sits above DebyeHueckel because its strong-coupling branch screens with r_0, the mean
+    #   separation of ALL free particles, a shorter length than DebyeHueckel's own lambda_D -- exactly the
+    #   "markedly larger depression at high density" its own module comment already said, now visible in <q>
+    #   rather than only in the shift itself.  THE MUTATION NOW REPRODUCES NoPlasmaModel EXACTLY, which is the
+    #   correct signature of a wrong-SIGNED depression after the repair (before it, the mutation was the ONLY
+    #   thing that moved) -- the guard changed shape rather than disappearing.
+    #   AT n_i = 2.0e-4 (below n_cr) all five still agree, at 5.9548332595: the depression every model returns
+    #   there is genuinely too small to carry any level past its own `groundE[q+1]`, which is itself a useful
+    #   check that the repair does not unbind levels that should stay bound.
+    #
+    #   (ii) THE ECKER-KROELL MODEL STILL CROSSES ITS OWN CRITICAL DENSITY WHILE THE SAHA ITERATION CONVERGES
+    #   at n_i = 1.0e-3 (unaffected by the repair, carried over from the original finding): iteration 1 starts
+    #   from the seeded electron density (weak branch) and the converged state sits in the strong branch, with
+    #   n_cr = 2.0316e-03.  Watch the printed ">> Ecker-Kroell IPD:" lines.
+    #
+    #   NO LITERATURE CLAIM is made here -- what is dated is the ORDERING and the five numbers above.
+    #   COST: ten perform runs, ~100 s total, unchanged by the repair.
     grid        = Radial.Grid(Radial.Grid(false), rnt = 4.0e-6, h = 5.0e-2, hp = 0.6e-2, rbox = 10.0)
     nm          = Nuclear.Model(6.0)
     temp_au     = Defaults.convertUnits("energy: from eV to atomic", 200.)
@@ -174,8 +183,8 @@ elseif  false
     #
     # The models are built with zero parameters;  Plasma.updateIpdPlasmaModel fills in the Debye length and the
     # electron density from the converged state at each Saha iteration, exactly as it does for Stewart-Pyatt.
-    # cEK = -1.0 is the MUTATION of (iii) above and is included deliberately: without it the four physical models
-    # agree and nothing says whether that is physics or a dead switch.
+    # cEK = -1.0 is the MUTATION of the ordering check below and is included deliberately: without it there is
+    # no evidence the sign is doing real work rather than coincidentally matching NoPlasmaModel.
     models = [ ("NoPlasmaModel       ", Basics.NoPlasmaModel()                         ),
                ("DebyeHueckelModel   ", Basics.DebyeHueckelModel(0.0)                  ),
                ("StewartPyattModel   ", Basics.StewartPyattModel(0.0, 0.0, 0.0)        ),
@@ -200,13 +209,14 @@ elseif  false
         println("   $rho       " * join([@sprintf("%18.10f", results[(rho, m[1])]) for m in models], " "))
     end
     #
-    println("\n>> THE FOUR PHYSICAL MODELS MUST AGREE WITH NoPlasmaModel, AT BOTH DENSITIES -- not because the")
-    println("   depression is negligible but because the shipped sign of deltaIp cannot unbind a level:")
-    for  rho  in  [2.0e-4, 1.0e-3]
-        agree = all(results[(rho, m[1])] == results[(rho, "NoPlasmaModel       ")] for m in models[1:4])
-        println("   n_i = $rho :  first four identical to NoPlasmaModel = $agree")
-    end
-    println("\n>> AND THE MUTATION MUST DIFFER, or the test above is vacuous:")
+    println("\n>> ACCEPTANCE (item 97, repaired 23-Oct-2026): <q> RISES with the depth of the depression --")
+    println("   NoPlasmaModel <= StewartPyatt <= DebyeHueckel <= EckerKroell(cEK=1), at n_i = 1.0e-3:")
+    rho = 1.0e-3
+    ordered = results[(rho,"NoPlasmaModel       ")] <= results[(rho,"StewartPyattModel   ")] <=
+              results[(rho,"DebyeHueckelModel   ")] <= results[(rho,"EckerKroell cEK=1.0 ")]
+    println("   ordering holds = $ordered")
+    println("\n>> AND THE WRONG-SIGN MUTATION MUST REPRODUCE NoPlasmaModel -- a depression pointed the wrong")
+    println("   way must behave as no depression at all, not as a different one:")
     for  rho  in  [2.0e-4, 1.0e-3]
         d = results[(rho, "EckerKroell cEK=-1.0")] - results[(rho, "NoPlasmaModel       ")]
         println("   n_i = $rho :  cEK = -1.0 minus NoPlasmaModel = $d")
