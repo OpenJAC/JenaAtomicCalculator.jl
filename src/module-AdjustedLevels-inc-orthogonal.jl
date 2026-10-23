@@ -688,3 +688,474 @@ function  mergeIntoMultiplet(fm::FittedMultipletOrthogonal, abInitioMultiplet::M
 
     return( Basics.sortByEnergy(mp) )
 end
+
+
+### GROUPED (Slater-vs-CI) route: the physically-motivated middle ground between ONE uniform factor and
+### one factor PER Cowan class, added 23-Oct-2026 on the maintainer's own request while scoping priority
+### item 91. Once a correlating configuration is added, `fitOrthogonalParameters`'s full per-class split
+### routinely needs more classes than any realistic set of measured levels can determine (measured: 20
+### classes against 2-13 targets for a correlated open d/f-shell block); `fitScaleFactor`'s single factor,
+### at the other extreme, forces ONE number to carry both the Slater-integral size (which standard RCE
+### practice corrects by roughly 0.80-0.85) and the configuration-interaction coupling strength (which
+### published Cowan-code analyses instead scale separately, typically by a SMALLER factor, around 0.70) --
+### two different physical quantities with different, well-documented empirical corrections, forced to
+### share one number. `twoBodyParameterGroup` sorts every class `AdjustedLevels.twoBodyParameterClass`
+### finds into exactly those two Cowan families: F^k/G^k (Slater, within or between the ORIGINAL orbitals)
+### against R^k (configuration-interaction, connecting different configurations) -- never a class count
+### picked without a physical reason, exactly the discipline the maintainer asked this route to keep.
+
+"""
+`AdjustedLevels.twoBodyParameterGroup(className::String)`
+    ... to sort one `AdjustedLevels.twoBodyParameterClass` label into Cowan's own TWO scaling families --
+        `"Slater (F^k/G^k)"` for a direct or exchange integral (the class name starts with `"F^"` or
+        `"G^"`), `"Configuration-interaction (R^k)"` for a class connecting different orbital occupations
+        (the class name starts with `"R^"`). This is the grouping `AdjustedLevels.fitGroupedParameters` and
+        `AdjustedLevels.fitGroupedParametersMultiBlock` use, matching published Cowan-code practice of
+        scaling the two families by different empirical factors rather than one shared number. A
+        value::String is returned.
+"""
+function  twoBodyParameterGroup(className::String)
+
+    return(  startswith(className, "R^")  ?  "Configuration-interaction (R^k)"  :  "Slater (F^k/G^k)"  )
+end
+
+
+"""
+`AdjustedLevels.groupParameterMatrices(classes::Array{String,1}, matrices::Array{Array{Float64,2},1})`
+    ... to fold `AdjustedLevels.buildParameterMatrices`'s per-class two-body matrices into the TWO Cowan
+        families `AdjustedLevels.twoBodyParameterGroup` sorts every class into, by plain matrix ADDITION --
+        since every class in one group shares the SAME intended scale factor, the matrix a single shared
+        factor would multiply is exactly the sum of the matrices the individual classes would have used. A
+        (groupLabels, groupMatrices, memberLists)::Tuple{Array{String,1},Array{Array{Float64,2},1},
+        Array{Array{String,1},1}} is returned: `groupLabels` the (at most two) group names found, sorted;
+        `groupMatrices` the matching summed two-body matrices, same upper-triangular convention as
+        `buildParameterMatrices`; `memberLists` which raw classes were folded into each group, so a reader
+        of the fitted result can see exactly what a group label stands for rather than trusting the name
+        alone.
+"""
+function  groupParameterMatrices(classes::Array{String,1}, matrices::Array{Array{Float64,2},1})
+    summed  = Dict{String,Array{Float64,2}}()
+    members = Dict{String,Array{String,1}}()
+    for  (cl, mtx) in zip(classes, matrices)
+        g = twoBodyParameterGroup(cl)
+        if  !haskey(summed, g)   summed[g] = zeros(size(mtx));   members[g] = String[]   end
+        summed[g]  .+= mtx
+        push!(members[g], cl)
+    end
+    groupLabels   = sort(collect(keys(summed)))
+    groupMatrices = [ summed[g]         for g in groupLabels ]
+    memberLists   = [ sort(members[g])  for g in groupLabels ]
+
+    return( (groupLabels, groupMatrices, memberLists) )
+end
+
+
+"""
+`struct  AdjustedLevels.GroupedParameter`
+    ... one fitted scaling parameter for one of the TWO Cowan families `AdjustedLevels.twoBodyParameterGroup`
+        sorts every integral class into -- the sibling of `AdjustedLevels.RadialParameter` for the grouped
+        route, carrying the member classes too so a group label is never read as a bare, unexplained name.
+
+    + groupLabel      ::String          ... which family this factor multiplies, `"Slater (F^k/G^k)"` or
+                                              `"Configuration-interaction (R^k)"` -- see
+                                              `AdjustedLevels.twoBodyParameterGroup`.
+    + value            ::Float64        ... the fitted factor itself; NOT 1.0 by construction unless this
+                                              group turned out to be exactly undetermined by the given targets.
+    + memberClasses    ::Array{String,1} ... the raw `AdjustedLevels.twoBodyParameterClass` labels folded
+                                               into this one group, e.g. `["F^0(3d,3d)", "F^2(3d,3d)", ...]`.
+"""
+struct  GroupedParameter
+    groupLabel         ::String
+    value              ::Float64
+    memberClasses       ::Array{String,1}
+end
+
+
+"""
+`struct  AdjustedLevels.FittedMultipletGrouped`
+    ... the result of `AdjustedLevels.fitGroupedParameters`. The sibling of `AdjustedLevels.FittedMultipletOrthogonal`
+        for the grouped (Slater-vs-CI) route -- a DIFFERENT type, deliberately, matching that module
+        convention, so a reader can tell at a glance which of the three class-aware routes produced a given
+        result.
+
+    + multiplet             ::ManyElectron.Multiplet         ... the single-symmetry-block multiplet from the
+                                                                    FITTED, re-diagonalized Hamiltonian.
+    + groupedParameters      ::Array{GroupedParameter,1}       ... the fitted factors, one PER FAMILY (at
+                                                                      most two), translated back to the
+                                                                      familiar language.
+    + orthogonalParameters   ::Array{OrthogonalParameter,1}     ... what was actually fit -- the orthogonal
+                                                                       directions over the (at most two)
+                                                                       grouped parameters, each with its own
+                                                                       determinacy; the sibling of
+                                                                       `FittedMultipletOrthogonal`'s own field.
+    + fitTargets             ::Array{FitTarget,1}                ... the measured levels this fit was matched
+                                                                        against.
+    + rmsDeviation           ::Float64                           ... root-mean-square deviation, fitted vs
+                                                                        measured, over the fit targets, in
+                                                                        cm^-1, from the EXACT re-diagonalized
+                                                                        spectrum (not the linearized estimate).
+    + degreesOfFreedom       ::Int64                             ... length(fitTargets) - length(groupedParameters);
+                                                                        see `FittedMultipletOrthogonal`'s own
+                                                                        field of the same name for what this
+                                                                        guards against.
+    + source                 ::String                           ... a dated citation for the measured data used.
+"""
+struct  FittedMultipletGrouped
+    multiplet               ::ManyElectron.Multiplet
+    groupedParameters         ::Array{GroupedParameter,1}
+    orthogonalParameters       ::Array{OrthogonalParameter,1}
+    fitTargets                  ::Array{FitTarget,1}
+    rmsDeviation                 ::Float64
+    degreesOfFreedom              ::Int64
+    source                        ::String
+end
+
+
+"""
+`Base.show(io::IO, fm::AdjustedLevels.FittedMultipletGrouped)`
+    ... ALWAYS prints the "fitted, not ab initio" disclosure first, exactly as the other two routes'
+        `Base.show` methods do, plus which raw classes each group actually contains. Nothing is returned.
+"""
+function  Base.show(io::IO, fm::FittedMultipletGrouped)
+    println(io, "FittedMultipletGrouped -- FITTED, NOT AB INITIO.")
+    println(io, "  source: $(fm.source)")
+    for  gp in fm.groupedParameters
+        println(io, "  grouped parameter [$(gp.groupLabel)] = $(gp.value)   " *
+                     "($(length(gp.memberClasses)) class(es): $(join(gp.memberClasses, ", ")))")
+    end
+    for  op in fm.orthogonalParameters
+        flag = op.determinacy < 1.0e-6 ? "  (UNDETERMINED by these targets)" : ""
+        println(io, "  orthogonal $(op.label): shift = $(op.value), determinacy = $(op.determinacy)$flag")
+    end
+    println(io, "  fit against $(length(fm.fitTargets)) measured level(s), rms deviation = $(fm.rmsDeviation) cm^-1")
+    println(io, "  degrees of freedom: $(fm.degreesOfFreedom)")
+    fm.degreesOfFreedom <= 0   &&
+        println(io, "  WARNING: at or under the identifiability boundary -- read each group's own determinacy " *
+                     "before trusting its value in isolation.")
+    println(io, "  multiplet: $(fm.multiplet.name), $(length(fm.multiplet.levels)) level(s)")
+end
+
+
+"""
+`struct  AdjustedLevels.FittedMultipletGroupedMultiBlock`
+    ... the result of `AdjustedLevels.fitGroupedParametersMultiBlock`: ONE shared pair of GROUP factors, fit
+        SIMULTANEOUSLY against measured levels drawn from SEVERAL symmetry blocks of the SAME basis -- the
+        grouped-route sibling of `AdjustedLevels.FittedMultipletOrthogonalMultiBlock`, and the form this
+        route is actually meant to be used in: at most two global parameters make pooling several blocks'
+        targets the easiest way in this module to reach a genuinely positive `degreesOfFreedom`.
+
+    + blocks                ::Array{FittedBlock,1}            ... one entry per symmetry block, in the order
+                                                                     given to `fitGroupedParametersMultiBlock`.
+    + groupedParameters      ::Array{GroupedParameter,1}        ... the fitted factors, GLOBAL across every
+                                                                       block -- the same family in two blocks
+                                                                       is the SAME parameter, not two
+                                                                       independent ones.
+    + orthogonalParameters   ::Array{OrthogonalParameter,1}      ... the orthogonal breakdown of the GLOBAL
+                                                                        (at most two-dimensional) parameter
+                                                                        space, read at the converged point,
+                                                                        over EVERY target in EVERY block
+                                                                        together.
+    + rmsDeviation            ::Float64                           ... root-mean-square deviation over every
+                                                                         target in every block together, in
+                                                                         cm^-1.
+    + degreesOfFreedom        ::Int64                             ... total targets (all blocks) minus the
+                                                                         number of GLOBAL groups (at most two)
+                                                                         -- see `FittedMultipletOrthogonal`'s
+                                                                         own field of the same name.
+    + source                  ::String                            ... a dated citation for the measured data.
+"""
+struct  FittedMultipletGroupedMultiBlock
+    blocks                 ::Array{FittedBlock,1}
+    groupedParameters        ::Array{GroupedParameter,1}
+    orthogonalParameters      ::Array{OrthogonalParameter,1}
+    rmsDeviation                ::Float64
+    degreesOfFreedom             ::Int64
+    source                       ::String
+end
+
+
+"""
+`Base.show(io::IO, fm::AdjustedLevels.FittedMultipletGroupedMultiBlock)`
+    ... ALWAYS prints the "fitted, not ab initio" disclosure first, the GLOBAL (at most two) group factors,
+        the overfitting-guard warning when `degreesOfFreedom <= 0`, and then each block's own share of the
+        fit. Nothing is returned.
+"""
+function  Base.show(io::IO, fm::FittedMultipletGroupedMultiBlock)
+    println(io, "FittedMultipletGroupedMultiBlock -- FITTED, NOT AB INITIO.")
+    println(io, "  source: $(fm.source)")
+    for  gp in fm.groupedParameters
+        println(io, "  grouped parameter [$(gp.groupLabel)] = $(gp.value)  (shared across every block below)   " *
+                     "($(length(gp.memberClasses)) class(es): $(join(gp.memberClasses, ", ")))")
+    end
+    for  op in fm.orthogonalParameters
+        flag = op.determinacy < 1.0e-6 ? "  (UNDETERMINED by these targets)" : ""
+        println(io, "  orthogonal $(op.label): shift = $(op.value), determinacy = $(op.determinacy)$flag")
+    end
+    nTargetsTotal = sum( length(b.fitTargets) for b in fm.blocks )
+    println(io, "  fit against $(nTargetsTotal) measured level(s) across $(length(fm.blocks)) block(s), " *
+                 "rms deviation = $(fm.rmsDeviation) cm^-1")
+    println(io, "  degrees of freedom: $(fm.degreesOfFreedom)")
+    fm.degreesOfFreedom <= 0   &&
+        println(io, "  WARNING: at or under the identifiability boundary -- read each group's own determinacy " *
+                     "before trusting its value in isolation.")
+    for  b in fm.blocks
+        println(io, "  block $(b.sym): $(length(b.fitTargets)) target(s), $(length(b.multiplet.levels)) level(s)")
+    end
+end
+
+
+"""
+`AdjustedLevels.fitGroupedParametersMultiBlock(blocks::Array{Tuple{LevelSymmetry,Array{Tuple{Int64,Float64},1}},1},
+                                                 basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, source::String;
+                                                 determinacyThreshold::Float64=1.0e-6, maxIterations::Int64=20,
+                                                 tolerance::Float64=1.0e-6)`
+    ... the grouped-route sibling of `AdjustedLevels.fitOrthogonalParametersMultiBlock`: instead of one
+        parameter PER Cowan class (routinely more classes than any realistic set of measured levels can
+        determine once a correlating configuration is present), this fits exactly ONE parameter per Cowan
+        FAMILY -- `AdjustedLevels.twoBodyParameterGroup`'s "Slater (F^k/G^k)" and "Configuration-interaction
+        (R^k)" -- SIMULTANEOUSLY against targets drawn from SEVERAL symmetry blocks of the SAME `basis`, same
+        calling convention as `fitOrthogonalParametersMultiBlock`. Each block's classes are folded into its
+        (at most two) group matrices via `AdjustedLevels.groupParameterMatrices` BEFORE the global class list
+        is built, so the Gauss-Newton solve below never sees more than two unknowns regardless of how rich
+        the correlating configuration's own class list is. The iteration is otherwise the SAME Gauss-Newton +
+        SVD scheme `fitOrthogonalParametersMultiBlock` uses (warm-started from the single uniform factor
+        minimizing the combined rms over every block, the best iterate tracked rather than trusting the last
+        one), just over the grouped matrices. A fm::AdjustedLevels.FittedMultipletGroupedMultiBlock is
+        returned.
+"""
+function  fitGroupedParametersMultiBlock(blocks::Array{Tuple{LevelSymmetry,Array{Tuple{Int64,Float64},1}},1},
+                                           basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, source::String;
+                                           determinacyThreshold::Float64=1.0e-6, maxIterations::Int64=20,
+                                           tolerance::Float64=1.0e-6)
+    isempty(blocks)   &&   error("AdjustedLevels.fitGroupedParametersMultiBlock(): need at least one block.")
+    auPerKayser = 1.0 / Defaults.convertUnits("energy: from atomic to Kayser", 1.0)
+    nBlocks = length(blocks)
+
+    idxCsfB   = Vector{Array{Int64,1}}(undef, nBlocks)
+    oneBodyB  = Vector{Array{Float64,2}}(undef, nBlocks)
+    groupsB   = Vector{Array{String,1}}(undef, nBlocks)
+    matricesB = Vector{Array{Array{Float64,2},1}}(undef, nBlocks)
+    membersB  = Vector{Array{Array{String,1},1}}(undef, nBlocks)
+    for  ib = 1:nBlocks
+        sym, _ = blocks[ib]
+        idxCsfB[ib], oneBodyB[ib], rawClasses, rawMatrices = buildParameterMatrices(sym, basis, nm, grid)
+        groupsB[ib], matricesB[ib], membersB[ib] = groupParameterMatrices(rawClasses, rawMatrices)
+    end
+
+    globalGroups = sort(unique(vcat(groupsB...)))
+    nParam = length(globalGroups)
+    nParam == 0   &&
+        error("AdjustedLevels.fitGroupedParametersMultiBlock(): no two-body (Coulomb) contributions were found in any block.")
+    groupIndex = Dict{String,Int64}( g => k for (k,g) in enumerate(globalGroups) )
+
+    globalMemberLists = [ String[] for _ = 1:nParam ]
+    for  ib = 1:nBlocks
+        for  (loc, g) in enumerate(groupsB[ib])   append!(globalMemberLists[groupIndex[g]], membersB[ib][loc])   end
+    end
+    globalMemberLists = [ sort(unique(ml)) for ml in globalMemberLists ]
+
+    # Each block's own (at most two) group matrices, reindexed onto the GLOBAL group list; a group absent
+    # from a block simply has no entry here (equivalent to a zero column for that block in the Jacobian).
+    globalMatricesB = Vector{Dict{Int64,Array{Float64,2}}}(undef, nBlocks)
+    for  ib = 1:nBlocks
+        d = Dict{Int64,Array{Float64,2}}()
+        for  (loc, g) in enumerate(groupsB[ib])   d[groupIndex[g]] = matricesB[ib][loc]   end
+        globalMatricesB[ib] = d
+    end
+
+    nTargetsTotal = sum( length(blocks[ib][2]) for ib = 1:nBlocks )
+
+    function  rmsAtUniformAll(c::Float64)
+        s = 0.0
+        for  ib = 1:nBlocks
+            total = copy(oneBodyB[ib]);   for  mtx in matricesB[ib]   total .+= c .* mtx   end
+            eig = Hamiltonian.diagonalizeCiMatrix(total, LevelSelection())
+            rel = (sort(eig.values) .- sort(eig.values)[1]) ./ auPerKayser
+            for  (idx, measured) in blocks[ib][2]   s = s + (rel[idx] - measured)^2   end
+        end
+        return( sqrt(s/nTargetsTotal) )
+    end
+    cUniform, _ = goldenSectionMinimize(rmsAtUniformAll, 0.5, 1.5)
+
+    # Diagonalize EVERY block at a GIVEN parameter vector, once, returning everything a caller could need:
+    # the per-block eigensystems (for the Jacobian) and the combined rms over every block's own targets --
+    # used for the warm start, the per-iteration Jacobian build, AND the backtracking line search below, so
+    # "evaluate the fit at this cVec" has exactly one implementation.
+    function  evaluateAtVec(cv::Array{Float64,1})
+        eigB = Vector{Any}(undef, nBlocks);   orderB = Vector{Any}(undef, nBlocks)
+        relB = Vector{Array{Float64,1}}(undef, nBlocks);   s = 0.0
+        for  ib = 1:nBlocks
+            total = copy(oneBodyB[ib])
+            for  (gIdx, mtx) in globalMatricesB[ib]   total .+= cv[gIdx] .* mtx   end
+            eig   = Hamiltonian.diagonalizeCiMatrix(total, LevelSelection())
+            order = sortperm(eig.values)
+            relKayser = (eig.values[order] .- eig.values[order][1]) ./ auPerKayser
+            eigB[ib] = eig;   orderB[ib] = order;   relB[ib] = relKayser
+            for  (idx, measured) in blocks[ib][2]   s = s + (relKayser[idx] - measured)^2   end
+        end
+        return( (eigB, orderB, relB, sqrt(s/nTargetsTotal)) )
+    end
+
+    cVec = fill(cUniform, nParam)
+    eigB, orderB, relB, rmsNow = evaluateAtVec(cVec)
+    bestCVec = copy(cVec);   bestRms = rmsNow
+    bestEigB = eigB;   bestOrderB = orderB;   bestRelB = relB
+
+    for  iteration = 1:maxIterations
+        J        = zeros(Float64, nTargetsTotal, nParam)
+        residual = zeros(Float64, nTargetsTotal)
+        row = 0
+        for  ib = 1:nBlocks
+            for  (idx, measured) in blocks[ib][2]
+                row += 1
+                vec = eigB[ib].vectors[orderB[ib][idx]]
+                for  (gIdx, mtx) in globalMatricesB[ib]   J[row, gIdx] = (vec' * Symmetric(mtx) * vec) / auPerKayser   end
+                residual[row] = measured - relB[ib][idx]
+            end
+        end
+
+        F    = svd(J)
+        sMax = isempty(F.S) ? 0.0 : maximum(F.S)
+        deltaC = zeros(Float64, nParam)
+        for  k = 1:length(F.S)
+            F.S[k] <= determinacyThreshold * max(sMax, 1.0)   &&   continue
+            deltaC .+= ( (F.U[:,k]' * residual) / F.S[k] ) .* F.V[:,k]
+        end
+        all(deltaC .== 0.0)   &&   break   # the Jacobian has nothing left to say; stop rather than loop idle
+
+        # BACKTRACKING LINE SEARCH, added for this (at-most-two-parameter) route because an UNDAMPED full
+        # Gauss-Newton step was MEASURED to overshoot and then OSCILLATE on a real correlated basis (Ti III
+        # 3d^2+3p^4.3d^4, pooled J=0+2+4: rms 377.9 -> 964.4 -> 395.4 -> 790.2 cm^-1 ... never settling) --
+        # worse than the per-class route's own documented "stall" near its 30%-per-class validity edge, this
+        # genuinely diverged. Halving the step is the standard remedy and costs only re-diagonalizations
+        # (already the dominant cost here, with at most two parameters to search over).
+        step = 1.0;   trialVec = cVec .+ step .* deltaC
+        trialEigB, trialOrderB, trialRelB, trialRms = evaluateAtVec(trialVec)
+        nHalvings = 0
+        while  trialRms >= rmsNow  &&  nHalvings < 10
+            step = step / 2;   trialVec = cVec .+ step .* deltaC
+            trialEigB, trialOrderB, trialRelB, trialRms = evaluateAtVec(trialVec);   nHalvings += 1
+        end
+        ( trialRms >= rmsNow   &&   nHalvings >= 10 )   &&   break   # no improving step found at all; stop here
+
+        if  trialRms < bestRms
+            bestRms = trialRms;   bestCVec = copy(trialVec)
+            bestEigB = trialEigB;   bestOrderB = trialOrderB;   bestRelB = trialRelB
+        end
+        converged = abs(rmsNow - trialRms) < tolerance * max(rmsNow, 1.0)
+        cVec = trialVec;   eigB = trialEigB;   orderB = trialOrderB;   relB = trialRelB;   rmsNow = trialRms
+        converged   &&   break
+    end
+
+    cVec = bestCVec;   eigB = bestEigB;   orderB = bestOrderB;   relB = bestRelB
+    rmsBest = bestRms
+    groupedParameters = [ GroupedParameter(globalGroups[p], cVec[p], globalMemberLists[p]) for p = 1:nParam ]
+
+    Jfinal = zeros(Float64, nTargetsTotal, nParam);   residualFinal = zeros(Float64, nTargetsTotal);   row = 0
+    for  ib = 1:nBlocks
+        for  (idx, measured) in blocks[ib][2]
+            row += 1
+            vec = eigB[ib].vectors[orderB[ib][idx]]
+            for  (gIdx, mtx) in globalMatricesB[ib]   Jfinal[row, gIdx] = (vec' * Symmetric(mtx) * vec) / auPerKayser   end
+            residualFinal[row] = measured - relB[ib][idx]
+        end
+    end
+    Ffinal = svd(Jfinal)
+    totalShift = cVec .- ones(nParam)
+    orthogonalParameters = OrthogonalParameter[]
+    for  k = 1:length(Ffinal.S)
+        composition = [ (globalGroups[p], Ffinal.V[p,k]) for p = 1:nParam ]
+        push!( orthogonalParameters, OrthogonalParameter("mode $k", dot(Ffinal.V[:,k], totalShift), composition, Ffinal.S[k]) )
+    end
+
+    fittedBlocks = FittedBlock[]
+    for  ib = 1:nBlocks
+        sym, targets = blocks[ib]
+        levels = Level[]
+        for  (pos, ev) in enumerate(orderB[ib])
+            vector = zeros( length(basis.csfs) );   ns = 0
+            for  r = 1:length(basis.csfs)
+                if  LevelSymmetry(basis.csfs[r].J, basis.csfs[r].parity) == sym    ns = ns + 1;   vector[r] = eigB[ib].vectors[ev][ns]   end
+            end
+            push!( levels, Level(sym.J, AngularM64(sym.J.num//sym.J.den), sym.parity, pos, eigB[ib].values[orderB[ib][pos]], 0., true, basis, vector) )
+        end
+        fitTargets = [ FitTarget(idx, measured, relB[ib][idx]) for (idx, measured) in targets ]
+        push!( fittedBlocks, FittedBlock(sym, Multiplet(string(sym)*"+ (fitted, grouped)", levels), fitTargets) )
+    end
+
+    return( FittedMultipletGroupedMultiBlock(fittedBlocks, groupedParameters, orthogonalParameters,
+                                               rmsBest, nTargetsTotal - nParam, source) )
+end
+
+
+"""
+`AdjustedLevels.fitGroupedParameters(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::Radial.Grid,
+                                       targets::Array{Tuple{Int64,Float64},1}, source::String;
+                                       determinacyThreshold::Float64=1.0e-6, maxIterations::Int64=20,
+                                       tolerance::Float64=1.0e-6)`
+    ... the single-block form of `AdjustedLevels.fitGroupedParametersMultiBlock`, for a caller who only has
+        targets from ONE symmetry block -- a thin wrapper calling the multi-block route with exactly one
+        block and unwrapping its result, so the Gauss-Newton mechanics exist in exactly one place. Same
+        `targets` convention as `AdjustedLevels.fitScaleFactor`. A fm::AdjustedLevels.FittedMultipletGrouped
+        is returned.
+"""
+function  fitGroupedParameters(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::Radial.Grid,
+                                 targets::Array{Tuple{Int64,Float64},1}, source::String;
+                                 determinacyThreshold::Float64=1.0e-6, maxIterations::Int64=20,
+                                 tolerance::Float64=1.0e-6)
+    isempty(targets)   &&   error("AdjustedLevels.fitGroupedParameters(): need at least one target level to fit against.")
+    fmMulti = fitGroupedParametersMultiBlock([(sym, targets)], basis, nm, grid, source;
+                 determinacyThreshold=determinacyThreshold, maxIterations=maxIterations, tolerance=tolerance)
+    b = fmMulti.blocks[1]
+
+    return( FittedMultipletGrouped(b.multiplet, fmMulti.groupedParameters, fmMulti.orthogonalParameters,
+                                     b.fitTargets, fmMulti.rmsDeviation, fmMulti.degreesOfFreedom, fmMulti.source) )
+end
+
+
+"""
+`AdjustedLevels.mergeIntoMultiplet(fm::AdjustedLevels.FittedMultipletGrouped, abInitioMultiplet::ManyElectron.Multiplet)`
+    ... the grouped-route form of `mergeIntoMultiplet(::FittedMultipletOrthogonal, ...)`: `fm`'s own symmetry
+        block replaces the matching block of `abInitioMultiplet`, every other block is kept unchanged, and
+        the result is re-sorted by energy. A mp::ManyElectron.Multiplet is returned.
+"""
+function  mergeIntoMultiplet(fm::FittedMultipletGrouped, abInitioMultiplet::ManyElectron.Multiplet)
+    isempty(fm.multiplet.levels)   &&   error("AdjustedLevels.mergeIntoMultiplet(): the FittedMultipletGrouped has no levels.")
+    sym = LevelSymmetry(fm.multiplet.levels[1].J, fm.multiplet.levels[1].parity)
+    otherLevels = [lev for lev in abInitioMultiplet.levels if LevelSymmetry(lev.J, lev.parity) != sym]
+
+    length(otherLevels) + length(fm.multiplet.levels) != length(abInitioMultiplet.levels)   &&
+        error("AdjustedLevels.mergeIntoMultiplet(): the FittedMultipletGrouped's block has a different number of levels than " *
+              "the matching block in abInitioMultiplet -- they must come from the same Basis.")
+
+    allLevels = vcat(otherLevels, fm.multiplet.levels)
+    mp = Multiplet(abInitioMultiplet.name * "+fitted", allLevels)
+
+    return( Basics.sortByEnergy(mp) )
+end
+
+
+"""
+`AdjustedLevels.mergeIntoMultiplet(fm::AdjustedLevels.FittedMultipletGroupedMultiBlock, abInitioMultiplet::ManyElectron.Multiplet)`
+    ... the grouped-route form of `mergeIntoMultiplet(::FittedMultipletOrthogonalMultiBlock, ...)`: EVERY
+        block carried by `fm` replaces its own matching block of `abInitioMultiplet` in one call, every
+        OTHER symmetry block is kept unchanged, and the result is re-sorted by energy. A
+        mp::ManyElectron.Multiplet is returned.
+"""
+function  mergeIntoMultiplet(fm::FittedMultipletGroupedMultiBlock, abInitioMultiplet::ManyElectron.Multiplet)
+    isempty(fm.blocks)   &&   error("AdjustedLevels.mergeIntoMultiplet(): the FittedMultipletGroupedMultiBlock has no blocks.")
+    syms = [ b.sym for b in fm.blocks ]
+    length(unique(syms)) == length(syms)   ||
+        error("AdjustedLevels.mergeIntoMultiplet(): the FittedMultipletGroupedMultiBlock carries the same symmetry block twice.")
+
+    otherLevels  = [ lev for lev in abInitioMultiplet.levels if !(LevelSymmetry(lev.J, lev.parity) in syms) ]
+    fittedLevels = vcat( [ b.multiplet.levels for b in fm.blocks ]... )
+
+    length(otherLevels) + length(fittedLevels) != length(abInitioMultiplet.levels)   &&
+        error("AdjustedLevels.mergeIntoMultiplet(): the FittedMultipletGroupedMultiBlock's blocks do not account for " *
+              "exactly the levels of the matching blocks in abInitioMultiplet -- they must come from the same Basis.")
+
+    mp = Multiplet(abInitioMultiplet.name * "+fitted", vcat(otherLevels, fittedLevels))
+
+    return( Basics.sortByEnergy(mp) )
+end

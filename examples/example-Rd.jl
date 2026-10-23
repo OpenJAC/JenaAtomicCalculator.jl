@@ -270,7 +270,7 @@ elseif  false
     @printf(">>> degrees of freedom = %d   (negative -- read this result through 'determinacy', not in isolation)\n",
             fmOrthoE.degreesOfFreedom)
     #
-elseif  true
+elseif  false
     # Last successful:  21-Oct-2026   ## pooled J=2+J=4, SAME 10 global classes, 4 targets, degreesOfFreedom
     #                                    improves from -8 (either block alone) to -6; combined orthogonal rms
     #                                    = 125.2 cm^-1, still far below the unscaled ab initio residual.
@@ -320,5 +320,106 @@ elseif  true
     @printf(">>> degrees of freedom = %d   (improved from Branch e's -8 by pooling, still negative)\n",
             fmMulti.degreesOfFreedom)
     println(">>> source: NIST ASD (L3974), Pr IV 4f2 J=2 and J=4 together")
+    #
+elseif  true
+    # Last successful:  23-Oct-2026   ## V III 3d3, CORRELATED (3p^4.3d^5) + GROUPED (Slater-vs-CI) route,
+    #                                    13 targets across 5 pooled blocks, 2 shared classes, rms = 278.5
+    #                                    cm^-1 at degreesOfFreedom = +11 -- the first genuinely OVER-
+    #                                    DETERMINED fit on an open d/f-shell ion this file has produced;
+    #                                    see the branch's own text for what this closes and what it does not.
+    #
+    # Branch g: priority item 91 -- "a strong open d/f-shell case where AdjustedLevels' fit still measurably
+    #   helps". Branch d/e/f (Pr IV 4f^2) never reached degreesOfFreedom >= 0: a bare 2-electron open shell
+    #   has only 2-4 usable targets (most J-blocks of a 2-electron configuration hold just ONE level, which
+    #   carries no internal splitting to fit), well short of the 7-10 Cowan classes relativistic j-splitting
+    #   already demands. TWO things close that gap here, together -- neither alone was enough:
+    #
+    #   (1) A RICHER REFERENCE CONFIGURATION, same Cowan class count, many more targets. V III (V^2+, Z=23)
+    #       is PURE 3d^3 (NIST ASD, fetched 23-Oct-2026: all levels below 27847 cm^-1, the next configuration
+    #       3d^2.4s starting only at 43942 cm^-1 -- a clean, well-isolated reference). Three equivalent d
+    #       electrons give EIGHT LS terms across FIVE usable J-blocks (J=1/2,3/2,5/2,7/2,9/2 -- J=11/2 holds
+    #       only one level and contributes no target), 13 independent measured splittings in total, against
+    #       the SAME 7 Cowan classes a bare 3d^2 needs. Bare 3d^3, fully class-separated and pooled across all
+    #       five blocks: rms = 562.3 cm^-1 at degreesOfFreedom = +6 -- already the first well-determined
+    #       number in this file's history, but still far from convincing.
+    #
+    #   (2) REAL CORRELATION, added BEFORE any Cowan adjustment, not after -- the maintainer's own point,
+    #       21/22-Oct-2026: a single bare configuration is not where GRASP-style work would stop. The
+    #       mechanism matching Branch c's successful 2p^4 admixture for C I is CORE POLARIZATION: a DOUBLE
+    #       excitation of the closed 3p SHELL into the open 3d one, `[Ne] 3s^2 3p^4 3d^5`, parity-preserving
+    #       (two p->d promotions, Delta-l = +2) and NOT the same thing as the valence-virtual excitations
+    #       (3d->4d, 3d->4s) tried first and MEASURED to make a lighter test case (Ti III 3d^2) WORSE, not
+    #       better -- those only let the 3d orbital relax, while the core-valence double excitation supplies
+    #       the screening the ab initio splitting was actually missing (Ti III 3d^2 ratios ab-initio/NIST:
+    #       27.4%/22.7% too high bare, 20.5%/20.7% with this correlation -- nearly uniform, not merely smaller).
+    #
+    #   ONE MORE STEP WAS NEEDED, found only by actually testing it: a correlating configuration with its own
+    #   rich internal structure (3d^5 here, 3d^4 for Ti III) brings enough new CSFs (115 for this block alone)
+    #   that picking "the Nth-lowest energy" can land on an INTRUDER state of the CORRELATING configuration's
+    #   OWN character rather than the physically intended level -- invisible unless checked. Every target
+    #   below is therefore picked by `AdjustedLevels.identifyReferenceLevels`, which weighs each level's CI
+    #   eigenvector against the BARE 3d^3 CSFs (the same idea as NIST's own "leading percentages" column) and
+    #   only accepts levels above 50%; every one found here sits at 98%+, confirmed, not assumed.
+    #
+    #   AND THE FULLY CLASS-SEPARATED ROUTE (`fitOrthogonalParametersMultiBlock`) IS NOT THE RIGHT TOOL ONCE A
+    #   SECOND CONFIGURATION IS PRESENT: it then finds 20 classes (the cross-configuration R^k terms alone add
+    #   13), hopelessly underdetermined against 13 targets. `AdjustedLevels.fitGroupedParametersMultiBlock`
+    #   (new this session) is the physically-motivated middle ground: ONE parameter for every Slater
+    #   (F^k/G^k) class and ONE for every configuration-interaction (R^k) class, matching published Cowan-
+    #   code practice of scaling those two families by DIFFERENT empirical factors rather than conflating
+    #   them -- and it needed its OWN fix along the way: an undamped Gauss-Newton step on this real,
+    #   correlated data was MEASURED to overshoot and then oscillate (377.9 -> 964.4 -> 395.4 -> 790.2 cm^-1,
+    #   never settling) on a simpler, two-block rehearsal of this same idea, so the route now backtracks
+    #   (halves the step) whenever a full step fails to improve, exactly the fix that gets it to a genuine,
+    #   stable minimum here.
+    #
+    #   THE HONEST READING. degreesOfFreedom = +11 is comfortably over-determined -- the first such result in
+    #   this file for ANY open d/f-shell ion -- and the per-target residuals (66 to 574 cm^-1, individually
+    #   checked, no single runaway outlier) are the signature of a genuine least-squares fit, not curve-
+    #   fitting flexibility. But 278.5 cm^-1 is NOT inside the "rms < 10...100 cm^-1" absolute bar item 91
+    #   itself quoted -- against splittings spanning tens of thousands of cm^-1, that is close to 1%
+    #   RELATIVE accuracy, squarely in line with real published Cowan-code fits, but not the originally-
+    #   imagined absolute number. The maintainer judged this the right point to close the item on 23-Oct-2026:
+    #   the capability (a genuinely well-determined, physically-grouped, correlated RCE-style fit) is real and
+    #   demonstrated; the specific absolute-cm^-1 target was closer to a hope than a measured, reachable bar
+    #   for raw term-splitting data at this energy scale.
+    #
+    # NIST ASD V III (physics.nist.gov ASD levels query, fetched 23-Oct-2026): pure 3d^3 configuration.
+    ni      = Nuclear.Model(23.)
+    configs = [Configuration("[Ne] 3s^2 3p^6 3d^3"), Configuration("[Ne] 3s^2 3p^4 3d^5")]
+    grid    = Basics.recommendedGrid(configs, ni)
+    asfSettings = AsfSettings()
+    wb    = SelfConsistent.performSCF(configs, ni, grid, asfSettings; printout=false)
+    basis = wb.levels[1].basis
+    refShells = [(3,2,3)]                                         ## bare 3d^3 reference, for identifyReferenceLevels
+
+    nist12 = [11513.8, 15579.8]                                   ## a4P, a2P
+    nist32 = [0.0, 11591.8, 15550.3, 16330.5, 42371.2]             ## a4F, a4P, a2P, a2D2, b2D1
+    nist52 = [145.5, 11769.7, 16374.7, 27846.8, 42267.4]           ## a4F, a4P, a2D2, a2F, b2D1
+    nist72 = [341.5, 11966.3, 27727.8]                             ## a4F, a2G, a2F
+    nist92 = [583.8, 12187.0, 16810.9]                             ## a4F, a2G, a2H
+
+    function  identifyBlock(Jrat, nist)
+        sym = LevelSymmetry(AngularJ64(Jrat), Basics.plus)
+        globalIdx, weights = AdjustedLevels.identifyReferenceLevels(sym, basis, ni, grid, refShells, length(nist))
+        nistRel = nist .- nist[1]
+        targets = [ (globalIdx[i], nistRel[i]) for i = 2:length(nist) ]
+        return( (sym, targets) )
+    end
+
+    blocks = [ identifyBlock(1//2, nist12), identifyBlock(3//2, nist32), identifyBlock(5//2, nist52),
+               identifyBlock(7//2, nist72), identifyBlock(9//2, nist92) ]
+
+    fmGrouped = AdjustedLevels.fitGroupedParametersMultiBlock(blocks, basis, ni, grid,
+                      "NIST ASD V III (fetched 23-Oct-2026): 3d3, J=1/2,3/2,5/2,7/2,9/2 pooled, " *
+                      "correlated with [Ne] 3s2 3p4 3d5")
+    println(fmGrouped)
+
+    @printf("\n>>> GROUPED, CORRELATED pooled rms = %8.1f cm^-1  across %d block(s), %d target(s), %d GLOBAL group(s)\n",
+            fmGrouped.rmsDeviation, length(fmGrouped.blocks), sum(length(b.fitTargets) for b in fmGrouped.blocks),
+            length(fmGrouped.groupedParameters))
+    @printf(">>> degrees of freedom = %d   (the first OVER-determined fit this file has produced for an open d/f-shell ion)\n",
+            fmGrouped.degreesOfFreedom)
+    println(">>> source: NIST ASD, V III 3d3, fetched 23-Oct-2026, correlated with [Ne] 3s2 3p4 3d5 (core polarization)")
     #
 end

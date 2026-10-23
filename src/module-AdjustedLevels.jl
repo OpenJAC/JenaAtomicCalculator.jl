@@ -18,7 +18,7 @@ using Printf
         already is. No process module depends on this one, nor is this one depended on by any of them --
         the same one-way relationship every module built tonight keeps.
 
-        THREE ROUTES, SELECTED BY WHICH FUNCTION YOU CALL -- never by a flag, the same discipline
+        FOUR ROUTES, SELECTED BY WHICH FUNCTION YOU CALL -- never by a flag, the same discipline
         `Hamiltonian.performCI`/`performCIwithFrozenOrbitals`/`performCIKinkAware` already use for choosing
         an algorithm by name. `fitScaleFactor` (this file) fits exactly ONE factor for the WHOLE two-body
         Coulomb matrix element, uniformly across every rank and every pair of orbitals -- the crudest version
@@ -34,12 +34,21 @@ using Printf
         targets drawn from SEVERAL symmetry blocks of the same basis -- since a class such as `F^2(4f,4f)` is
         the same physical radial integral in every block it appears in, this is what turns a borderline,
         exactly-determined per-block fit into a comfortably over-determined one, which is the standard RCE
-        practice this module was missing before. A caller who only needs the simple route never has to know
-        the others exist; the return TYPE (`FittedMultiplet`, `FittedMultipletOrthogonal`, or
-        `FittedMultipletOrthogonalMultiBlock`) says which one produced a given result, and each carries a
-        `degreesOfFreedom` field (the orthogonal routes only) that is this module's overfitting guard --
-        fitted values from a result at or under zero degrees of freedom should be read through their own
-        per-class `determinacy`, not quoted in isolation.
+        practice this module was missing before. `fitGroupedParameters`/`fitGroupedParametersMultiBlock`
+        (`module-AdjustedLevels-inc-orthogonal.jl`) are the fourth route, added once a CORRELATING
+        configuration is present: the fully class-separated route routinely finds far more classes than any
+        realistic set of measured levels can determine (measured: 20 classes against 2-13 targets for a
+        correlated open d/f-shell block, see priority item 91), so this route instead fits exactly ONE
+        parameter per `AdjustedLevels.twoBodyParameterGroup` family -- Slater (F^k/G^k) against
+        configuration-interaction (R^k) -- matching published Cowan-code practice of scaling those two
+        families by DIFFERENT empirical factors (typically ~0.85 and ~0.70) rather than conflating them under
+        one number, the physically-motivated middle ground between the first and the third route. A caller
+        who only needs the simple route never has to know the others exist; the return TYPE
+        (`FittedMultiplet`, `FittedMultipletOrthogonal`, `FittedMultipletOrthogonalMultiBlock`,
+        `FittedMultipletGrouped`, or `FittedMultipletGroupedMultiBlock`) says which one produced a given
+        result, and each class-aware route carries a `degreesOfFreedom` field that is this module's
+        overfitting guard -- fitted values from a result at or under zero degrees of freedom should be read
+        through their own per-class or per-group `determinacy`, not quoted in isolation.
 
         Also NOT handled: the Breit interaction and QED corrections (pure Coulomb CI only -- the same
         restriction as `settings.eeInteractionCI == CoulombInteraction()`). This is a scope decision, not an
@@ -182,6 +191,84 @@ function  buildOneAndTwoBodyMatrices(sym::LevelSymmetry, basis::Basis, nm::Nucle
     end
 
     return( (idxCsf, oneBody, twoBody) )
+end
+
+
+"""
+`AdjustedLevels.shellOccupation(csf::ManyElectron.CsfR, subshells::Array{Subshell,1}, n::Int64, l::Int64)`
+    ... the total occupation `csf` carries over EVERY subshell of principal quantum number `n` and orbital
+        angular momentum `l` -- combining BOTH relativistic j-partners of one nl shell into the single
+        number a nonrelativistic shell notation (e.g. "3d") would quote. The building block
+        `AdjustedLevels.referenceLevelWeight` uses to tell whether a CSF belongs to a given reference
+        configuration. A value::Int64 is returned.
+"""
+function  shellOccupation(csf::ManyElectron.CsfR, subshells::Array{Subshell,1}, n::Int64, l::Int64)
+    total = 0
+    for  (i, sh) in enumerate(subshells)
+        if  sh.n == n  &&  Basics.subshell_l(sh) == l   total = total + csf.occupation[i]   end
+    end
+
+    return( total )
+end
+
+
+"""
+`AdjustedLevels.referenceLevelWeight(vec::Array{Float64,1}, idxCsf::Array{Int64,1}, basis::Basis,
+                                       referenceShells::Array{Tuple{Int64,Int64,Int64},1})`
+    ... the summed |coefficient|^2 of the CI eigenvector `vec` (ordered as `idxCsf` lists) over exactly the
+        CSFs whose occupation matches EVERY `(n, l, occupation)` triple in `referenceShells` -- the same
+        idea as NIST ASD's own "leading percentages" column. NEEDED once a correlating configuration is
+        present: a rich correlating configuration can put an INTRUDER state, dominantly of ITS OWN
+        character, between two levels that are physically the ones a caller wants, so a plain energy-sort
+        position can silently pick up the wrong state -- measured directly on a real case (a 2-configuration
+        J=2 block whose 3rd-lowest level is, by this weight, 99.7% the bare reference configuration, not an
+        intruder, but which had to be CHECKED rather than assumed). A value::Float64 in [0,1] is returned.
+"""
+function  referenceLevelWeight(vec::Array{Float64,1}, idxCsf::Array{Int64,1}, basis::Basis,
+                                 referenceShells::Array{Tuple{Int64,Int64,Int64},1})
+    weight = 0.0
+    for  (r, ci) in enumerate(idxCsf)
+        csf = basis.csfs[ci]
+        matches = true
+        for  (n, l, occ) in referenceShells
+            if  shellOccupation(csf, basis.subshells, n, l) != occ   matches = false;   break   end
+        end
+        matches   &&   ( weight = weight + vec[r]^2 )
+    end
+
+    return( weight )
+end
+
+
+"""
+`AdjustedLevels.identifyReferenceLevels(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::Radial.Grid,
+                                          referenceShells::Array{Tuple{Int64,Int64,Int64},1}, nLevels::Int64;
+                                          threshold::Float64=0.5)`
+    ... for `sym`'s symmetry block of a CORRELATED basis, to find the GLOBAL (energy-sorted, at the UNSCALED
+        c=1.0 Hamiltonian) indices of the `nLevels` LOWEST levels whose `AdjustedLevels.referenceLevelWeight`
+        on `referenceShells` exceeds `threshold` -- exactly the index convention `AdjustedLevels.fitScaleFactor`,
+        `fitOrthogonalParameters` and `fitGroupedParameters` (and their multi-block siblings) expect as the
+        first element of each `targets` tuple. `referenceShells` is a list of `(n, l, occupation)` triples
+        that must ALL match, e.g. `[(3,2,2)]` for a bare 3d^2 reference configuration. Use this BEFORE
+        calling any fitting route on a basis built from more than one configuration -- plain energy-sort
+        position is only safe for a bare, single-configuration basis (see `referenceLevelWeight`'s own
+        docstring for why). A (globalIndices, weights)::Tuple{Array{Int64,1},Array{Float64,1}} is returned,
+        in energy order; raises if fewer than `nLevels` reference-dominant levels are found.
+"""
+function  identifyReferenceLevels(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::Radial.Grid,
+                                    referenceShells::Array{Tuple{Int64,Int64,Int64},1}, nLevels::Int64;
+                                    threshold::Float64=0.5)
+    idxCsf, oneBody, twoBody = buildOneAndTwoBodyMatrices(sym, basis, nm, grid)
+    eig   = Hamiltonian.diagonalizeCiMatrix(oneBody .+ 1.0 .* twoBody, LevelSelection())
+    order = sortperm(eig.values)
+    weights = [ referenceLevelWeight(eig.vectors[order[i]], idxCsf, basis, referenceShells) for i = 1:length(order) ]
+    keep = findall(w -> w > threshold, weights)
+    length(keep) < nLevels   &&
+        error("AdjustedLevels.identifyReferenceLevels(): only $(length(keep)) reference-dominant level(s) found, " *
+              "need $nLevels -- widen the basis, lower threshold, or check referenceShells.")
+    chosen = keep[1:nLevels]
+
+    return( (chosen, weights[chosen]) )
 end
 
 
