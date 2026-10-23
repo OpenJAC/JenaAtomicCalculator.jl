@@ -289,8 +289,18 @@ elseif  true
     #     whole mean field <b|U_HF|a> instead of cancelling against the one-body -<b|U|a> down to the residual
     #     <b|(U_HF-U)|a>. MEASURED in an isolated clone: dropping every spectator term gives 19.0e-7, i.e. 12x
     #     TOO SMALL, so the two naive operators BRACKET the measurement 43x above and 12x below, a factor 523
-    #     apart. This branch runs HSField(), which is not self-consistent, so Brillouin does not close and that
-    #     residual is real -- neither endpoint is a legitimate approximation.
+    #     apart. Brillouin does not close on this branch and that residual is real -- neither endpoint is a
+    #     legitimate approximation. (CORRECTED 23-Oct-2026: the reason is NOT that HSField is unconverged --
+    #     it is self-consistent, scfProcedure(HSField()) = :meanFieldIteration -- but that U is not U_HF.)
+    #     AND THE RESIDUAL COLLAPSES FOR NO FIELD JAC OFFERS, which was measured rather than assumed and came
+    #     out opposite to the expectation: the junction ratio <n|H-E|i>/<n|V_ee|i> is 0.057-0.067 on HSField
+    #     and RISES to 0.130-0.141 on Basics.ALField(). The orbital overlaps <initial|Green> are 0.995-1.000
+    #     and essentially identical for the two fields, so it is not non-orthogonality between the two SCF
+    #     sets either. What the ratio measures is the OFF-DIAGONAL element of whichever mean field made the
+    #     orbitals, and Brillouin closes only for the Fock operator OF THE STATE -- which an AVERAGE-LEVEL
+    #     field is no more than a local exchange is. So the H - E term must always be carried, not treated as
+    #     a correction that a better field would remove. See tools/probeTeaJunctionOperator.jl, whose
+    #     NuclearField case returns ratio = 1.0000 exactly and is what verifies the implementation.
     #     THE LEVEL-ASSIGNMENT CLAIM BELOW IS AN ARTIFACT: JAC's 452.68 eV line is 2D and the paper's 452.67 eV
     #     line is 4S, two different transitions that happen to coincide. Aligned by TERM, JAC's splittings are
     #     3.09 and 5.20 eV against the paper's 2.62 and 4.33, which match NIST Ar IV essentially exactly -- so
