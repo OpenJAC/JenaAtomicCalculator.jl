@@ -193,7 +193,12 @@ elseif  false
     wb = perform(wa)
     #
 elseif  true
-    # Last visit:  20-Oct-2026
+    # Last visit:  23-Oct-2026   ## total 585.39e-7 a.u. over the five 3p^-3 levels (4S 180.7, 2D 266.6, 2P 138.1)
+    #   against Zitnik Table I's 228e-7 -- a factor 2.57, and NO LONGER UNIFORM across the terms (3.06/2.67/2.00).
+    #   This is the H - E junction of item 98; the V_ee total it replaces, measured earlier the same day, was
+    #   9925.871e-7, a factor 43.5 UNIFORM across the terms (42.9/46.1/40.3).  Nothing else moved: electron
+    #   energies 455.77, 452.68, 452.66, 450.59, 450.57 eV and Delta E = 9.2882/9.3773/9.4319/18.1406/18.2182 Ha
+    #   are unchanged, and the first-order amplitude is still exactly zero.
     # Last successful:  unknown ...
     #
     # FURTHER WORK ON THIS BRANCH IS DELAYED, on the maintainer's decision of 03-Sep-2026, and the reason is a
@@ -215,8 +220,8 @@ elseif  true
     # explicit CI over hundreds of levels), or a smaller system in which the series can genuinely be extended.
     # Two-to-one Auger decay of the argon double L vacancy:  Ar^2+ 2p^-2  -->  Ar^3+ 3p^-3 + e-.
     # Comparison target: Zitnik et al., Phys. Rev. A 93, 021401(R) (2016), who resolved this L_23^2 - M^3 spectrum
-    # and compared it with second-order perturbation theory. THE PAPER IS NOT YET IN HAND, so no number below is
-    # claimed to reproduce anything; this branch exists to make the TEA path produce a first, checkable amplitude.
+    # and compared it with second-order perturbation theory. The paper IS in hand (apps/papers/), and its Table I
+    # is quoted below; this branch exists to make the TEA path produce a first, checkable amplitude.
     #
     # WHY THIS IS THE RIGHT TEST OF calcTeAuger, and the only branch in this file that uses it. Counting orbital
     # occupations, initial -> final moves THREE bound electrons: two 3p electrons fill the two 2p holes and a third
@@ -266,7 +271,65 @@ elseif  true
     # merge now includes the intermediate list. That is why this feature had never produced a checked number: it
     # threw the moment anyone tried to converge it.
     #
-    #   MEASURED against Table I of Zitnik et al., which gives the decay rates w_fq directly, in 10^-7 a.u.:
+    #   MEASURED against Table I of Zitnik et al., which gives the decay rates w_fq directly, in 10^-7 a.u.
+    #   RE-MEASURED 23-Oct-2026, AND EVERY FIGURE IN THE PARAGRAPH BELOW THIS ONE IS SUPERSEDED.
+    #     Summed over the five 3p^-3 final levels:  JAC 9925.9e-7 a.u. against the paper's 228e-7, a factor 43.5
+    #     -- not 20.5. The recorded 4665.58e-7 was computed with a DEFECTIVE spin-angular coefficient and the
+    #     change is a REPAIR, not a regression: bisected to 1d05ab3b (13-Sep-2026), "A two-particle coefficient
+    #     was labelled with the wrong quadruple, and a rank went missing", where SpinAngular.twoParticleMoveOne
+    #     interchanged the direct and crossed labels WHEN TWO CSFs DIFFER BY ONE ELECTRON, so a coefficient
+    #     vanished outright. GRASP2018-validated to nine figures and carrying its own suite test. Its trigger --
+    #     a ONE-electron difference -- is exactly the <n|V|i> factor of this path and exactly NOT first-order
+    #     Auger, which is why branches b and c above reproduce bit-identically while this one doubled.
+    #     Verified both ways on 23-Oct-2026: dcf3a6d still returns 4665.585e-7, today returns 9925.871e-7.
+    #     PER FINAL TERM the excess is UNIFORM -- 4S 42.9, 2D 46.1, 2P 40.3, a spread of +-7% -- which the old
+    #     6x/18x/30x note does NOT reproduce. A truncated, strongly cancelling intermediate sum cannot give a
+    #     clean constant across three terms; a defect in the final-state-INDEPENDENT factor can. That is
+    #     PRIORITY ITEM 98: V_ee is used where H - E belongs, so the spectator direct+exchange terms return the
+    #     whole mean field <b|U_HF|a> instead of cancelling against the one-body -<b|U|a> down to the residual
+    #     <b|(U_HF-U)|a>. MEASURED in an isolated clone: dropping every spectator term gives 19.0e-7, i.e. 12x
+    #     TOO SMALL, so the two naive operators BRACKET the measurement 43x above and 12x below, a factor 523
+    #     apart. This branch runs HSField(), which is not self-consistent, so Brillouin does not close and that
+    #     residual is real -- neither endpoint is a legitimate approximation.
+    #     THE LEVEL-ASSIGNMENT CLAIM BELOW IS AN ARTIFACT: JAC's 452.68 eV line is 2D and the paper's 452.67 eV
+    #     line is 4S, two different transitions that happen to coincide. Aligned by TERM, JAC's splittings are
+    #     3.09 and 5.20 eV against the paper's 2.62 and 4.33, which match NIST Ar IV essentially exactly -- so
+    #     JAC's term splittings are 18-20% TOO LARGE and the structure side is NOT right.
+    #     AND THE CANCELLATION IS NOT "14-FOLD" but channel-dependent, from 0.4x (the terms add) to 390x for
+    #     2P_3/2, whose net sits three orders of magnitude below its own largest term.
+    #     Five of the fifteen Green levels contribute (J = 2 even): three 2p^-1 3p^-1 at Delta E = 9.29-9.43 Ha
+    #     and two 3p^-2 at 18.14-18.22 Ha. The 3p^-2 band is ~2 orders down except for 2P_1/2, where it is
+    #     within a factor 3 -- so it is not negligible either.
+    #
+    #   ITEM 98 WAS THEN BUILT AND RUN, SAME DAY, AND IT CARRIES MOST OF THE DISCREPANCY: the junction
+    #   <n| H - E |i> replaces <n| V^(e-e) |i> in AutoIonization.computeTeaAmplitude, and the total falls from
+    #   9925.87e-7 to 585.39e-7 a.u. -- A FACTOR 17 -- against the measured 228e-7, i.e. from 43.5x to 2.57x in
+    #   rate and from 6.60x to 1.60x in amplitude. The DECAY step keeps V^(e-e) deliberately: there the two states
+    #   differ in TWO orbitals, where H - E reduces to V^(e-e) identically, and the final state carries a continuum
+    #   orbital whose overlap with the bound set does not vanish, so a one-body term there would need the -E <f|n>
+    #   counterterm that is not implemented. See computeTeaAmplitude's own docstring.
+    #
+    #   THE MECHANISM IS CONFIRMED TERM BY TERM, not inferred from the total. Same partial wave, before and after:
+    #       nLevel  Delta E [Ha]  character              V^(e-e)        H - E       ratio
+    #          1      18.2182     3p^-2,  two-orbital   -1.637e-08   -2.420e-08     1.48
+    #          4      18.1406     3p^-2,  two-orbital   -1.783e-08   -2.590e-08     1.45
+    #          8       9.4319     2p^-1 3p^-1, ONE      -1.582e-07   -9.419e-09     0.060
+    #         10       9.3773     2p^-1 3p^-1, ONE      +4.524e-07   +2.596e-08     0.057
+    #         14       9.2882     2p^-1 3p^-1, ONE      -7.467e-08   -4.965e-09     0.067
+    #   The ONE-orbital junctions lose 94% -- that is the mean field that had been counted a second time after it
+    #   had already generated both orbitals. The 3p^-2 levels, which the initial state reaches by moving TWO
+    #   electrons, move only 1.46x, and only through their CI mixing with the one-orbital CSFs rather than directly.
+    #   So the correction lands exactly where the Brillouin argument says it must, and nowhere else.
+    #
+    #   TWO THINGS CHANGED CHARACTER, AND BOTH BEAR ON WHAT IS LEFT. The residual is no longer uniform --
+    #   3.06/2.67/2.00 against the old 42.9/46.1/40.3 -- so the final-state-INDEPENDENT factor that pointed at an
+    #   operator is GONE, which is what one expects of having repaired the right thing. And the sum stopped being
+    #   pathological: the largest single term is now 0.67x of the net instead of 2.4x, i.e. the terms add rather
+    #   than fight. A 2.57x residual on a bound-only intermediate sum that is still missing the continuum member of
+    #   Zitnik's Eq. (5) is the right size and the right sign for what remains absent -- BUT THAT IS THE NEXT TEST,
+    #   NOT A CONCLUSION, and 2.57x is close enough that a second, smaller error underneath it is not ruled out.
+    #
+    #   SUPERSEDED, kept so the earlier numbers can be recognised:
     #     level 1 is Ar^2+ 2p^-2 3P_2, CONFIRMED by its transition energies -- JAC gives 452.68 and 450.57 eV
     #     against the paper's 3P_2 rows at 452.67 and 450.05 eV, i.e. sub-eV. The structure side is right.
     #     Summed over the five 3p^-3 final levels:  JAC 4666e-7 a.u.  against  the paper's 228e-7 a.u.,  a factor
