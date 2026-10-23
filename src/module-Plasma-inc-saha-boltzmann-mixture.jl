@@ -393,8 +393,10 @@ function determineIpShifts(pm::Basics.AbstractPlasmaModel, temp::Float64, ni::Fl
         elseif  pm.cEK == 1.73   scek = "1.73, Ecker & Kroell's own value (the modern literature uses 1.0)"
         else                     scek = "$(pm.cEK), neither the modern 1.0 nor the paper's 1.73 -- the caller's own choice"
         end
+        qLo = minimum(ionClass.q for ionClass in isoClass.ionClasses)
         println(">> Ecker-Kroell IPD:  cEK = $scek;")
-        println("     n = $nFree, n_cr = $ncr  (qMax = $qMax)  ->  $sbranch.")
+        println("     n = $nFree, n_cr = $ncr  (qMax = $qMax)  ->  $sbranch;")
+        println("     Delta I = $(deltaIp[qLo]) .. $(deltaIp[qMax]) Hartree for q = $qLo .. $qMax.")
     else
         error("Undefined plasma model.")
     end
@@ -698,6 +700,22 @@ function  perform(scheme::Plasma.SahaBoltzmannScheme, computation::Plasma.Comput
     # Display equilibrium densities and thermodynamic properties of the given mixture
     if  scheme.printIonLevels     Plasma.displaySahaBoltzmannEquilibrium(stdout, newIsoClasses, scheme.plasmaModel)   end 
     Plasma.displayThermodynamicProperties(stdout, computation.settings.temperature, totalIonDensity, newIsoClasses)   
+    
+    # Return the COMPUTED thermodynamics and not only the inputs echoed above.  Until 23-Oct-2026 this dictionary
+    # carried the temperature, the density and the mixture -- all of them things the caller had just passed in --
+    # so a script could run a Saha-Boltzmann equilibrium through perform but could not read a single result of it
+    # without parsing the printed table.  The six entries below are the same quantities
+    # Plasma.displayThermodynamicProperties prints, obtained from the same functions and the same converged
+    # isotopic classes, so the table and the dictionary cannot disagree.
+    if  output
+        ne = Plasma.computeElectronNumberDensity(computation.settings.temperature, newIsoClasses)
+        results["electron density"]  = ne
+        results["mean charge state"] = ne / totalIonDensity
+        results["pressure"]          = Plasma.pressure(computation.settings.temperature, totalIonDensity, newIsoClasses)
+        results["internal energy"]   = Plasma.internalEnergyDensity(computation.settings.temperature, totalIonDensity, newIsoClasses)
+        results["free energy"]       = Plasma.freeEnergyDensity(computation.settings.temperature, totalIonDensity, newIsoClasses)
+        results["isotope classes"]   = newIsoClasses
+    end
     
     println("\n> Saha-Boltzmann LTE computation complete ...")
     
