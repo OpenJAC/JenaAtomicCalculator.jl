@@ -6,8 +6,8 @@
 """
 module Hamiltonian
 
-using  Printf, ..Basics, ..Bsplines, ..Defaults, ..InteractionStrength, ..InteractionStrengthQED, ..ManyElectron,
-       ..Nuclear, ..Radial, ..RadialIntegrals, ..SpinAngular
+using  Printf, LinearAlgebra, ..Basics, ..Bsplines, ..Defaults, ..InteractionStrength, ..InteractionStrengthQED,
+       ..ManyElectron, ..Nuclear, ..Radial, ..RadialIntegrals, ..SpinAngular
 
 
 """
@@ -142,27 +142,43 @@ function performCI(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings:
     # radial integral, and that is retained; only the smaller cross-block reuse is given up.  With a single
     # thread the original shared cache is used unchanged, so nothing about the serial path changes.
     order = sortperm([count(c -> LevelSymmetry(c.J, c.parity) == sm, basis.csfs) for sm in symList], rev=true)
-    @sync for isym in order
-        Threads.@spawn begin
-            sym    = symList[isym]
-            xlc    = nthr == 1 ? xlCache : InteractionStrength.XLCache()
-            matrix = Hamiltonian.setupMatrix(sym, basis, nm, grid, settings, xlc;
-                                             printout=(printout && nthr == 1))
-        eigen  = Hamiltonian.diagonalizeCiMatrix(matrix, settings.levelSelectionCI)
+    # BLAS OVERSUBSCRIPTION GUARD, 25-Oct-2026.  diagonalizeCiMatrix below reaches LAPACK, which OpenBLAS runs
+    # multi-threaded by default (measured: 10 threads on a 20-logical-CPU machine) -- INDEPENDENTLY of
+    # Threads.nthreads() and NOT reduced just because Julia itself was started with more threads.  At nthr > 1
+    # several symmetry blocks can be diagonalizing AT ONCE, each spawning its OWN BLAS thread pool: up to
+    # nthr * 10 OS threads competing for however many cores the machine actually has.  Pin BLAS to one thread
+    # for the duration of this loop and restore it afterward.  The matrix CONSTRUCTION above (setupMatrix) is
+    # pure Julia and touches no BLAS, so this costs nothing there; diagonalization itself was measured
+    # 29-Aug-2026 at ~0.4 % of a Coulomb-only block's cost, so the guard is cheap insurance against contention
+    # rather than the main lever on this loop's speed.  At nthr == 1 nothing runs concurrently and BLAS is
+    # left exactly as the caller set it.
+    blasThreadsBefore = LinearAlgebra.BLAS.get_num_threads()
+    nthr > 1  &&  LinearAlgebra.BLAS.set_num_threads(1)
+    try
+        @sync for isym in order
+            Threads.@spawn begin
+                sym    = symList[isym]
+                xlc    = nthr == 1 ? xlCache : InteractionStrength.XLCache()
+                matrix = Hamiltonian.setupMatrix(sym, basis, nm, grid, settings, xlc;
+                                                 printout=(printout && nthr == 1))
+            eigen  = Hamiltonian.diagonalizeCiMatrix(matrix, settings.levelSelectionCI)
 
-        # Reassign state vectors to levels
-        levels = Level[]
-        for  ev = 1:length(eigen.values)
-            # Construct the eigenvector with regard to the given basis (not w.r.t the symmetry block)
-            evSym = eigen.vectors[ev];    vector = zeros( length(basis.csfs) );   ns = 0
-            for  r = 1:length(basis.csfs) 
-                if LevelSymmetry(basis.csfs[r].J, basis.csfs[r].parity) == sym    ns = ns + 1;   vector[r] = evSym[ns]   end
+            # Reassign state vectors to levels
+            levels = Level[]
+            for  ev = 1:length(eigen.values)
+                # Construct the eigenvector with regard to the given basis (not w.r.t the symmetry block)
+                evSym = eigen.vectors[ev];    vector = zeros( length(basis.csfs) );   ns = 0
+                for  r = 1:length(basis.csfs)
+                    if LevelSymmetry(basis.csfs[r].J, basis.csfs[r].parity) == sym    ns = ns + 1;   vector[r] = evSym[ns]   end
+                end
+                newlevel = Level( sym.J, AngularM64(sym.J.num//sym.J.den), sym.parity, 0, eigen.values[ev], 0., true, basis, vector )
+                push!( levels, newlevel)
             end
-            newlevel = Level( sym.J, AngularM64(sym.J.num//sym.J.den), sym.parity, 0, eigen.values[ev], 0., true, basis, vector ) 
-            push!( levels, newlevel)
+                blockMp[isym] = Multiplet(string(sym) * "+", levels)
+            end
         end
-            blockMp[isym] = Multiplet(string(sym) * "+", levels)
-        end
+    finally
+        nthr > 1  &&  LinearAlgebra.BLAS.set_num_threads(blasThreadsBefore)
     end
     for  mpb in blockMp
         if  mpb !== nothing     push!( multiplets, mpb)     end

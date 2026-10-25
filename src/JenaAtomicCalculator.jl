@@ -344,11 +344,26 @@ function __init__()
     # The following variables need to be initialized at runtime to enable precompilation
     global JAC_SUMMARY_IOSTREAM = stdout
     global JAC_TEST_IOSTREAM    = stdout
-end
 
-println("\nWelcome to JenaAtomicCalculator (JAC):  A community approach to the computation of atomic structures, " *
-        "cascades and time evolutions [(C) Copyright by Stephan Fritzsche, Jena (2018-2026)].")
-        
+    println("\nWelcome to JenaAtomicCalculator (JAC):  A community approach to the computation of atomic structures, " *
+            "cascades and time evolutions [(C) Copyright by Stephan Fritzsche, Jena (2018-2026)].")
+
+    # A print-only report of the threading environment JAC was started in -- step 2 of the 25-Oct-2026
+    # multi-threading analysis.  Several process modules and Hamiltonian.performCI already thread over
+    # independent work (lines, symmetry blocks), but only when Julia itself was started with more than one
+    # thread; nothing before this told a user whether that condition was met.  MUST live in __init__, not as
+    # bare top-level code: top-level statements run only once, at the precompile that CREATES the cached
+    # image, while __init__ reruns on every session that merely LOADS it -- the Welcome banner above has
+    # always had this limitation too, printing only on the session that happens to trigger precompilation.
+    # Changes no behaviour, prints three numbers (plus one conditional hint) once per session.
+    nThreads = Threads.nthreads();   nCpu = Sys.CPU_THREADS;   nBlas = LinearAlgebra.BLAS.get_num_threads()
+    println(">> threading: Julia started with $nThreads thread(s); this machine reports $nCpu logical CPUs; " *
+            "BLAS is using $nBlas thread(s).")
+    if  nThreads == 1  &&  nCpu > 1
+        println(">>   JAC's own threaded routines (CI matrix construction, process amplitude loops) are " *
+                "idle at -t 1 -- start Julia with -t N to use them.")
+    end
+end
 
 end
 
