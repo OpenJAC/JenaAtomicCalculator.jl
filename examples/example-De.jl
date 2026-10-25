@@ -331,6 +331,30 @@ elseif  true
     #   electrons, move only 1.46x, and only through their CI mixing with the one-orbital CSFs rather than directly.
     #   So the correction lands exactly where the Brillouin argument says it must, and nowhere else.
     #
+    #   MEASURED 25-Oct-2026, THREE RUNS THAT NARROW WHAT IS LEFT.  All against the experiment-anchored
+    #   251 +- 46 e-7 (Zitnik's Table I column is THEORY; their own 1D_2 branching ratio puts the experiment
+    #   at 1.10(20) times it).
+    #     * THE ORBITAL SET IS WORTH 1.67x, AND THE BETTER FIELD IS WORSE.  Basics.ALField() in place of
+    #       HSField() gives 978.23e-7 against 585.39e-7, i.e. 3.90x the anchor instead of 2.33x, and the
+    #       final-state term splittings degrade with it (3.21 / 5.37 eV against HS's 3.09 / 5.18, measured
+    #       2.62 / 4.33).  This is the trap the Basics.DFSField docstring records: the local-exchange field
+    #       "agrees better by a CANCELLATION OF ERRORS", its more diffuse orbital lowering the Slater
+    #       integrals and imitating correlation that a single-configuration calculation does not have.  So
+    #       HSField's advantage here is NOT evidence that HSField is right, and tuning the orbital set toward
+    #       agreement would be fitting an error -- note that Zitnik's own rule (take the set giving the
+    #       LARGEST rates) does not transfer, because their rates sit BELOW experiment and ours above.
+    #     * THE BOUND INTERMEDIATE SUM IS CONVERGED TO 3.4 %.  Growing the Green space from 2 configurations
+    #       (15 levels) to 4 (23, adding the 3s-hole variants 2p^5 3s 3p^6 and 2p^6 3s 3p^5) moves the total
+    #       585.39e-7 -> 565.27e-7, uniformly across the terms (-3.6 / -3.4 / -3.3 %).  Still exactly FIVE
+    #       contributing intermediates, but not the same five -- {1,4,8,10,14} becomes {1,4,12,14,18} -- so
+    #       the added configurations open NO new path and merely reweight.  THE RECORDED -8.5 % WAS TAKEN
+    #       WITH V^(e-e) and is superseded; the sum is far better conditioned now that the operator is right.
+    #     * THE SHAKE-DOWN OVERLAP POINTS THE WRONG WAY TO EXPLAIN AN EXCESS.  The cross-shell <2p|3p> between
+    #       the SCF sets gives |<2p|3p>|^2 = 4.4e-5 to 1.7e-3 against Zitnik's sudden-approximation X_SA =
+    #       2.6e-3 and the measured X = 2.2(4)e-3 -- ours is 0.65x theirs at the largest, and in that picture
+    #       the rate is PROPORTIONAL to this quantity.  Within-set orthonormality is exact (1e-16), so
+    #       matrixElement_Vee's assumption holds.  See tools/probeTeaJunctionOperator.jl.
+    #
     #   TWO THINGS CHANGED CHARACTER, AND BOTH BEAR ON WHAT IS LEFT. The residual is no longer uniform --
     #   3.06/2.67/2.00 against the old 42.9/46.1/40.3 -- so the final-state-INDEPENDENT factor that pointed at an
     #   operator is GONE, which is what one expects of having repaired the right thing. And the sum stopped being
@@ -366,6 +390,47 @@ elseif  true
                             nuclearModel    = Nuclear.Model(18.),
                             initialConfigs  =[Configuration("1s^2 2s^2 2p^4 3s^2 3p^6")], initialAsfSettings=asfSettings,
                             finalConfigs    =[Configuration("1s^2 2s^2 2p^6 3s^2 3p^3")], finalAsfSettings=asfSettings,
+                            processSettings = augerSettings )
+
+    wb = perform(wa)
+    #
+elseif  false
+    # Last visit:  25-Oct-2026   ## total first-order width 3.606288e-01 eV = 361 meV against the MEASURED
+    #   323(15) meV, i.e. 1.12x;  7 final levels, electron energies 214.56-216.61 eV
+    # Last successful:  unknown ...
+    # THE FIRST-ORDER ANCHOR FOR THE TWO-ELECTRON BRANCH ABOVE, and the reason it exists.
+    #
+    # Ordinary Auger decay of the SAME Ar^2+ 2p^-2 double L vacancy that branch (f) decays two-to-one: one 2p
+    # hole is filled from the M shell and a second M electron is ejected, 2p^-2 -> 2p^-1 3l^-2 + e-.  This is
+    # the channel that carries essentially all of the state's width, so its total IS the L23^2 linewidth.
+    #
+    # WHY IT IS WORTH A BRANCH OF ITS OWN.  Branch (f) sits a factor ~2.3 above the measured two-electron rate
+    # and the question is WHERE.  This branch answers half of it by elimination: it has NO intermediate states
+    # at all, so it is immune to the difference between our bound Green space and Zitnik's continuum one, and
+    # it exercises exactly what the second-order path INHERITS -- these orbitals, this box, this HSField, this
+    # continuum normalization, this V^(e-e), this 2*pi*|A|^2.  Everything is identical to branch (f) except
+    # the order.  Measured 25-Oct-2026: 361 meV against 323(15) meV, i.e. 1.12x.
+    #
+    #   SO THE COMMON-MODE MACHINERY IS CLEAN TO 12 %, AND BRANCH (f)'s FACTOR IS NOT IN ANYTHING THE TWO
+    #   PATHS SHARE.  For comparison, Zitnik et al.'s own Eq. (3) overshoots this same width by 40 % (~452
+    #   meV) with orbitals optimized for 2p^-2, so JAC is closer here than the published calculation.
+    #   A second anchor in the same paper, not computed here: Gamma(L_3) = 117(5) meV.
+    #
+    # It also gives branch (f) a branching ratio that needs NO anchoring assumption: 565.27e-7 / 132528e-7 =
+    # 4.3e-3 against the measured X = 2.2(4)e-3.  The initial states differ (3P_2 here, 1D_2 in the measured
+    # X), so it is indicative rather than exact -- but it corroborates the 251 +- 46 e-7 anchor independently.
+    asfSettings   = AsfSettings(AsfSettings(), scField=Basics.HSField())
+    augerSettings = AutoIonization.Settings(AutoIonization.Settings(), printBefore=true, maxAugerEnergy=1.0e6,
+                                            maxKappa=4, operator=CoulombInteraction(),
+                                            lineSelection=LineSelection(true, indexPairs=[(1,0)]) )
+    setDefaults("unit: rate", "1/s")
+
+    wa = Atomic.Computation(Atomic.Computation(), name="Ar 2p^-2 total Auger width, first order", grid=grid,
+                            nuclearModel    = Nuclear.Model(18.),
+                            initialConfigs  = [Configuration("1s^2 2s^2 2p^4 3s^2 3p^6")], initialAsfSettings=asfSettings,
+                            finalConfigs    = [Configuration("1s^2 2s^2 2p^5 3s^2 3p^4"),
+                                               Configuration("1s^2 2s^2 2p^5 3s 3p^5"),
+                                               Configuration("1s^2 2s^2 2p^5 3p^6")],   finalAsfSettings=asfSettings,
                             processSettings = augerSettings )
 
     wb = perform(wa)
