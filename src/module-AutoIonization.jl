@@ -51,6 +51,15 @@ using  Printf, ..AngularMomentum, ..Basics, ..BiOrthogonal, ..Bsplines, ..Contin
             that contribution and leaves the sum over bound intermediates (gMultiplet) alone. The two spaces are DISJOINT, since they are
             the 16- and the (15 + 1 free)-electron parts of one complete intermediate set, and they add COHERENTLY; see
             AutoIonization.computeTeaContinuumAmplitude.
+    + NoIntermediateEnergies ::Int64   
+        ... Number of quadrature points in the integral over the INTERMEDIATE electron energy, i.e. in the REGULAR part R(eps) of the
+            continuum branch; see AutoIonization.computeTeaRegularAmplitude. ZERO -- the default -- omits R(eps) entirely and leaves only
+            the delta piece, so that the field is opt-in and an existing computation is unchanged by its presence. It truncates a complete
+            set and is therefore a CONVERGENCE PARAMETER, not a tuning knob.
+    + intermediateEnergyFactor ::Float64  
+        ... Factor by which the intermediate-energy range exceeds the energetically allowed maximum. It must EXCEED ONE: an intermediate
+            state is virtual, so its energy is not restricted by energy conservation, and the on-shell pole must lie strictly INSIDE the
+            interval or there is nothing to regularize. Like the point count it is a convergence parameter.
 """
 struct Settings  <:  AbstractProcessSettings
     calcAnisotropy        ::Bool         
@@ -65,6 +74,8 @@ struct Settings  <:  AbstractProcessSettings
     operator              ::AbstractEeInteraction 
     gMultiplet            ::Multiplet      
     gCoreMultiplet        ::Multiplet      
+    NoIntermediateEnergies ::Int64
+    intermediateEnergyFactor ::Float64
 end 
 
 
@@ -72,7 +83,7 @@ end
 `AutoIonization.Settings()`  ... constructor for the default values of AutoIonization line computations.
 """
 function Settings()
-    Settings(false, false, false, false, LineSelection(), 0., 0., 10e5, 100, CoulombInteraction(), Multiplet(), Multiplet())
+    Settings(false, false, false, false, LineSelection(), 0., 0., 10e5, 100, CoulombInteraction(), Multiplet(), Multiplet(), 0, 3.)
 end
 
 
@@ -81,7 +92,8 @@ end
 
         calcAnisotropy=..,      calcTeAuger..,              calcBiorthogonal=..,    printBefore=..,
         augerEnergyShift=..,    minAugerEnergy=..,          maxAugerEnergy=..,      maxKappa=..,
-        operator=..,            gMultiplet=..,              gCoreMultiplet=.. )
+        operator=..,            gMultiplet=..,              gCoreMultiplet=..,
+        NoIntermediateEnergies=..,                          intermediateEnergyFactor=.. )
                     
     ... constructor for modifying the given AutoIonization.Settings by 'overwriting' the previously selected parameters.
 """
@@ -92,7 +104,8 @@ function Settings(set::AutoIonization.Settings;
     augerEnergyShift::Union{Nothing,Float64}=nothing,
     minAugerEnergy::Union{Nothing,Float64}=nothing,         maxAugerEnergy::Union{Nothing,Float64}=nothing,
     maxKappa::Union{Nothing,Int64}=nothing,                 operator::Union{Nothing,AbstractEeInteraction}=nothing,
-    gMultiplet::Union{Nothing,Multiplet}=nothing,           gCoreMultiplet::Union{Nothing,Multiplet}=nothing)
+    gMultiplet::Union{Nothing,Multiplet}=nothing,           gCoreMultiplet::Union{Nothing,Multiplet}=nothing,
+    NoIntermediateEnergies::Union{Nothing,Int64}=nothing,   intermediateEnergyFactor::Union{Nothing,Float64}=nothing)
 
     if  isnothing(calcAnisotropy)     calcAnisotropyx    = set.calcAnisotropy    else  calcAnisotropyx    = calcAnisotropy    end
     if  isnothing(calcTeAuger)        calcTeAugerx       = set.calcTeAuger       else  calcTeAugerx       = calcTeAuger       end
@@ -106,9 +119,12 @@ function Settings(set::AutoIonization.Settings;
     if  isnothing(operator)           operatorx          = set.operator          else  operatorx          = operator          end
     if  isnothing(gMultiplet)         gMultipletx        = set.gMultiplet        else  gMultipletx        = gMultiplet        end
     if  isnothing(gCoreMultiplet)     gCoreMultipletx    = set.gCoreMultiplet    else  gCoreMultipletx    = gCoreMultiplet    end
+    if  isnothing(NoIntermediateEnergies)     NoIntermediateEnergiesx   = set.NoIntermediateEnergies    else  NoIntermediateEnergiesx   = NoIntermediateEnergies    end
+    if  isnothing(intermediateEnergyFactor)   intermediateEnergyFactorx = set.intermediateEnergyFactor  else  intermediateEnergyFactorx = intermediateEnergyFactor  end
 
     Settings( calcAnisotropyx, calcTeAugerx, calcBiorthogonalx, printBeforex, lineSelectionx, augerEnergyShiftx,
-              minAugerEnergyx, maxAugerEnergyx, maxKappax, operatorx, gMultipletx, gCoreMultipletx)
+              minAugerEnergyx, maxAugerEnergyx, maxKappax, operatorx, gMultipletx, gCoreMultipletx,
+              NoIntermediateEnergiesx, intermediateEnergyFactorx)
 end
 
 
@@ -126,6 +142,8 @@ function Base.show(io::IO, settings::AutoIonization.Settings)
     println(io, "operator:                      $(settings.operator)  ")
     println(io, "gMultiplet.name:               $(settings.gMultiplet.name)  ")
     println(io, "gCoreMultiplet.name:           $(settings.gCoreMultiplet.name)  ")
+    println(io, "NoIntermediateEnergies:        $(settings.NoIntermediateEnergies)  ")
+    println(io, "intermediateEnergyFactor:      $(settings.intermediateEnergyFactor)  ")
 end
 
 
@@ -448,6 +466,14 @@ function computeAmplitudesProperties(line::AutoIonization.Line, nm::Nuclear.Mode
                                                                newfLevel, settings.gCoreMultiplet, newiLevel, grid, nucPot,
                                                                printout=printout)
             amplitude = amplitude + ampC
+            # The REGULAR part of the same continuum branch, in which the free electron PARTICIPATES rather than
+            # spectates. It is the other half of one exact split of the continuum step and is added coherently like
+            # the rest; settings.NoIntermediateEnergies = 0 returns zero and leaves the two pieces above alone.
+            ampR = AutoIonization.computeTeaRegularAmplitude(settings.operator, pw.kappa, phase, newcLevel,
+                                                             settings.gCoreMultiplet, newiLevel, nm, grid, nucPot, contSettings,
+                                                             settings.maxKappa, settings.NoIntermediateEnergies,
+                                                             settings.intermediateEnergyFactor, printout=printout)
+            amplitude = amplitude + ampR
         end
 
         rate = rate + conj(amplitude) * amplitude
@@ -943,6 +969,121 @@ function computeTeaContinuumAmplitude(kind::AbstractEeInteraction, kappa::Int64,
 
     if  printout
         println(">>>  Total TEA(continuum) amplitude for partial wave kappa = $kappa  = $amplitude  ")
+    end
+
+    return( amplitude )
+end
+
+
+"""
+`AutoIonization.photoDoubleIonizationModule()`
+    ... to return the PhotoDoubleIonization module::Module, whose second-order machinery -- the intermediate continuum levels and the
+        principal-value assembly -- is general rather than specific to that process and is therefore shared rather than copied.
+
+        WHY IT CANNOT SIMPLY BE NAMED. PhotoDoubleIonization is included AFTER this module in JenaAtomicCalculator.jl, so
+        `using ..PhotoDoubleIonization` at module-definition time fails. Writing the parent's own name inside a function body does not
+        work either, although it looks as though it should: a submodule does NOT see a binding for the module that encloses it, and
+        `JenaAtomicCalculator.PhotoDoubleIonization` raises an UndefVarError from here -- measured 26-Oct-2026, after exactly that form
+        had been checked from the top level, where it DOES resolve and therefore proves nothing about this scope. `parentmodule` does see
+        it, and the lookup happens at CALL time, once every include has run.
+"""
+photoDoubleIonizationModule() = getfield(parentmodule(@__MODULE__), :PhotoDoubleIonization)
+
+
+"""
+`AutoIonization.computeTeaRegularAmplitude(kind::AbstractEeInteraction, kappa::Int64, phase::Float64, finalScattLevel::Level,
+                                           gCoreMultiplet::Multiplet, initialLevel::Level, nm::Nuclear.Model, grid::Radial.Grid,
+                                           nuclearPotential::Radial.Potential, contSettings::Continuum.Settings, maxKappa::Int64,
+                                           noIntEnergies::Int64, intEnergyFactor::Float64; printout::Bool=true)`
+    ... to compute the REGULAR part R(eps) of the continuum branch of the two-electron Auger amplitude, i.e. that part in which the free
+        electron is NOT a spectator but PARTICIPATES, and to return a value::ComplexF64. It is the companion of
+        AutoIonization.computeTeaContinuumAmplitude, which carries the singular (delta) part of the very same branch, and of
+        AutoIonization.computeTeaAmplitude, which carries the bound intermediates; all three are parts of ONE second-order sum and must be
+        added. A noIntEnergies of zero -- the default -- returns zero, so R(eps) is opt-in and an existing computation is unchanged.
+
+        WHAT IT IS PHYSICALLY. Reading g_core --> f_core, a 3p electron fills the 2p hole and the free electron carries off the energy
+        released, going eps --> eps_f. That is the outgoing Auger electron scattering INELASTICALLY off the ion it has just left, and the
+        energy bookkeeping closes on itself: eps_f = eps + (E_g - E_f), so with a pole at eps* = E_i - E_g the observed electron comes out
+        at the energy the first-order calculation already predicts.
+
+        THE OPERATOR IS THE PLAIN TWO-BODY INTERACTION, AND THAT IS NOT A CHOICE. The states f = (f_core, eps_f) and g = (g_core, eps)
+        each carry one free electron beside their bound ones and differ in TWO orbitals -- the core's 3p --> 2p and the free electron's
+        eps --> eps_f. Two orbital differences are exactly where H - E reduces to V^(e-e) identically, so no junction reasoning enters
+        here; the delta piece was the one-orbital case and that is precisely why it needed H - E.
+
+        THE PHASE FACTOR BELONGS TO THE TOTAL AMPLITUDE AND IS APPLIED ONCE, at the end. The observed electron carries
+        i^l exp(-i*phase); the intermediate electron is an internal line of a sum over a COMPLETE SET OF REAL BASIS STATES and carries no
+        boundary-condition phase of its own. Each matrix element is therefore taken BARE, which is what passing kappa = -1 and phase = 0
+        to AutoIonization.amplitude achieves -- its own factor is then i^0 exp(0) = 1 exactly. In the delta piece this distinction did not
+        arise, because there eps = eps_f and the two kappas coincide, so attaching the factor to either factor of the product gave the
+        same number; here the two kappas differ and it matters.
+
+        TWO PROPERTIES OF THE QUADRATURE, BOTH LEARNED IN PhotoDoubleIonization AND NOT TO BE REDISCOVERED (priority item 33, closed
+        05-Oct-2026). A plain Gauss-Legendre sum of 1/x through a pole HAS NO LIMIT -- refining the mesh merely puts nodes nearer the
+        pole -- so the principal value is subtracted from the start rather than added once a number exists. And an intermediate state is
+        VIRTUAL, so its energy is not restricted by energy conservation: the range must extend BEYOND the energetically allowed maximum,
+        with the pole strictly inside, which is what intEnergyFactor > 1 secures.
+
+        A (core, kappa) BLOCK THAT VANISHES IS SKIPPED AFTER ONE ENERGY, not evaluated at every node. The zero is a SELECTION RULE
+        independent of eps: once the free electron's own eps --> eps_f is counted it consumes one of the two slots of a two-body operator,
+        so R(eps) reaches only cores ONE orbital away from f_core, whereas the delta piece reached every core its junction could connect.
+        The two branches therefore sample DIFFERENT core spaces and must be converged separately. Measured on argon 26-Oct-2026, 36 of 82
+        blocks were such zeros; see tools/probeTeaRegularPart.jl, where the same probe also confirms hermiticity to 3.8e-10 and that every
+        live block depends on eps.
+
+        + finalScattLevel ::Level   ... the FINAL SCATTERING state, i.e. the final ion with the observed continuum electron already
+                                        attached; it is the bra of R(eps) and is the same level the first-order amplitude uses.
+        + noIntEnergies   ::Int64   ... quadrature points over the intermediate electron energy; zero omits R(eps) altogether.
+"""
+function computeTeaRegularAmplitude(kind::AbstractEeInteraction, kappa::Int64, phase::Float64, finalScattLevel::Level,
+                                      gCoreMultiplet::Multiplet, initialLevel::Level, nm::Nuclear.Model, grid::Radial.Grid,
+                                      nuclearPotential::Radial.Potential, contSettings::Continuum.Settings, maxKappa::Int64,
+                                      noIntEnergies::Int64, intEnergyFactor::Float64; printout::Bool=true)
+    amplitude = ComplexF64(0.)
+    if  noIntEnergies <= 0  ||  length(gCoreMultiplet.levels) == 0      return( amplitude )     end
+
+    symi = LevelSymmetry(initialLevel.J, initialLevel.parity);      eni = initialLevel.energy
+
+    # The intermediate mesh. Its upper end must exceed the energetically allowed maximum so that the pole lies
+    # strictly inside the interval; both the range and the point count truncate a complete set and are therefore
+    # convergence parameters rather than settings to be left at a default.
+    eGreenMin    = minimum(lv.energy for lv in gCoreMultiplet.levels)
+    onShellEn    = eni - eGreenMin
+    if  onShellEn <= 0.                                                 return( amplitude )     end
+    intFactor    = intEnergyFactor > 1. ? intEnergyFactor : 3.
+    energyRange  = (0.01, intFactor * onShellEn)
+    energyGrid   = Radial.GridGL(Radial.GridGaussLegendreFinite(), energyRange[1], energyRange[2], noIntEnergies;
+                                 printout=false)
+
+    # The intermediate states and the principal-value assembly are general second-order machinery and are
+    # therefore shared with PhotoDoubleIonization rather than copied; see photoDoubleIonizationModule above for
+    # why that module has to be reached through `parentmodule` and cannot simply be named.
+    nLevels, nWeights, nOnShell, nBlock, nEnergy =
+        AutoIonization.photoDoubleIonizationModule().generateIntermediateLevels(symi, gCoreMultiplet, nm, grid, energyGrid,
+                                contSettings, maxKappa; nuclearPot=nuclearPotential, onShellTotalEnergy=eni)
+
+    if  printout   printstyled("Compute regular continuum-intermediate two-electron Auger amplitude for partial wave " *
+                                "kappa = $kappa over $(length(nLevels)) intermediate levels ... \n", color=:light_green)    end
+
+    numer      = zeros(ComplexF64, length(nLevels))
+    deadBlocks = Int64[]
+    for  k = 1:length(nLevels)
+        nBlock[k] in deadBlocks     &&  continue
+        rPart = AutoIonization.amplitude(kind, -1, 0., finalScattLevel, nLevels[k], grid; printout=false)
+        if  rPart == ComplexF64(0.)
+            push!(deadBlocks, nBlock[k]);       continue
+        end
+        augerAmp = AutoIonization.amplitude(kind, -1, 0., nLevels[k], initialLevel, grid; printout=false)
+        numer[k] = rPart * augerAmp
+    end
+
+    value     = AutoIonization.photoDoubleIonizationModule().assemblePrincipalValue(numer, nLevels, nWeights, nOnShell,
+                                nBlock, nEnergy, energyRange, eni, true)
+    amplitude = im^Basics.subshell_l(Subshell(101, kappa)) * exp( -im*phase ) * value
+
+    if  printout
+        println(">>>  Total TEA(regular) amplitude for partial wave kappa = $kappa  = $amplitude  " *
+                " with $(length(deadBlocks)) of $(length(unique(nBlock))) blocks closed by selection rule")
     end
 
     return( amplitude )

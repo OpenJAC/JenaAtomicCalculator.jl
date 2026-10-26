@@ -309,7 +309,13 @@ function  determinePathways(finalMultiplet::Multiplet, intermediateMultiplet::Mu
                     if  eEnergy < 0.   ||   aEnergy < 0    continue    end
                     rSettings = PhotoEmission.Settings( settings.multipoles, settings.gauges, false, false, CorePolarization(), LineSelection(), 0., 0., 0., false)
                     eChannels = PhotoEmission.determineChannels(nLevel, iLevel, rSettings) 
-                    aSettings = AutoIonization.Settings( false, false, false, false, LineSelection(), 0., 0., 0., settings.maxKappa, CoulombInteraction(), Multiplet(), Multiplet())
+                    # KEYWORD FORM, not positional: AutoIonization.Settings has grown twice while this one call was its
+                    # only positional caller in the tree, and each growth broke the package load here for no reason of
+                    # its own. maxAugerEnergy is named although it looks like a default -- the positional call this
+                    # replaces passed 0., where the zero-argument constructor gives 10e5, and converting silently
+                    # would have changed which lines pass the energy test.
+                    aSettings = AutoIonization.Settings(AutoIonization.Settings(), maxAugerEnergy=0.,
+                                                        maxKappa=settings.maxKappa)
                     aChannels = AutoIonization.determineChannels(fLevel, nLevel, aSettings) 
                     # KEYWORD FORM, not positional: PhotoIonization.Settings has SIXTEEN fields and this call
                     # passed NINE, with the Bools landing on electronEnergies and thetas, which are Vector{Float64}.
