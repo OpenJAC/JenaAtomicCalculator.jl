@@ -83,6 +83,33 @@
 # R(eps) is also term-dependent in the OPPOSITE order to the delta piece (1.47/1.69/1.85 against 0.72/0.66/0.62),
 # so the two halves compensate term by term as well as in total and neither alone predicts the other.
 #
+# THE CONVERGED FIVE-LEVEL TOTAL, nInt 24 / factor 8 / maxKappa 4 (3902 s):
+#
+#     TERMS  4S 178.8695   2D 274.6532   2P 144.7995        TOTAL  598.3221e-7
+#
+#     vs bound-only 585.385                        1.0221
+#     vs the factor-3 total 649.767                 0.9208
+#     vs the published 3P_2 -> 3p^-3 total 228      2.624x
+#
+# **THE ENTIRE CONTINUUM INTERMEDIATE BRANCH IS WORTH +2.2 %.**  Each half is enormous -- the delta piece -33 %,
+# R(eps) +65 % -- and they very nearly cancel.  Over the whole of 26-Oct the sequence is 2.33x (after item 98's
+# H - E) -> 2.624x against the published value (with the full intermediate sum), so the second step moved
+# essentially nothing.  The 2.59x quoted from the factor-3 run was unconverged in the energy range; do not use it.
+#
+# A "2.384x the experiment-anchored 251(46)e-7" FIGURE APPEARED HERE EARLIER AND IS RETRACTED: X = 2.2(4)e-3 is
+# the TOTAL TEOE branching of the 1D_2 vacancy over ALL final configurations, so X times the measured 323 meV is
+# a 1D_2, all-finals quantity -- while this case is 3P_2 and 3p^-3 only.  Compare against the published 228e-7,
+# which Table I's rows 5-7 (59 + 100 + 69) make the 3P_2 -> 3p^-3 total, i.e. the same object.
+#
+# AND THE COMPARISON THAT ISOLATES THE DEFECT: with the bound sum switched off (an empty gMultiplet), the
+# continuum branch ALONE -- which is what the published calculation evaluates -- gives 187.6895e-7 against their
+# 228, i.e. 0.823x, per term 0.735 / 0.896 / 0.794 with no systematic pattern.  So R(eps) and the delta piece are
+# validated EXTERNALLY, and the 2.624x above lives entirely in the BOUND branch.
+#
+# AND THE RANGE CORRECTION IS TERM-DEPENDENT -- 0.9329 / 0.9187 / 0.9103 for 4S / 2D / 2P -- so scaling the
+# factor-3 total by level 1's own correction would have given 606.2 against the measured 598.3.  A 1.3 % error,
+# small, and exactly the kind that accumulates unnoticed; the terms are measured, never scaled.
+#
 # TWO CONVERGENCE AXES, BOTH MEASURED RATHER THAN ASSUMED.
 #
 #   maxKappa: FLAT -- 191.7301 / 191.7247 / 191.7247 for 2 / 4 / 6.  This matters because

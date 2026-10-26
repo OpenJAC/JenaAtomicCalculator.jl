@@ -777,6 +777,12 @@ end
 function computeTeaAmplitude(kind::AbstractEeInteraction, kappa::Int64, phase::Float64, continuumLevel::Level,
                                 gMultiplet::Multiplet, initialLevel::Level, grid::Radial.Grid,
                                 nuclearPotential::Radial.Potential; printout::Bool=true)
+    # An EMPTY Green multiplet means "no bound intermediate states", exactly as an empty gCoreMultiplet means no
+    # continuum ones, and must return zero rather than raise -- the merge below indexes levels[1]. This is more
+    # than robustness: switching the BOUND sum off is how the continuum branch ALONE is compared against a
+    # published calculation that omits the bound intermediates as negligible, which is the one comparison that
+    # tests the two calculations on the object they share.
+    if  length(gMultiplet.levels) == 0      return( ComplexF64(0.) )    end
 
     # Always ensure the same subshell list for all initial, intermediate and final (continuum) levels. The
     # INTERMEDIATE list has to enter the merge as well: a Green multiplet that carries an orbital the initial and

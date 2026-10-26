@@ -193,6 +193,75 @@ elseif  false
     wb = perform(wa)
     #
 elseif  true
+    # Last visit:  26-Oct-2026   ## three runs: 3P_2 both branches 598.3221e-7, 3P_2 continuum-only 187.6895e-7,
+    #   1D_2 both branches 765.3257e-7, all at the converged nInt 24 / factor 8 / maxKappa 4
+    # Last successful:  unknown ...
+    #
+    # READ THE PAPER'S TABLE I BEFORE QUOTING ANY TARGET.  Two targets used here for weeks were wrong in SCOPE,
+    # and both are retracted below.  Regrouped by initial level and final configuration, rates in 1e-7 a.u.:
+    #
+    #     3P_2 -> 3p^-3        4S  59   2D 100   2P 69     = 228     <-- the target OF THIS BRANCH, correct
+    #     1D_2 -> 3p^-3        4S   0   2D 145   2P 59     = 204
+    #          -> 3s^-1 3p^-2  42 + 3                      =  45
+    #          -> 3s^-2 3p^-1  4                           =   4
+    #     1D_2 ALL FINALS                                  = 253
+    #     1S_0 -> 3p^-3        237                         = 237    (LARGER than either other level)
+    #
+    #   RETRACTION 1: THE 251(46)e-7 "EXPERIMENT ANCHOR" IS WRONG ON BOTH AXES.  X = 2.2(4)e-3 is the TOTAL TEOE
+    #   branching of the 1D_2 vacancy over ALL final configurations, so X times the measured 323 meV = 261e-7 is a
+    #   1D_2, all-finals quantity -- while this branch computes 3p^-3 ONLY and selects 3P_2.  The 3p^-3 part is
+    #   204/253 = 81 % of it, so the experimental target for 1D_2 -> 3p^-3 is ~211e-7, against their own 204.
+    #
+    #   RETRACTION 2: A "1.012x" BRANCHING-RATIO CONFIRMATION DERIVED EARLIER ON 26-Oct IS WITHDRAWN.  Their
+    #   1.4e-3 is not an X: 0.41 is the row4/row3 RATIO of their Eq. (7), quoted beside the sudden-approximation
+    #   0.38 and the observed 0.46.  The agreement compared two different quantities.
+    #
+    # THE RESULT THAT STANDS NEEDS NO RATIO: A DIRECT RATE COMPARISON, SAME LEVEL, SAME FINAL CONFIGURATION.
+    # With the BOUND intermediate sum switched off (gMultiplet = Multiplet(), which is what Zitnik et al. compute,
+    # they having omitted the bound intermediates as negligible):
+    #
+    #     3P_2 -> 3p^-3, continuum intermediates ONLY:  ours 187.6895e-7  vs  theirs 228e-7  =  0.823 x
+    #     per term:  4S 43.34/59 = 0.735    2D 89.58/100 = 0.896    2P 54.77/69 = 0.794
+    #
+    # no systematic pattern, everything inside 27 %.  SO THE CONTINUUM BRANCH IS EXTERNALLY VALIDATED and the
+    # BOUND branch is the sole locus of the disagreement -- 2.62x on 3P_2 (598.3221 vs 228), 3.75x on 1D_2.
+    #
+    #   AND THE BOUND BRANCH FAILS IN SHAPE, NOT ONLY IN SCALE, WHICH IS THE SHARPEST DIAGNOSTIC SO FAR.
+    #     * WITHIN a manifold the shape is GOOD.  1D_2 gives 2P/2D = 0.368 against the sudden approximation's
+    #       0.38, their MBPT 0.407 and the OBSERVED 0.46 -- we sit in the pack on the quantity their Eq. (7) is
+    #       about.  And the spin-forbidden 4S channel is a qualitative success their model CANNOT produce: their
+    #       row 2 is EXACTLY 0 because 1D_2 -> 4S is forbidden in a single-configuration model by spin
+    #       conservation, and the paper attributes the line observed at 1 % of the 2D peak to 4S_3/2 acquiring a
+    #       2P_3/2 admixture through spin-orbit.  JAC returns 1.8436e-7 = 0.33 % of 2D, nonzero and the right
+    #       order, straight out of the CI mixing.  4S is NOT suppressed for 3P_2 (178.87 ours, 59 theirs), so both
+    #       calculations agree on the selection rule and only this one can put a number on the forbidden case.
+    #     * BETWEEN initial levels the ordering is BACKWARDS.  Ours 1D_2/3P_2 = 765.33/598.32 = 1.279; theirs
+    #       204/228 = 0.895.  A UNIFORM SCALE ERROR CANNOT FLIP AN ORDERING, so the bound branch contributes
+    #       differently per initial level -- which is what a single-excitation junction must do, its size
+    #       depending on the initial level's own structure.  This points at the bound branch and AWAY from the
+    #       angular machinery.
+    #
+    #   LEADING HYPOTHESIS, UNTESTED: the bound branch is an ORBITAL-FRAME ARTEFACT.  The paper optimizes orbitals
+    #   for the initial 2p^-2 configuration, where the dominant 2p^-1 3p^-1 intermediate family is a SINGLE
+    #   excitation of the initial state and Brillouin's theorem suppresses its junction -- which is what entitles
+    #   them to drop the bound intermediates.  The 3p^-2 family is a DOUBLE excitation, not suppressed, and is
+    #   already ~2 orders down.  COUNTER-EVIDENCE not to bury: the junction ratio ROSE from 0.057-0.067 on
+    #   HSField to 0.130-0.141 on Basics.ALField(), the wrong direction; but an average-level field is not the
+    #   Fock operator OF THE STATE, and EOL on the level has never been tried.
+    #
+    #   AND NOTE WHAT THE PAPER'S OWN FRAME RULE IS, because it bears on how much 228e-7 can carry: they choose
+    #   the orbital set that "results in the largest TEOE rates and gives the best agreement with the experimental
+    #   data".  That is a frame selected FOR agreement, so 0.823x is agreement with a particular choice rather
+    #   than with a settled standard.  Their Eq. (3) also overshoots the L23^2 linewidth by 40 % (~452 meV against
+    #   the measured 323(15)) where JAC gives 360.63 meV, i.e. 1.12x -- so on the one quantity both calculations
+    #   can be checked against directly, JAC is the closer of the two.
+    #
+    #   THE PRE-REGISTERED NEXT TEST, written down before running it so that it is a test and not a fit:
+    #   continuum-only on 1D_2 should give ~167e-7 (= 0.823 x 204) and should RESTORE the level ordering to ~0.9.
+    #   If it does, the continuum branch is validated on a SECOND initial level and the bound branch is isolated.
+    #   If it does not, the 0.823x on 3P_2 was luck and the continuum branch is not validated either.
+    #
+    # SUPERSEDED BY THE ABOVE, kept so the earlier numbers can be recognised:
     # Last visit:  23-Oct-2026   ## total 585.39e-7 a.u. over the five 3p^-3 levels (4S 180.7, 2D 266.6, 2P 138.1)
     #   against Zitnik Table I's 228e-7 -- a factor 2.57, and NO LONGER UNIFORM across the terms (3.06/2.67/2.00).
     #   This is the H - E junction of item 98; the V_ee total it replaces, measured earlier the same day, was
@@ -395,6 +464,11 @@ elseif  true
     wb = perform(wa)
     #
 elseif  false
+    # Last visit:  26-Oct-2026   ## 3P_2 (level 1) 132528.6320e-7 a.u. = 360.63 meV, REPRODUCING the 25-Oct
+    #   value to the digit, and 1D_2 (level 4) 130617.3264e-7 = 355.43 meV;  41 channels each.  The width is
+    #   nearly LEVEL-INDEPENDENT -- 1.4 % apart -- which matters because the measured 323(15) meV belongs to the
+    #   1D_2 row: our 1D_2 width is 1.10x it, our 3P_2 width 1.12x.
+    # Last reproduced:  26-Oct-2026 (132528e-7 a.u. = 361 meV, the one number on the dated claim line)
     # Last visit:  25-Oct-2026   ## total first-order width 3.606288e-01 eV = 361 meV against the MEASURED
     #   323(15) meV, i.e. 1.12x;  7 final levels, electron energies 214.56-216.61 eV
     # Last successful:  unknown ...
