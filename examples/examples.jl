@@ -40,6 +40,7 @@ if      char == 'A'
     println("Ar) Apply & test the second-order treatment of the Q space of a RAS step.")
     println("As) Apply & test the DalgarnoLewis module: a direct inhomogeneous-equation solve in place of an explicit sum over intermediate states.")
     println("At) Apply & test the RandomPhase module: orchestrating one DalgarnoLewis solve per active electron.")
+    println("Au) Apply & test that the SCF+RAS multi-threading (steps 1-6) changes no result on a mid-size EOL case, only wall time.")
     #
 elseif  char == 'B'
     println("B)  Examples, tests & development of atomic amplitudes")
