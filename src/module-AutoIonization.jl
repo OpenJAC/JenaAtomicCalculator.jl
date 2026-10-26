@@ -45,6 +45,12 @@ using  Printf, ..AngularMomentum, ..Basics, ..BiOrthogonal, ..Bsplines, ..Contin
     + gMultiplet          ::Multiplet      
         ... Mean-field multiplet of intermediate levels in the computations, sometimes referred to as
             (resonant) Green function.
+    + gCoreMultiplet      ::Multiplet      
+        ... Mean-field multiplet of the (N-1)-electron IONIC CORES of the CONTINUUM intermediate levels of the two-electron Auger sum, i.e.
+            of those intermediate states that carry one electron already in the continuum. An empty Multiplet() -- the default -- omits
+            that contribution and leaves the sum over bound intermediates (gMultiplet) alone. The two spaces are DISJOINT, since they are
+            the 16- and the (15 + 1 free)-electron parts of one complete intermediate set, and they add COHERENTLY; see
+            AutoIonization.computeTeaContinuumAmplitude.
 """
 struct Settings  <:  AbstractProcessSettings
     calcAnisotropy        ::Bool         
@@ -58,6 +64,7 @@ struct Settings  <:  AbstractProcessSettings
     maxKappa              ::Int64
     operator              ::AbstractEeInteraction 
     gMultiplet            ::Multiplet      
+    gCoreMultiplet        ::Multiplet      
 end 
 
 
@@ -65,7 +72,7 @@ end
 `AutoIonization.Settings()`  ... constructor for the default values of AutoIonization line computations.
 """
 function Settings()
-    Settings(false, false, false, false, LineSelection(), 0., 0., 10e5, 100, CoulombInteraction(), Multiplet())
+    Settings(false, false, false, false, LineSelection(), 0., 0., 10e5, 100, CoulombInteraction(), Multiplet(), Multiplet())
 end
 
 
@@ -74,7 +81,7 @@ end
 
         calcAnisotropy=..,      calcTeAuger..,              calcBiorthogonal=..,    printBefore=..,
         augerEnergyShift=..,    minAugerEnergy=..,          maxAugerEnergy=..,      maxKappa=..,
-        operator=..,            gMultiplet=.. )
+        operator=..,            gMultiplet=..,              gCoreMultiplet=.. )
                     
     ... constructor for modifying the given AutoIonization.Settings by 'overwriting' the previously selected parameters.
 """
@@ -85,7 +92,7 @@ function Settings(set::AutoIonization.Settings;
     augerEnergyShift::Union{Nothing,Float64}=nothing,
     minAugerEnergy::Union{Nothing,Float64}=nothing,         maxAugerEnergy::Union{Nothing,Float64}=nothing,
     maxKappa::Union{Nothing,Int64}=nothing,                 operator::Union{Nothing,AbstractEeInteraction}=nothing,
-    gMultiplet::Union{Nothing,Multiplet}=nothing)
+    gMultiplet::Union{Nothing,Multiplet}=nothing,           gCoreMultiplet::Union{Nothing,Multiplet}=nothing)
 
     if  isnothing(calcAnisotropy)     calcAnisotropyx    = set.calcAnisotropy    else  calcAnisotropyx    = calcAnisotropy    end
     if  isnothing(calcTeAuger)        calcTeAugerx       = set.calcTeAuger       else  calcTeAugerx       = calcTeAuger       end
@@ -98,9 +105,10 @@ function Settings(set::AutoIonization.Settings;
     if  isnothing(maxKappa)           maxKappax          = set.maxKappa          else  maxKappax          = maxKappa          end
     if  isnothing(operator)           operatorx          = set.operator          else  operatorx          = operator          end
     if  isnothing(gMultiplet)         gMultipletx        = set.gMultiplet        else  gMultipletx        = gMultiplet        end
+    if  isnothing(gCoreMultiplet)     gCoreMultipletx    = set.gCoreMultiplet    else  gCoreMultipletx    = gCoreMultiplet    end
 
     Settings( calcAnisotropyx, calcTeAugerx, calcBiorthogonalx, printBeforex, lineSelectionx, augerEnergyShiftx,
-              minAugerEnergyx, maxAugerEnergyx, maxKappax, operatorx, gMultipletx)
+              minAugerEnergyx, maxAugerEnergyx, maxKappax, operatorx, gMultipletx, gCoreMultipletx)
 end
 
 
@@ -117,6 +125,7 @@ function Base.show(io::IO, settings::AutoIonization.Settings)
     println(io, "maxKappa:                      $(settings.maxKappa)  ")
     println(io, "operator:                      $(settings.operator)  ")
     println(io, "gMultiplet.name:               $(settings.gMultiplet.name)  ")
+    println(io, "gCoreMultiplet.name:           $(settings.gCoreMultiplet.name)  ")
 end
 
 
@@ -432,6 +441,13 @@ function computeAmplitudesProperties(line::AutoIonization.Line, nm::Nuclear.Mode
             amp = AutoIonization.computeTeaAmplitude(settings.operator, pw.kappa, phase, newcLevel, settings.gMultiplet,
                                                      newiLevel, grid, nucPot, printout=printout)
             amplitude = amplitude + amp
+            # The CONTINUUM intermediate states of the same second-order sum. They are the (15 + 1 free)-electron part of one
+            # complete intermediate set whose 16-electron part gMultiplet carries, so the two are disjoint and add COHERENTLY
+            # rather than one correcting the other; an empty gCoreMultiplet returns zero and leaves the bound sum alone.
+            ampC = AutoIonization.computeTeaContinuumAmplitude(settings.operator, pw.kappa, phase, line.electronEnergy, cOrbital,
+                                                               newfLevel, settings.gCoreMultiplet, newiLevel, grid, nucPot,
+                                                               printout=printout)
+            amplitude = amplitude + ampC
         end
 
         rate = rate + conj(amplitude) * amplitude
@@ -807,6 +823,128 @@ function computeTeaAmplitude(kind::AbstractEeInteraction, kappa::Int64, phase::F
                 " iLevel=$(initialLevel.index) [$(initialLevel.J)$(string(initialLevel.parity))] >  = $amplitude  ")
     end
     
+    return( amplitude )
+end
+
+
+"""
+`AutoIonization.computeTeaContinuumAmplitude(kind::AbstractEeInteraction, kappa::Int64, phase::Float64, electronEnergy::Float64,
+                                             cOrbital::Orbital, finalIonLevel::Level, gCoreMultiplet::Multiplet, initialLevel::Level,
+                                             grid::Radial.Grid, nuclearPotential::Radial.Potential; printout::Bool=true)`
+    ... to compute that part of the two-electron Auger amplitude which proceeds through the CONTINUUM intermediate states, i.e. through
+        intermediate states that carry one electron already in the continuum, and to return a value::ComplexF64. It is the companion of
+        AutoIonization.computeTeaAmplitude, which carries the BOUND intermediate states, and the two must be added: the sum over
+        intermediate states of a second-order amplitude runs over a COMPLETE set, which partitions by bound-electron count into a
+        16-electron part and a (15 + 1 free)-electron part. The two parts are disjoint and add COHERENTLY, so neither is a correction to
+        the other and their relative SIGN is physical.
+
+        WHAT IS COMPUTED, AND WHAT IS NOT.  Writing the intermediate as |g_core, eps kappa> with g_core a level of gCoreMultiplet, the
+        step that leads to the final state splits EXACTLY into a singular and a regular part,
+
+            <f| V |g_core, eps>   =   delta(eps - eps_f) * <f_core| V |g_core>   +   R(eps),
+
+        because the continuum electron is a pure SPECTATOR of a junction that acts on the ionic core alone and therefore enters only
+        through its own overlap -- and for orbitals normalized per unit energy that overlap is a delta function. Integrating the delta
+        piece places the intermediate electron at the energy of the OBSERVED electron and leaves no integral at all, which is what this
+        method computes. The regular part R(eps) is a Cauchy principal-value integral over the intermediate electron energy with an
+        on-shell pole at eps = E_i - E_g, and it is NOT computed here; it needs the quadrature and the retarded propagator of
+        PhotoDoubleIonization.generateIntermediateLevels and PhotoDoubleIonization.assemblePrincipalValue.
+
+        THE DELTA PIECE THEREFORE READS
+
+            A   =   sum_g   <(f_core J_f, kappa) J_i | O^(Auger, kind) ... >  ...
+
+                        A^(Auger)(i --> g_core, eps_f kappa)  *  <f_core || H - E || g_core>
+            A   =   sum_g  ------------------------------------------------------------------
+                                            E_i  -  E_g  -  eps_f
+
+        and every factor in it is already validated machinery. The numerator's first factor is an ORDINARY first-order Auger amplitude
+        into the intermediate channel, taken at the energy of the observed electron rather than on shell, and it is evaluated by
+        AutoIonization.amplitude itself -- which is why the outgoing-electron factor i^l exp(-i*phase) is carried exactly once and nothing
+        further is applied to the total here. The second factor is the junction of item 98, now between the two BOUND (N-1)-electron
+        cores; the continuum electron has been integrated out of it by the delta function and does not appear.
+
+        THE JUNCTION IS A SCALAR ON THE CORE, which fixes the angular algebra completely and introduces no new Wigner coefficient: in the
+        coupled basis |(J_core, kappa) J_i> a rank-0 operator acting on the core leaves the coupling untouched, so the matrix element is
+        delta(J_g, J_f) times the core matrix element, with a geometric factor of exactly one. Only cores of the final level's own J and
+        parity are therefore reached, and the loop below skips the others rather than relying on the spin-angular coefficients to vanish.
+
+        AND THE DENOMINATOR IS WRITTEN AS E_i - E_g - eps_f RATHER THAN AS E_f - E_g, although energy conservation makes the two equal:
+        the first form is the second-order propagator of the state actually constructed, it stays correct under a non-zero
+        settings.augerEnergyShift, and it makes the comparison with the bound branch's E_i - E_n an OUTPUT rather than an assumption.
+        Measured on argon 26-Oct-2026, the two denominators come out as the same quantity with OPPOSITE SIGN -- the dominant bound family
+        at +252.7 to +256.7 eV against the whole continuum family at -234.0 to -246.8 eV -- so the two parts of the sum interfere
+        destructively; see tools/probeTeaDenominators.jl.
+
+        + cOrbital        ::Orbital     ... the SAME continuum orbital the final state carries; the delta function identifies the two, and
+                                            generating a second one here would break that identity.
+        + finalIonLevel   ::Level       ... the (N-1)-electron final ionic level, with its basis already symmetry-reduced.
+        + initialLevel    ::Level       ... the initial level carrying the empty continuum slot, as AutoIonization.amplitude requires.
+"""
+function computeTeaContinuumAmplitude(kind::AbstractEeInteraction, kappa::Int64, phase::Float64, electronEnergy::Float64,
+                                        cOrbital::Orbital, finalIonLevel::Level, gCoreMultiplet::Multiplet, initialLevel::Level,
+                                        grid::Radial.Grid, nuclearPotential::Radial.Potential; printout::Bool=true)
+    amplitude = ComplexF64(0.)
+    if  length(gCoreMultiplet.levels) == 0      return( amplitude )     end
+
+    symi = LevelSymmetry(initialLevel.J, initialLevel.parity)
+    symf = LevelSymmetry(finalIonLevel.J, finalIonLevel.parity);    eni = initialLevel.energy
+
+    # The junction is a BOUND (N-1)-electron matrix element, so the two cores need a common subshell list of their
+    # own -- not the one the Auger step uses, which carries the continuum subshell as well.
+    jSubshells = Basics.merge(finalIonLevel.basis.subshells, gCoreMultiplet.levels[1].basis.subshells)
+    fIonLevel  = Level(finalIonLevel, jSubshells)
+    jMultiplet = Multiplet(gCoreMultiplet, jSubshells)
+    nfc        = length(fIonLevel.basis.csfs)
+    selfTolerance = 1.0e-8
+
+    if  printout   printstyled("Compute continuum-intermediate two-electron Auger amplitude for partial wave kappa = $kappa ... \n",
+                                color=:light_green)    end
+
+    for  (ig, gLevel)  in  enumerate(jMultiplet.levels)
+        symg = LevelSymmetry(gLevel.J, gLevel.parity)
+        if  symg != symf                        continue    end
+        enn = gLevel.energy + electronEnergy
+        if  abs(eni - enn) <= selfTolerance     continue    end
+
+        # The junction <f_core || H - E || g_core>, i.e. the coefficient of the delta function.
+        ng = length(gLevel.basis.csfs);     junction = 0.
+        for  r = 1:nfc
+            if  fIonLevel.mc[r] == 0.           continue    end
+            symr = LevelSymmetry(fIonLevel.basis.csfs[r].J, fIonLevel.basis.csfs[r].parity)
+            if  symr != symf                    continue    end
+            for  t = 1:ng
+                if  gLevel.mc[t] == 0.          continue    end
+                symt = LevelSymmetry(gLevel.basis.csfs[t].J, gLevel.basis.csfs[t].parity)
+                if  symt != symg                continue    end
+                junction = junction + fIonLevel.mc[r] *
+                            ManyElectron.matrixElement_HminusE(Basics.HminusE(kind), fIonLevel.basis, r, gLevel.basis, t,
+                                                                grid, nuclearPotential) * gLevel.mc[t]
+            end
+        end
+        if  junction == 0.                      continue    end
+
+        # The first-order Auger amplitude into the intermediate channel, OFF SHELL at the observed electron's energy.
+        # The intermediate scattering state carries the final state's own continuum orbital, as the delta function demands.
+        redGLevel = Basics.generateLevelWithSymmetryReducedBasis(gCoreMultiplet.levels[ig],
+                                                                 gCoreMultiplet.levels[ig].basis.subshells)
+        gcLevel   = Basics.generateLevelWithExtraElectron(cOrbital, symi, redGLevel)
+        augerAmp  = AutoIonization.amplitude(kind, kappa, phase, gcLevel, initialLevel, grid; printout=false)
+        amp       = augerAmp * junction / (eni - enn)
+
+        if  printout
+            println(">>>> TEA(continuum) amplitude < fIonLevel=$(finalIonLevel.index) [J=$(finalIonLevel.J)" *
+                    "$(string(finalIonLevel.parity))] || { gCore=$(gLevel.index) [J=$(gLevel.J)$(string(gLevel.parity))], eps } ||" *
+                    " iLevel=$(initialLevel.index) [$(initialLevel.J)$(string(initialLevel.parity))] >  = $amp  " *
+                    " with  junction=$junction,  Delta E=$(eni - enn)")
+        end
+        amplitude = amplitude + amp
+    end
+
+    if  printout
+        println(">>>  Total TEA(continuum) amplitude for partial wave kappa = $kappa  = $amplitude  ")
+    end
+
     return( amplitude )
 end
 
