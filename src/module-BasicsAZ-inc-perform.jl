@@ -42,6 +42,7 @@ function  resultKeyStrings(T::Type)
     T === LandeZeeman.Settings              &&  return( ["Zeeman parameter outcomes:"] )
     T === StarkShift.Settings               &&  return( ["Stark-shift outcomes:"] )
     T === StarkZeeman.Settings              &&  return( ["Stark-Zeeman outcomes:"] )
+    T === HfsPaschenBack.Settings           &&  return( ["Hfs Paschen-Back outcomes:"] )
     T === IsotopeShift.Settings             &&  return( ["Isotope parameter outcomes:"] )
     T === AlphaVariation.Settings           &&  return( ["alpha variation parameter outcomes:"] )
     T === FormFactor.Settings               &&  return( ["Form factor outcomes:"] )
@@ -202,6 +203,7 @@ function  allResultKeyTypes()
             ResultKeys.SuperConfigurationMixtureTotalPlanckOpacity, ResultKeys.SuperConfigurationMixtureRosselandOpacity,
             ResultKeys.SuperConfigurationMixtureResonanceCorrections,
             Einstein.Settings, Hfs.Settings, LandeZeeman.Settings, StarkShift.Settings, StarkZeeman.Settings,
+            HfsPaschenBack.Settings,
             IsotopeShift.Settings, AlphaVariation.Settings, FormFactor.Settings, DecayYield.Settings,
             MultipolePolarizibility.Settings, DispersionCoefficient.Settings, ReducedDensityMatrix.Settings,
             WeakInteractionEnhancement.Settings, CrystalField.Settings, NuclearShielding.Settings,
@@ -357,6 +359,10 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
             elseif  typeof(settings) == StarkZeeman.Settings
                 outcome = StarkZeeman.computeOutcomes(multiplet, nModel, computation.grid, settings)
                 if output    results = Base.merge( results, Dict("Stark-Zeeman outcomes:" => outcome) )           end
+                #
+            elseif  typeof(settings) == HfsPaschenBack.Settings
+                outcome = HfsPaschenBack.computeOutcomes(multiplet, nModel, computation.grid, settings)
+                if output    results = Base.merge( results, Dict("Hfs Paschen-Back outcomes:" => outcome) )       end
                 #
             elseif  typeof(settings) == IsotopeShift.Settings 
                 outcome = IsotopeShift.computeOutcomes(multiplet, nModel, computation.grid, settings)         

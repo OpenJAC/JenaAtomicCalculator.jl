@@ -114,7 +114,7 @@ export AbstractComputeTheme, AbstractConfigurationRestriction, AbstractConfigura
        FromMultiplet,
        GeneralizedConfigurations, GeneralizedOscillatorStrength, generate, generateConfigurations, getDefaults, GetParity,
        GreenChannel, GreenExpansion, GreenSettings, GroundConfiguration,
-       Hamiltonian, HarmonicQuantizationAxis, Hfs, HundsRules, HydrogenicIon, HyperfineInduced,
+       Hamiltonian, HarmonicQuantizationAxis, Hfs, HfsPaschenBack, HundsRules, HydrogenicIon, HyperfineInduced,
        HyperfineStructure,
        ZeemanStructure,
        ImpactExc, ImpactExcAuto, ImpactExcitation, ImpactIonization, Integral, integrate,
@@ -221,6 +221,7 @@ include("module-DispersionCoefficient.jl")
 include("module-NuclearShielding.jl")
 include("module-StarkShift.jl")
 include("module-StarkZeeman.jl")
+include("module-HfsPaschenBack.jl")
 include("module-CrystalField.jl")
 include("module-CrystalFieldEmission.jl")
 include("module-WeakInteractionEnhancement.jl")

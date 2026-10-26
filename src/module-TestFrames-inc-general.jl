@@ -2104,6 +2104,93 @@ end
 
 
 """
+`TestFrames.testModule_HfsPaschenBack(; short::Bool=true)`  ... tests on module HfsPaschenBack; a success::Bool is returned.
+"""
+function testModule_HfsPaschenBack(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-HfsPaschenBack-new.sum")
+    printstyled("\n\nTest the module  HfsPaschenBack  ... \n", color=:cyan)
+    # Two exact statements, neither needing a reference value from outside JAC:
+    #
+    #   * at nuclear spin I = 0 the hyperfine basis collapses to F = J exactly (one HfLevel per electronic level,
+    #     no nuclear structure at all), so HfsPaschenBack must reproduce StarkZeeman's own already-validated
+    #     ASF-basis Zeeman splitting BIT FOR BIT -- any sign or factor error in the recoupling this module adds
+    #     on top of StarkZeeman's machinery would show up here;
+    #   * at I = 1/2 (a real two-level, F=0/F=1 Breit-Rabi case) the CENTRE OF GRAVITY cannot move, exactly as in
+    #     StarkZeeman's own test -- the field Hamiltonian only adds to the off-diagonal and to the diagonal of two
+    #     COMPLETE F-blocks, whose own diagonal shifts sum to zero.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    grid = Radial.Grid(true)
+    bF   = 0.001
+
+    # (1) I = 0: bit-for-bit against StarkZeeman
+    nm0  = Nuclear.Model(Nuclear.Model(1., PointNucleus()); spinI=AngularJ64(0), mu=0.0)
+    wa   = Atomic.Computation(Atomic.Computation(), name="HfsPaschenBack test: H 1s, I=0", grid=grid,
+                              nuclearModel=nm0, configs=[Configuration("1s")])
+    multiplet0 = redirect_stdout(devnull) do;  perform(wa; output=true)[ResultKeys.Multiplet]  end
+
+    hfSet0 = Hfs.Settings(; calcM1=false, calcHfMultiplet=true, levelSelection=LevelSelection())
+    hfOut0 = redirect_stdout(devnull) do;  Hfs.computeOutcomes(multiplet0, nm0, grid, hfSet0; output=true)  end
+    hfMultiplet0 = hfOut0[1].hfsMultiplet
+
+    pbSet0 = HfsPaschenBack.Settings(HfsPaschenBack.Settings(); includeBField=true, bField=bF,
+                                      includeNuclearZeeman=false, hfMultiplets=[hfMultiplet0], printBefore=false)
+    outcomesPB = redirect_stdout(devnull) do
+        HfsPaschenBack.computeOutcomes(multiplet0, nm0, grid, pbSet0; output=true)
+    end
+
+    szSet0 = StarkZeeman.Settings(StarkZeeman.Settings(); includeBField=true, bField=bF, printBefore=false,
+                                   levelSelection=LevelSelection())
+    outcomesSZ = redirect_stdout(devnull) do
+        StarkZeeman.computeOutcomes(multiplet0, nm0, grid, szSet0; output=true)
+    end
+
+    ePB = sort([o.energy  for o in outcomesPB]);    eSZ = sort([o.energy  for o in outcomesSZ])
+    if  length(ePB) != length(eSZ)
+        success = false
+        if printTest   info(iostream, "I=0 basis has $(length(ePB)) sublevels against StarkZeeman's $(length(eSZ))")   end
+    else
+        for  (a,b)  in  zip(ePB, eSZ)
+            if  abs(a - b) > 1.0e-13
+                success = false
+                if printTest   info(iostream, "I=0 HfsPaschenBack energy $a does not match StarkZeeman's $b")   end
+            end
+        end
+    end
+
+    # (2) I = 1/2: the centre of gravity cannot move
+    nm1  = Nuclear.Model(Nuclear.Model(1., PointNucleus()); spinI=AngularJ64(1,2), mu=2.792847351)
+    wb   = Atomic.Computation(Atomic.Computation(), name="HfsPaschenBack test: H 1s, I=1/2", grid=grid,
+                              nuclearModel=nm1, configs=[Configuration("1s")])
+    multiplet1 = redirect_stdout(devnull) do;  perform(wb; output=true)[ResultKeys.Multiplet]  end
+
+    hfSet1 = Hfs.Settings(; calcM1=true, calcHfMultiplet=true, levelSelection=LevelSelection())
+    hfOut1 = redirect_stdout(devnull) do;  Hfs.computeOutcomes(multiplet1, nm1, grid, hfSet1; output=true)  end
+    hfMultiplet1 = hfOut1[1].hfsMultiplet
+    sum0 = sum([lev.energy  for lev in hfMultiplet1.hfLevels  for M in AngularMomentum.m_values(lev.F)])
+
+    for  testB  in  [0., 1.0e-4, 1.0e-2]
+        pbSet1 = HfsPaschenBack.Settings(HfsPaschenBack.Settings(); includeBField=true, bField=testB,
+                                          includeNuclearZeeman=true, hfMultiplets=[hfMultiplet1], printBefore=false)
+        outcomes1 = redirect_stdout(devnull) do
+            HfsPaschenBack.computeOutcomes(multiplet1, nm1, grid, pbSet1; output=true)
+        end
+        wsum = sum(o.energy  for o in outcomes1)
+        if  abs(wsum - sum0) > 1.0e-10 * max(abs(sum0), 1.0)
+            success = false
+            if printTest   info(iostream, "at B = $testB T the eigenvalues sum to $wsum, must be $sum0; the " *
+                                          "centre of gravity cannot move")   end
+        end
+    end
+
+    println(iostream, "HfsPaschenBack: bit-for-bit agreement with StarkZeeman at I=0, and invariance of the " *
+                      "centre of gravity at I=1/2 for 0, 1e-4 and 1e-2 T. No reference value.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_HfsPaschenBack()::", success)
+    return( success )
+end
+
+
+"""
 `TestFrames.testModule_Hamiltonian(; short::Bool=true)`  ... tests on module Hamiltonian; a success::Bool is returned.
 """
 function testModule_Hamiltonian(; short::Bool=true)

@@ -67,6 +67,7 @@ elseif  char == 'C'
     println("Co) Statistical tensors of an atomic ensemble: alignment and orientation from photoexcitation, the axis they are stated about, and the tensor machinery itself.")
     println("Cp) Apply & test the NuclearShielding module: the quadrupole antishielding factor of a closed-shell ion, i.e. how its own electrons amplify at the nucleus a field gradient applied from outside.")
     println("Cq) Multipole polarizabilities alpha^(Mp,K) at real and imaginary frequency, and the long-range dispersion coefficients C_6, C_8, C_10 and the atom-wall C_3 built from them.")
+    println("Cr) Apply & test the HfsPaschenBack module (exact Hfs.HfLevel-basis diagonalization of hyperfine Paschen-Back/Breit-Rabi mixing in a static B and/or E field).")
     #
 elseif  char == 'D'
     println("D)  Examples, tests & development of basic atomic processes")
