@@ -690,8 +690,16 @@ function combineAngularCoefficientsEOL(blockCaches, targetLevels::Array{Level,1}
     # summed each label's contributions in the order it met them and emitted the labels in that same order, so
     # keeping both leaves every downstream floating-point sum in the order it had.  Emitting the table in Dict
     # order instead would re-order those sums and move the last bits of the energies.
-    idx1 = Dict{NTuple{3,Any},Int64}();    keys1 = NTuple{3,Any}[];    vals1 = Float64[]
-    idx2 = Dict{NTuple{5,Any},Int64}();    keys2 = NTuple{5,Any}[];    vals2 = Float64[]
+    # CONCRETELY TYPED, 26-Oct-2026 (multi-threading item, step 5).  `NTuple{N,Any}` forces every key -- the
+    # Int64 rank included -- to be boxed on insertion, for no reason: a key is always (Int64,Subshell,Subshell)
+    # or (Int64,Subshell,Subshell,Subshell,Subshell), both concrete, and Subshell is itself a two-Int64 struct
+    # with no boxing of its own. Spelling out the real type removes that boxing on every one of the (nu,a,b)
+    # and (nu,a,b,c,d) keys this function creates -- one per distinct coefficient label, which is what makes up
+    # the bulk of this routine's own share of the EOL allocation churn (133.5 GB turned over for ~2 GB live,
+    # measured 15-Sep-2026). Values, order and comparison semantics are unchanged; only the storage type is.
+    idx1 = Dict{Tuple{Int64,Subshell,Subshell},Int64}();    keys1 = Tuple{Int64,Subshell,Subshell}[];    vals1 = Float64[]
+    idx2 = Dict{Tuple{Int64,Subshell,Subshell,Subshell,Subshell},Int64}()
+    keys2 = Tuple{Int64,Subshell,Subshell,Subshell,Subshell}[];    vals2 = Float64[]
     for  (_, cache)  in  blockCaches
         idxCsf = cache.idxCsf;    n = length(idxCsf)
         for  r = 1:n
@@ -995,7 +1003,33 @@ function computeOrbitalGradient(bVectors::Dict{Subshell, Vector{Float64}},
     # whole of one gradient evaluation, so the memo is local to this call and cannot go stale.  This is the
     # same redundancy that dominates the average-level Fock build (3.5x for argon, 9.1x for Th+), and after
     # the average-level field was memoised the rotation became the larger part of EOL: 66% of it for W+.
-    vkCache = Dict{Tuple{Int64,Subshell,Subshell}, Vector{Float64}}()
+    #
+    # THREADED, 26-Oct-2026 (multi-threading item, step 4).  Re-profiled on a representative multi-config
+    # case (see work/diag-threading-eol-profile2.jl): buildScreenedPotential, through its private cellMoments
+    # quadrature, is 72.9% of THIS function's wall time -- the lever worth pulling, unlike the symmetry-block
+    # loop of performCI's own kind, which the 15-Sep-2026 note bought only 1.8% from. The build below is split
+    # into a PARALLEL pass that fills every needed (nu,b,d) potential independently into its own array slot --
+    # no shared mutable state: each call gets its own Dierckx.Spline1D, exactly as the process modules already
+    # threaded over transition lines (AutoIonization, PhotoIonization, ...) already rely on when they reach
+    # this same function -- followed by a SEQUENTIAL merge into the Dict. The two-electron loop further down is
+    # therefore completely UNCHANGED: it reads an already-populated cache by plain lookup instead of lazily
+    # building it with `get!`, so grad is summed in EXACTLY the same floating-point order as before threading.
+    # That is what makes this verifiable byte-for-byte rather than merely "probably still correct".
+    vkCache  = Dict{Tuple{Int64,Subshell,Subshell}, Vector{Float64}}()
+    keysNeed = Tuple{Int64,Subshell,Subshell}[];    keysSeen = Set{Tuple{Int64,Subshell,Subshell}}()
+    for  cf  in  coeffs2p
+        for  (sB, sD)  in  [ (cf.b, cf.d), (cf.a, cf.c) ]
+            key = (cf.nu, sB, sD)
+            if  key  ∉  keysSeen    push!(keysSeen, key);   push!(keysNeed, key)    end
+        end
+    end
+    vkBuilt = Vector{Vector{Float64}}(undef, length(keysNeed))
+    Threads.@threads for  i  in  eachindex(keysNeed)
+        (nu, sB, sD) = keysNeed[i]
+        vkBuilt[i]   = RadialIntegrals.buildScreenedPotential(nu, orbitals[sB], orbitals[sD], primitives.grid;
+                                                                     mtpOut=primitives.grid.NoPoints)
+    end
+    for  i  in  eachindex(keysNeed)    vkCache[keysNeed[i]] = vkBuilt[i]    end
 
     # one-electron:  d/db_a [ w * b_a^T H1 b_b ]  contributes to BOTH slots
     h1 = Dict{Int64, Array{Float64,2}}()
@@ -1050,10 +1084,7 @@ function computeOrbitalGradient(bVectors::Dict{Subshell, Vector{Float64}},
             end
             xc = AngularMomentum.CL_reduced_me(sA, cf.nu, sC) * AngularMomentum.CL_reduced_me(sB, cf.nu, sD)
             if  rem(cf.nu, 2) == 1    xc = - xc    end
-            Vk = get!(vkCache, (cf.nu, sB, sD)) do
-                     RadialIntegrals.buildScreenedPotential(cf.nu, orbitals[sB], orbitals[sD], primitives.grid;
-                                                                  mtpOut=primitives.grid.NoPoints)
-                 end
+            Vk = vkCache[(cf.nu, sB, sD)]                           ## built in the parallel pass above
             (pC, qC) = expanded[sC];     (pA, qA) = expanded[sA]
             grad[sA] = grad[sA] + (cf.V * xc * scale[sA]) * SelfConsistent.screenedProduct(Vk, pC, qC, primitives)
             grad[sC] = grad[sC] + (cf.V * xc * scale[sC]) * SelfConsistent.screenedProduct(Vk, pA, qA, primitives)
