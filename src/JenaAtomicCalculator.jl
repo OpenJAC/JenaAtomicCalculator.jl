@@ -339,7 +339,54 @@ include("module-SuperConfigurations.jl")
 
 # All test functions/methods stay with the JAC root module
 include("module-TestFrames.jl");        using ..TestFrames
-    
+
+"""
+`JenaAtomicCalculator.detectPerformanceCoreCount(nCpu::Int64)`
+    ... looks for a performance/efficiency (P/E) core split among `nCpu` logical CPUs, for the `-t` hint
+        printed by `__init__` (step 6 of the 25-Oct-2026 multi-threading analysis).  A hybrid chip (Intel's
+        12th generation and later) reports its full logical CPU count in `Sys.CPU_THREADS`, but the slower
+        E-cores are not a good `-t` target: they do not scale the way the P-cores do, so recommending `-t
+        nCpu` on such a machine overstates what parallel work actually gains.  There is no portable Julia API
+        for this, so it is detected the way the chips expose it on Linux: P-cores and E-cores differ in their
+        maximum clock speed, published per logical CPU under `/sys/devices/system/cpu/cpuN/cpufreq/
+        cpuinfo_max_freq`.  A real chip's P-cores do not all report the identical speed either -- some boost
+        higher than others -- so the P/E boundary is found as the LARGEST relative drop between two
+        consecutive distinct speeds, not as equality to the single maximum.  Where the clock-speed files are
+        unavailable (non-Linux, a container without `sysfs`, or uniform silicon with no such gap), this
+        returns `nothing` and the caller prints no hint -- a report that cannot be made honestly is no report,
+        not a wrong one.  A `nP::Int64` giving the count of logical CPUs on the faster side of that boundary
+        is returned, or `nothing`.
+"""
+function detectPerformanceCoreCount(nCpu::Int64)
+    freqs = Vector{Int64}()
+    for  cpu = 0:(nCpu-1)
+        path = "/sys/devices/system/cpu/cpu$cpu/cpufreq/cpuinfo_max_freq"
+        isfile(path)  ||  return nothing
+        local v
+        try
+            v = parse(Int64, strip(read(path, String)))
+        catch
+            return nothing
+        end
+        push!(freqs, v)
+    end
+
+    distinct = sort(unique(freqs), rev=true)
+    length(distinct) < 2    &&    return nothing
+
+    gaps  = [ (distinct[i] - distinct[i+1]) / distinct[i]   for i = 1:length(distinct)-1 ]
+    split = argmax(gaps)
+    gaps[split] < 0.15    &&    return nothing                 ## no gap large enough to call this heterogeneous
+
+    highSpeeds = Set(distinct[1:split])
+    nP = count(f -> f in highSpeeds, freqs)
+    nP < nCpu    ||    return nothing                           ## every CPU reported the same side; nothing to say
+
+    return( nP )
+
+end
+
+
 function __init__()
     # The following variables need to be initialized at runtime to enable precompilation
     global JAC_SUMMARY_IOSTREAM = stdout
@@ -362,6 +409,16 @@ function __init__()
     if  nThreads == 1  &&  nCpu > 1
         println(">>   JAC's own threaded routines (CI matrix construction, process amplitude loops) are " *
                 "idle at -t 1 -- start Julia with -t N to use them.")
+    end
+
+    # Step 6 of the same analysis, 26-Oct-2026: on a hybrid P+E chip, nCpu above is the LOGICAL CPU total and
+    # includes the slower E-cores, which do not scale the same way; see detectPerformanceCoreCount's own
+    # docstring for how the split is found and why it can legitimately find nothing to report.
+    nPerf = detectPerformanceCoreCount(nCpu)
+    if  nPerf !== nothing  &&  nPerf < nCpu
+        println(">>   this CPU looks heterogeneous ($nPerf of $nCpu logical CPUs run at the higher of two " *
+                "reported clock speeds) -- -t $nPerf is a better target than -t $nCpu; the remaining cores " *
+                "do not scale the same way.")
     end
 end
 
