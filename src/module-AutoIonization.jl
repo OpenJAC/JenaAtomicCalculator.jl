@@ -761,18 +761,29 @@ end
         AutoIonization.amplitude, so that the two may be added coherently; it is a pure phase and does not affect a rate on its own.
         A value::ComplexF64 is returned.
         
-        THE TWO MATRIX ELEMENTS CARRY DIFFERENT OPERATORS, AND THAT IS THE PHYSICS RATHER THAN AN INCONSISTENCY.  The JUNCTION
-        <J_n || H - E || alpha_i J_i> couples two BOUND states that differ in ONE orbital of the same kappa -- for Ar it is 3p -> 2p --
-        and there the one-body part of H does not vanish: <b|h|a> cancels V^(e-e)'s spectator direct+exchange terms <b|U_HF|a> down to the
-        residual <b|(U_HF - U)|a>, which is the first-order mixing coefficient of perturbation theory.  Using V^(e-e) there returns the
-        WHOLE mean field, counted a second time after it had already generated both orbitals.  The DECAY step
-        <(alpha_f J_f, kappa) J_i || O^(Auger, kind) || alpha_in J_n> keeps V^(e-e), for two reasons that point the same way: the two
-        states differ in TWO orbitals, where H - E reduces to V^(e-e) identically, and the final state carries a CONTINUUM orbital whose
-        overlap with the bound set does not vanish, so the one-body term there would need the -E <f|n> counterterm that
-        ManyElectron.matrixElement_HminusE does not yet implement.  Putting H - E on the decay step would therefore add an uncancelled
-        one-body term precisely where the cancellation is missing.
+        BOTH MATRIX ELEMENTS CARRY H - E, BECAUSE BOTH ARE MATRIX ELEMENTS OF THE ONE PERTURBATION V = H - H_0.  With
+        H_0 = sum_a [h_D(a) + U(r_a)] the perturbation is V = sum_{a<b} v(ab) - sum_a U(a) exactly, so it has a two-body half AND a
+        one-body half.  Where two states differ in TWO orbitals the one-body half vanishes identically and V^(e-e) is the whole answer --
+        the first-order Auger case.  Where they differ in ONE orbital of the same kappa the two-body half returns the WHOLE spectator mean
+        field <b|U_HF|a>, counted a second time after it had already generated both orbitals, and the one-body half is what reduces it to
+        the residual <b|(U_HF - U)|a> that first-order perturbation theory asks for.
         
-        `nuclearPotential` must be the nuclear potential on `grid`; it enters the one-body integral of the junction only.
+        THE DECAY STEP IS SUCH A ONE-ORBITAL CASE, WHICH IS WHY IT NEEDED CHANGING.  For Ar 2p^-2 -> 3p^-3 the dominant intermediates are
+        the five 3p^-2 levels, whose decay is the single replacement 3p -> eps;  only the 2p^-1 3p^-1 levels decay by two.  Measured
+        26-Oct-2026 on the kappa = -2 partial wave: of the 15 CSF pairs 11 move two or more orbitals and the one-body half is exactly zero
+        on every one of them, while the two that move one and match in kappa carry the dominant V^(e-e) = 0.6185 and 0.2753 and are
+        cancelled by the one-body half to 0.005 % and 0.5 %.  Keeping V^(e-e) alone there left a decay matrix element 19 to 208 times too
+        large, depending on the form of the counterterm, and that single term carried 81.5 % of the whole bound-intermediate amplitude.
+        
+        AND THE OVERLAP TERM IS NOT WHAT BLOCKS IT.  An earlier form of this docstring kept V^(e-e) on the decay step because the final
+        state carries a continuum orbital whose overlap with the bound set does not vanish, so that H - E would need the -E <f|n>
+        counterterm ManyElectron.matrixElement_HminusE does not implement.  The overlap was never measured;  it is <eps|3p> = 1.9e-04,
+        and under the orthonormality that the whole second-order path already assumes the term is zero by the same assumption that makes
+        the junction's own one-body part exact.  The remaining difference between the bare-h form used here and an explicit -<b|U|a> is
+        NOT that overlap but the AoC non-canonicity of the orbital set -- eps and 3p are eigenfunctions of different mean fields -- which
+        was measured on bound pairs of equal kappa at 2 to 6 % and sets the accuracy of the residual, not of the cancellation.
+        
+        `nuclearPotential` must be the nuclear potential on `grid`; it now enters the one-body integral of BOTH steps.
 """
 function computeTeaAmplitude(kind::AbstractEeInteraction, kappa::Int64, phase::Float64, continuumLevel::Level,
                                 gMultiplet::Multiplet, initialLevel::Level, grid::Radial.Grid,
@@ -819,14 +830,15 @@ function computeTeaAmplitude(kind::AbstractEeInteraction, kappa::Int64, phase::F
             for  s = 1:ni
                 syms = LevelSymmetry(iLevel.basis.csfs[s].J, iLevel.basis.csfs[s].parity);  if  syms != symi    continue    end
 
-                #   Compute <alpha_f J_i || V^(e-e) || alpha_n J_i> <alpha_n J_i || H - E || alpha_i J_i>
+                #   Compute <alpha_f J_i || H - E || alpha_n J_i> <alpha_n J_i || H - E || alpha_i J_i>
                 #   The intermediate Green-function level is, in general, multi-configurational; the two matrix
-                #   elements therefore run over two INDEPENDENT CSF indices t, tp of that same level.  The
-                #   JUNCTION carries H - E and the decay step carries V^(e-e); see this function's docstring for
-                #   why the two differ, which is physics and not an oversight.
+                #   elements therefore run over two INDEPENDENT CSF indices t, tp of that same level.  BOTH steps
+                #   carry H - E, because both are matrix elements of the one perturbation V = H - H_0; see this
+                #   function's docstring for the measurement that settled it.
                 for  t = 1:nn
                     if  nLevel.mc[t] == 0.  continue    end
-                    Vae = ManyElectron.matrixElement_Vee(kind, fLevel.basis, r, nLevel.basis, t, grid)
+                    Vae = ManyElectron.matrixElement_HminusE(Basics.HminusE(kind), fLevel.basis, r,
+                                                              nLevel.basis, t, grid, nuclearPotential)
                     for  tp = 1:nn
                         if  nLevel.mc[tp] == 0.  continue    end
                         Vee = ManyElectron.matrixElement_HminusE(Basics.HminusE(kind), nLevel.basis, tp,
