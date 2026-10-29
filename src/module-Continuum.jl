@@ -14,8 +14,8 @@ using  ..Basics, ..Bsplines, ..Defaults, ..ManyElectron, ..Radial, ..Nuclear
 """
 `struct  Continuum.Settings`  ... defines a type for the parameters for computing continuum orbitals.
 
-    + includeExchange         ::Bool    ... True, if the exchange is to be included and false otherwise. SEE THE NOTE BELOW:
-                                            the only supported value is `false`.
+    + includeExchange         ::Bool    ... True, if the exchange with the bound electrons of the level is to be included,
+                                            false otherwise. SEE THE NOTE BELOW: `true` is honoured in exactly ONE place.
     + mtp                     ::Int64   ... No of grid points for which the continuum orbital(s) are to be computed.
 
     DELIBERATELY POSITIONAL, AND DELIBERATELY OUTSIDE THE `Settings` CONVENTION -- decided 28-Aug-2026. Every other
@@ -25,12 +25,19 @@ using  ..Basics, ..Bsplines, ..Defaults, ..ManyElectron, ..Radial, ..Nuclear
     `src/` and `examples/` -- 20 of them the identical `Continuum.Settings(false, nrContinuum)`. Adding the convention here
     would give a user a constructor for a struct they have no decision to make about. Do not "fix" this; it is the decision.
 
-    `includeExchange` HAS EXACTLY ONE LEGAL VALUE, `false`, and that is worth knowing before anyone sets it hoping for
-    exchange. Measured 28-Aug-2026: it is `false` at all 27 construction sites, and the only code that reads it is
-    `generateOrbitalLocalPotential`, which does `settings.includeExchange && error(...)` -- so `true` does not enable
-    exchange, it raises. This matches the note on the method below: all continuum orbitals are generated in a LOCAL (DFS)
-    potential, exchange with the bound electrons is not treated. The field is therefore a placeholder for a capability that
-    does not exist yet, not a switch.
+    **`includeExchange = true` IS NOW REAL, AS OF 29-Oct-2026 (item 99), BUT ONLY UNDER `Continuum.generateOrbitalForLevel`
+    WITH THE GALERKIN SOLUTION METHOD** (`setDefaults("method: continuum, Galerkin")`). There it adds
+    `Bsplines.setupExchangeMatrix` -- the frozen nonlocal Dirac-Fock exchange operator built for item 75/S30, validated to
+    1.1e-16 against the whole-atom exchange energy -- against every occupied subshell of `level.basis`, with occupations from
+    `Basics.extractMeanOccupation(level.basis)`. **No iteration is needed**: with the core frozen, the exchange operator is
+    LINEAR in the unknown continuum orbital, so it simply adds to the Galerkin matrix that is already being solved once; this
+    is the same one-shot assembly a frozen-core bound Fock matrix uses, not a new convergence loop. Under any OTHER solution
+    method (`ContBessel`, `ContSine`, `AsymptoticCoulomb`, `NonrelativisticCoulomb`) `generateOrbitalForLevel` RAISES rather
+    than silently ignoring the flag -- those integrate directly against a local potential function and have no place to put a
+    nonlocal term without a genuine fixed-point iteration, which does not exist here (see the module docstring). And
+    `generateOrbitalLocalPotential` still raises on `true` unconditionally, for a different reason: it is handed a bare
+    `pot::Radial.Potential` with no `level` at all, so it has no bound orbitals to exchange with, Galerkin or not. All 27
+    EXISTING construction sites pass `false` and are completely unaffected; the field remains the way a caller OPTS IN.
 """
 struct Settings 
     includeExchange           ::Bool  
@@ -52,10 +59,12 @@ end
         every line and every partial wave; omitting them reproduces the previous behaviour exactly. A tupel of a (continuum)
         (orbital::Orbital, phase::Float64) is returned.
 
-        NOTE ON THE POTENTIAL: all continuum orbitals are generated in a LOCAL (DFS) potential -- exchange with
-        the bound electrons is not treated. That is a property of this method, true of every run, and it is
-        stated here rather than emitted as a per-orbital warning as it was until 12-Aug-2026 (which produced
-        one identical entry in jac-warn.report for every partial wave, and said nothing about the run).
+        NOTE ON THE POTENTIAL: every continuum orbital is generated in a LOCAL (DFS) potential, whatever field the bound
+        orbitals of `level` actually came from -- that remains true of every run and is stated here rather than emitted as
+        a per-orbital warning as it was until 12-Aug-2026 (which produced one identical entry in jac-warn.report for every
+        partial wave, and said nothing about the run). **AS OF 29-Oct-2026 (item 99) exchange with the bound electrons CAN
+        be added on top of that local potential**, under `settings.includeExchange = true` and the Galerkin solution method
+        only -- see `Continuum.Settings`'s own docstring for what that does and why every other combination raises.
 """
 function generateOrbitalForLevel(energy::Float64, sh::Subshell, level::Level, nm::Nuclear.Model, grid::Radial.Grid,
                                  settings::Continuum.Settings; nuclearPot::Union{Nothing,Radial.Potential}=nothing, 
@@ -77,16 +86,26 @@ function generateOrbitalForLevel(energy::Float64, sh::Subshell, level::Level, nm
     ## wp  = Basics.computePotential(Basics.DFSField(0.42), grid, level)   
     wp  = Basics.computePotential(Basics.DFSField(1.0), grid, level);
     pot = Basics.add(nuclearPotential, wp)
-    
+
+    # `includeExchange` is honoured in exactly one place -- the Galerkin solution method, where it costs no new
+    # iteration (see Continuum.Settings' docstring, item 99). Elsewhere it has no mechanism to act through, and
+    # raising here is cheaper to debug than a flag that was silently ignored.
+    settings.includeExchange  &&  Defaults.GBL_CONT_SOLUTION != BsplineGalerkin()  &&
+        error("Continuum.generateOrbitalForLevel(): settings.includeExchange = true needs the Galerkin solution " *
+              "method (setDefaults(\"method: continuum, Galerkin\")); the current method has no nonlocal term to add it to.")
+    coreOrbitals, coreOccupations = settings.includeExchange ?
+                                     (level.basis.orbitals, Basics.extractMeanOccupation(level.basis)) : (nothing, nothing)
+
     # Generate a continuum orbital due to the given solution method
-    if      Defaults.GBL_CONT_SOLUTION  ==  ContBessel() 
+    if      Defaults.GBL_CONT_SOLUTION  ==  ContBessel()
         cOrbital = Continuum.generateOrbitalBessel(energy, sh, grid::Radial.Grid, settings)
-    elseif  Defaults.GBL_CONT_SOLUTION  ==  AsymptoticCoulomb() 
+    elseif  Defaults.GBL_CONT_SOLUTION  ==  AsymptoticCoulomb()
         cOrbital = Continuum.generateOrbitalAsymptoticCoulomb(energy, sh, pot, settings)
     elseif  Defaults.GBL_CONT_SOLUTION  ==  NonrelativisticCoulomb()
         cOrbital = Continuum.generateOrbitalNonrelativisticCoulomb(energy, sh, pot.grid, settings)
     elseif  Defaults.GBL_CONT_SOLUTION  ==  BsplineGalerkin()
-        cOrbital = Continuum.generateOrbitalGalerkin(energy, sh, pot, settings; primitives=primitives, storage=storage)
+        cOrbital = Continuum.generateOrbitalGalerkin(energy, sh, pot, settings; primitives=primitives, storage=storage,
+                                                       coreOrbitals=coreOrbitals, occupations=coreOccupations)
     else    error("stop a")
     end
     #
@@ -154,6 +173,16 @@ function generateOrbitalForLevel(energy::Float64, sh::Subshell, level::Level, nm
     for  i = 1:length(screenedZr)   screenedZr[i] = screenedZr[i] * exp(-lambda * pot.grid.r[i])    end
     pot = Radial.Potential(pot.name * "+ Debye-Hueckel screening", screenedZr, pot.grid)
 
+    # `includeExchange` is honoured in exactly one place -- see the field-free method above. The exchange operator
+    # is built from the ACTUAL (unscreened) bound orbitals and is deliberately NOT itself Debye-screened: it is a
+    # short-range, finite-overlap operator (Bsplines.setupExchangeMatrix), not a long-range Coulomb tail, so it is
+    # not the term the screening in this function exists to fix.
+    settings.includeExchange  &&  Defaults.GBL_CONT_SOLUTION != BsplineGalerkin()  &&
+        error("Continuum.generateOrbitalForLevel(): settings.includeExchange = true needs the Galerkin solution " *
+              "method (setDefaults(\"method: continuum, Galerkin\")); the current method has no nonlocal term to add it to.")
+    coreOrbitals, coreOccupations = settings.includeExchange ?
+                                     (level.basis.orbitals, Basics.extractMeanOccupation(level.basis)) : (nothing, nothing)
+
     # Generate a continuum orbital due to the given solution method
     if      Defaults.GBL_CONT_SOLUTION  ==  ContBessel()
         cOrbital = Continuum.generateOrbitalBessel(energy, sh, grid::Radial.Grid, settings)
@@ -162,7 +191,8 @@ function generateOrbitalForLevel(energy::Float64, sh::Subshell, level::Level, nm
     elseif  Defaults.GBL_CONT_SOLUTION  ==  NonrelativisticCoulomb()
         cOrbital = Continuum.generateOrbitalNonrelativisticCoulomb(energy, sh, pot.grid, settings)
     elseif  Defaults.GBL_CONT_SOLUTION  ==  BsplineGalerkin()
-        cOrbital = Continuum.generateOrbitalGalerkin(energy, sh, pot, settings; primitives=primitives, storage=storage)
+        cOrbital = Continuum.generateOrbitalGalerkin(energy, sh, pot, settings; primitives=primitives, storage=storage,
+                                                       coreOrbitals=coreOrbitals, occupations=coreOccupations)
     else    error("stop a")
     end
     #
@@ -184,9 +214,12 @@ end
 
 """
 `Continuum.generateOrbitalLocalPotential(energy::Float64, sh::Subshell, pot::Radial.Potential, settings::Continuum.Settings)`
-    ... to generate a continuum orbital for the (continuum) subshell sh, the energy and the given potential. The effective 
-        charge for the normalization of the continuum orbital is derived from the potential. All further specifications about 
-        this generations are made by proper settings; however, the function termintates if the settings.includeExchange = true. 
+    ... to generate a continuum orbital for the (continuum) subshell sh, the energy and the given potential. The effective
+        charge for the normalization of the continuum orbital is derived from the potential. All further specifications about
+        this generations are made by proper settings; however, the function terminates if settings.includeExchange = true,
+        UNCONDITIONALLY and for a different reason than in `Continuum.generateOrbitalForLevel` (item 99): this function is
+        handed a bare `pot::Radial.Potential` with no `level` at all, so it has no bound orbitals to build an exchange
+        operator from, whatever the solution method.
         A tupel of a (continuum) (orbital::Orbital, phase::Float64, normFactor::Float64) is returned.
 """
 function generateOrbitalLocalPotential(energy::Float64, sh::Subshell, pot::Radial.Potential, settings::Continuum.Settings)
@@ -283,19 +316,33 @@ end
 
 
 """
-`Continuum.generateOrbitalGalerkin(energy::Float64, sh::Subshell, pot::Radial.Potential, settings::Continuum.Settings; 
-                                    primitives::Union{Nothing,Bsplines.Primitives}=nothing, 
-                                    storage::Union{Nothing,Dict{String,Array{Float64,2}}}=nothing)`
+`Continuum.generateOrbitalGalerkin(energy::Float64, sh::Subshell, pot::Radial.Potential, settings::Continuum.Settings;
+                                    primitives::Union{Nothing,Bsplines.Primitives}=nothing,
+                                    storage::Union{Nothing,Dict{String,Array{Float64,2}}}=nothing,
+                                    coreOrbitals::Union{Nothing,Dict{Subshell,Orbital}}=nothing,
+                                    occupations::Union{Nothing,Dict{Subshell,Float64}}=nothing)`
     ... to generate a non-normalized continuum orbital within the given local potential by using the Galerkin method and a
         given B-spline basis. Both keywords carry quantities that are constant for a whole computation on one grid: the
         B-spline primitives depend on the radial grid alone, and the storage dictionary holds the TTp matrices, which depend
         on the grid and on kappa but never on the potential or the energy. A caller that generates many continuum orbitals
         should build both once and pass them in. Omitting either reproduces the previous behaviour exactly. A
         (non-normalized) orbital::Orbital is returned.
+
+        **`coreOrbitals`/`occupations`, ADDED 29-Oct-2026 (item 99), ADD EXCHANGE WITH A FROZEN CORE, AND NEED NO ITERATION
+        HERE.** When both are given, `Bsplines.setupExchangeMatrix` -- the same frozen nonlocal Dirac-Fock exchange operator
+        validated for item 75/S30 -- is added to the Galerkin matrix before it is solved. The core is frozen and the operator
+        is LINEAR in the unknown continuum orbital, so this is exactly the one-shot assembly `A = setupLocalMatrix +
+        setupExchangeMatrix` already uses for a frozen-core bound Fock matrix, not a new convergence loop: the matrix is built
+        once, and the same single generalized-eigenvalue solve below finds the continuum orbital, now of the Dirac-FOCK
+        problem instead of the Dirac-Hartree one. Omitting either keyword (the default) reproduces the previous behaviour
+        exactly -- this is the switch `Continuum.Settings.includeExchange` turns on, and its own docstring says why every
+        other solution method must raise instead of reaching this keyword.
 """
-function generateOrbitalGalerkin(energy::Float64, sh::Subshell, pot::Radial.Potential, settings::Continuum.Settings; 
-                                  primitives::Union{Nothing,Bsplines.Primitives}=nothing, 
-                                  storage::Union{Nothing,Dict{String,Array{Float64,2}}}=nothing)
+function generateOrbitalGalerkin(energy::Float64, sh::Subshell, pot::Radial.Potential, settings::Continuum.Settings;
+                                  primitives::Union{Nothing,Bsplines.Primitives}=nothing,
+                                  storage::Union{Nothing,Dict{String,Array{Float64,2}}}=nothing,
+                                  coreOrbitals::Union{Nothing,Dict{Subshell,Orbital}}=nothing,
+                                  occupations::Union{Nothing,Dict{Subshell,Float64}}=nothing)
     Continuum.checkNormalizationRadius(pot)
     P = zeros(settings.mtp);   Q = zeros(settings.mtp);   Pprime = zeros(settings.mtp);    Qprime = zeros(settings.mtp)
     nsL = pot.grid.nsL - 1;    nsS = pot.grid.nsS - 1
@@ -308,6 +355,9 @@ function generateOrbitalGalerkin(energy::Float64, sh::Subshell, pot::Radial.Pote
             error("The given primitives belong to a different grid than the potential.")
     end
     wb = Bsplines.generateGalerkinMatrix(sh, energy, pot, wa; storage=storage)
+    if  !isnothing(coreOrbitals)
+        wb = wb + Bsplines.setupExchangeMatrix(sh.kappa, wa, coreOrbitals, occupations)
+    end
     wc = adjoint(wb) * wb
     
     # Test for 'real-symmetric matrix' ... and symmetrize otherwise
