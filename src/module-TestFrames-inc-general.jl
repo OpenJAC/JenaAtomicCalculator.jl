@@ -2300,7 +2300,7 @@ function testModule_InteractionStrength(; short::Bool=true)
     grid = Radial.Grid(Radial.Grid(false), rnt = 2.0e-6, h = 5.0e-2, hp = 2.0e-2, rbox = 20.0)
     nm   = Nuclear.Model(10.)
     orb  = Dict{String,Orbital}()
-    for  s  in  ["1s_1/2", "2s_1/2", "2p_1/2", "2p_3/2"]
+    for  s  in  ["1s_1/2", "2s_1/2", "2p_1/2", "2p_3/2", "3d_3/2"]
         orb[s] = HydrogenicIon.orbital(Subshell(s), nm, grid)
     end
 
@@ -2351,9 +2351,78 @@ function testModule_InteractionStrength(; short::Bool=true)
         end
     end
 
+    # (4) MabEmission: THE MULTIPOLE CHOOSES THE OPERATOR AND THE GAUGE ONLY ITS FORM -- added 29-Oct-2026 with
+    #     the correction of that defect. Until then the function branched on the GAUGE ALONE and never looked at
+    #     `mp`, so M_L asked for under an electric gauge returned the ELECTRIC strength E_L of the same rank, and
+    #     E_L under `Magnetic` returned M_L. What makes that worth a test rather than a comment is the PARITY: the
+    #     two families carry opposite parity at equal rank, (-1)^L against (-1)^(L+1), so the substitution did not
+    #     merely misscale an amplitude, it swapped the SELECTION RULE -- which is why every mixed-multipole
+    #     two-photon channel came back exactly zero and looked like physics.
+    #
+    #     Each row below names an orbital pair, a multipole the parity rule ALLOWS between them and one it FORBIDS
+    #     at the same rank. Both halves are asserted, and that is deliberate: a test that only checked the allowed
+    #     strength would have passed on the old code for half these rows, and one that only checked the forbidden
+    #     zero would have passed on it for the other half. Nothing is read from a reference; the parity rule is
+    #     the whole of the expected answer.
+    gaugesOf(mp) = mp.electric  ?  [Basics.Coulomb, Basics.Babushkin]  :  [Basics.Coulomb, Basics.Babushkin, Basics.Magnetic]
+    nAllowed = 0
+    for  (sa, sb, allowed, forbidden)  in  [("1s_1/2", "2s_1/2", M1, E1), ("1s_1/2", "2p_3/2", M2, E2),
+                                            ("1s_1/2", "3d_3/2", E2, M2), ("2p_1/2", "3d_3/2", M2, M1)]
+        omega = abs(orb[sa].energy - orb[sb].energy)
+        for  gauge  in  gaugesOf(allowed)
+            wa = InteractionStrength.MabEmission(allowed, gauge, omega, orb[sa], orb[sb], grid)
+            if  abs(wa) < 1.0e-12
+                success = false
+                if printTest   info(iostream, "MabEmission($allowed, $gauge, $sa, $sb) is allowed by parity and " *
+                                              "must not vanish; got $wa")   end
+            else    nAllowed = nAllowed + 1
+            end
+        end
+        for  gauge  in  gaugesOf(forbidden)
+            wa = InteractionStrength.MabEmission(forbidden, gauge, omega, orb[sa], orb[sb], grid)
+            if  wa != 0.
+                success = false
+                if printTest   info(iostream, "MabEmission($forbidden, $gauge, $sa, $sb) is forbidden by parity " *
+                                              "and must be exactly 0; got $wa")   end
+            end
+        end
+    end
+    if  nAllowed != 11
+        success = false
+        if printTest   info(iostream, "only $nAllowed of the 11 allowed (pair, multipole, gauge) strengths were " *
+                                      "non-vanishing; the section is not exercising what it claims")   end
+    end
+    # A magnetic multipole has a SINGLE form, so the three gauges must return not merely a non-zero value but the
+    # same value bit for bit. This is the contract that lets a caller sweep the electric gauges over a MIXED list of
+    # multipoles, as the two-photon modules do; before the correction these three disagreed.
+    omegaM = abs(orb["1s_1/2"].energy - orb["2p_3/2"].energy)
+    wm     = [InteractionStrength.MabEmission(M2, g, omegaM, orb["1s_1/2"], orb["2p_3/2"], grid)
+              for  g  in  [Basics.Coulomb, Basics.Babushkin, Basics.Magnetic]]
+    if  !(wm[1] == wm[2] && wm[2] == wm[3])
+        success = false
+        if printTest   info(iostream, "M2 must be gauge-independent; got Coulomb $(wm[1]), Babushkin $(wm[2]), " *
+                                      "Magnetic $(wm[3])")   end
+    end
+    # And an ELECTRIC multipole under `Magnetic` must RAISE: there is no magnetic form of an electric multipole, and
+    # silently returning one is precisely what went wrong. A test for a refusal must assert that the refusal
+    # HAPPENED, or it passes on a function that quietly answers with a number.
+    for  mp  in  [E1, E2, E3]
+        raised = false
+        try     InteractionStrength.MabEmission(mp, Basics.Magnetic, omegaM, orb["1s_1/2"], orb["2p_3/2"], grid)
+        catch   ex;   raised = true
+        end
+        if  !raised
+            success = false
+            if printTest   info(iostream, "MabEmission($mp, Magnetic, ...) must raise; it returned instead")   end
+        end
+    end
+
     println(iostream, "InteractionStrength: XL_Coulomb against XL_CoulombKinkAware over eight (L, abcd) "     *
                       "combinations, exact zeros where the selection rules forbid, and the memoised method "  *
-                      "against the plain one. No approved data is used.")
+                      "against the plain one. Then MabEmission over four orbital pairs, each with one "       *
+                      "parity-allowed and one parity-forbidden multipole of the same rank, in every gauge; "  *
+                      "the gauge-independence of a magnetic multipole; and the refusal of an electric one "   *
+                      "in the Magnetic gauge. No approved data is used.")
     Defaults.setDefaults("print summary: close", "")
     testPrint("testModule_InteractionStrength()::", success)
     return( success )

@@ -441,7 +441,6 @@ function getReducedAmplitudeEmission(K::AngularJ64, finalLevel::Level, omega2::F
             if  K == channel.K         &&  abs(omega1 - channel.omega1) < 1.e-10  &&   abs(omega2 - channel.omega2) < 1.e-10 && 
                 Jsym == channel.Jsym   &&  multipole1 == channel.multipole1  &&  multipole2 == channel.multipole2            && 
                 gauge == channel.gauge
-                # (gauge == channel.gauge  ||  EmGauge("Magnetic")  == channel.gauge)
                 U = channel.amplitude;    found = true;     break
             end
         end
@@ -497,14 +496,21 @@ function determineSharingsAndChannels(finalLevel::Level, initialLevel::Level, en
                 Klist       = oplus(symf.J, symi.J)
                 for  symx in symmetries
                     for  gauge in settings.gauges
-                        # Include further restrictions if appropriate
-                        if     (string(mp1)[1] == 'E' || string(mp2)[1] == 'E')  &&   gauge == Basics.UseCoulomb
-                            for K in Klist  push!(channels, ReducedChannel_2pEmission(K, omega1, omega2, mp1, mp2, Basics.Coulomb, symx, 0.) )    end 
-                        elseif (string(mp1)[1] == 'E' || string(mp2)[1] == 'E')  &&   gauge == Basics.UseBabushkin    
-                            for K in Klist  push!(channels, ReducedChannel_2pEmission(K, omega1, omega2, mp1, mp2, Basics.Babushkin, symx, 0.) )  end
-                        elseif (string(mp1)[1] == 'M' && string(mp2)[1] == 'M')
-                            for K in Klist  push!(channels, ReducedChannel_2pEmission(K, omega1, omega2, mp1, mp2, Basics.Magnetic, symx, 0.) )   end
-                        end
+                        # THE GAUGE IS A PROPERTY OF AN ELECTRIC MULTIPOLE, NOT OF THE PAIR -- corrected 29-Oct-2026.  Until
+                        # then a pair was filed under `Magnetic` when BOTH multipoles were magnetic and under the requested
+                        # electric gauge otherwise, and in THIS file that cost three separate things.  A pure-magnetic pair
+                        # was stored under a key that is never looked up:  `getReducedAmplitudeEmission` compares the gauge
+                        # strictly, its one-line `Magnetic` fallback having been commented out rather than finished, so the
+                        # channel was built, filled, and then reported missing with a warning and a zero.  The same pair was
+                        # stored once per requested gauge, i.e. twice over.  And a MIXED pair was filed under an electric
+                        # gauge and then evaluated with the ELECTRIC formula at BOTH ends, so its magnetic factor was
+                        # silently the electric one of the same rank and vanished by the wrong parity rule.
+                        # Each pair is now filed under the gauge that was actually asked for, and the one-photon factors take
+                        # their form from their OWN multipole inside `InteractionStrength.MabEmission`, so a pure-magnetic pair
+                        # carries the same number in both gauges exactly as it does in `module-PhotoEmission.jl`.  Pure-E1E1
+                        # results are bit-identical, which is what the whole of `examples/example-Dh.jl` rests on.
+                        gaugex = EmGauge(string(gauge))
+                        for K in Klist  push!(channels, ReducedChannel_2pEmission(K, omega1, omega2, mp1, mp2, gaugex, symx, 0.) )    end
                     end
                 end
             end

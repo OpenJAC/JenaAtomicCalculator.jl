@@ -521,7 +521,7 @@ function getReducedAmplitudeAbsorption(K::AngularJ64, finalLevel::Level, multipo
     U = Complex(0.);    found = false
     for channel in channels
         if  K == channel.K  &&  omega == channel.omega  &&   Jsym == channel.Jsym       &&  multipole1 == channel.multipole1  &&  
-            multipole2 == channel.multipole2            &&   (gauge == channel.gauge  ||  EmGauge("Magnetic")  == channel.gauge)
+            multipole2 == channel.multipole2            &&   gauge == channel.gauge
             U = channel.amplitude;    found = true
         end
     end 
@@ -551,21 +551,25 @@ function determineChannels_2pAbsorptionMonochromatic(omega::Float64, finalLevel:
             Klist       = oplus(symf.J, symi.J)
             for  symn in symmetries
                 for  gauge in settings.gauges
-                    # THE SECOND CONDITION WAS DEAD until 08-Aug-2026: it read
-                    #     elseif string(mp1)[1] == 'E'  string(mp2)[1] == 'E'  &&  gauge == Basics.UseBabushkin
-                    # without the first `&&`, which Julia parses as a condition on mp1 ALONE followed by a
-                    # no-op expression -- so the test on mp2 and the test on the gauge were both discarded.
-                    # Harmless for E1E1, which is all this module has ever been run with, and wrong as soon as
-                    # mixed multipoles are requested: an (E1, M1) pair with gauge = UseCoulomb fell through to
-                    # here and was pushed as a BABUSHKIN channel. Fixed; E1E1 results are bit-identical.
-                    # Include further restrictions if appropriate
-                    if     string(mp1)[1] == 'E' && string(mp2)[1] == 'E'  &&   gauge == Basics.UseCoulomb
-                        for K in Klist  push!(channels, MultiPhotonTransition.Channel_2pAbsorptionMonochromatic(K, omega, mp1, mp2, Basics.Coulomb, symn, 0.) )     end
-                    elseif string(mp1)[1] == 'E' && string(mp2)[1] == 'E'  &&   gauge == Basics.UseBabushkin
-                        for K in Klist  push!(channels, MultiPhotonTransition.Channel_2pAbsorptionMonochromatic(K, omega, mp1, mp2, Basics.Babushkin, symn, 0.) )   end
-                    elseif string(mp1)[1] == 'M' && string(mp2)[1] == 'M'
-                        for K in Klist  push!(channels, MultiPhotonTransition.Channel_2pAbsorptionMonochromatic(K, omega, mp1, mp2, Basics.Magnetic, symn, 0.) )    end
-                    end
+                    # THE GAUGE IS A PROPERTY OF AN ELECTRIC MULTIPOLE, NOT OF THE PAIR -- corrected 29-Oct-2026.  Until
+                    # then a pair was filed under `Magnetic` when BOTH multipoles were magnetic and under the requested
+                    # electric gauge otherwise, and in THIS file that cost two things.  A MIXED pair matched NONE of the
+                    # three tests, since the first two demanded that mp1 and mp2 be electric TOGETHER, so it was dropped
+                    # before it was ever stored -- the absorption and emission files failed differently here, the emission
+                    # one using `||` and storing a mixed pair it then evaluated wrongly.  And a pure-magnetic pair was
+                    # stored once per requested gauge, twice over, reachable only through the `|| EmGauge("Magnetic")`
+                    # disjunct in `getReducedAmplitudeAbsorption` -- which exists for no other purpose than to paper over
+                    # this keying, and which is removed with it:  while it stood, a channel filed under `Magnetic` answered
+                    # a request for ANY gauge.
+                    # (A related parse defect was repaired at this same spot on 08-Aug-2026 -- a missing `&&` had made the
+                    # Babushkin test a condition on mp1 alone -- and its note then said this would be "wrong as soon as
+                    # mixed multipoles are requested".  It was.)
+                    # Each pair is now filed under the gauge that was actually asked for, and the one-photon factors take
+                    # their form from their OWN multipole inside `InteractionStrength.MabEmission`, so a pure-magnetic pair
+                    # carries the same number in both gauges exactly as it does in `module-PhotoEmission.jl`.  Pure-E1E1
+                    # results are bit-identical, which is what the whole of `examples/example-Dh.jl` rests on.
+                    gaugex = EmGauge(string(gauge))
+                    for K in Klist  push!(channels, MultiPhotonTransition.Channel_2pAbsorptionMonochromatic(K, omega, mp1, mp2, gaugex, symn, 0.) )     end
                 end 
             end
         end

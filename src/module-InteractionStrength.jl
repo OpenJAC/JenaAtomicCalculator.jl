@@ -355,8 +355,14 @@ end
         turned round and every call site swapped in the same commit, which changes no number. The old arrangement needed a paragraph of
         prose to explain it, and prose that reads like physics but is really about a parameter list is worse than no prose.
 
+        THE MULTIPOLE CHOOSES THE OPERATOR AND THE GAUGE ONLY ITS FORM. `mp.electric` alone decides whether the electric or the magnetic
+        strength is returned, so a magnetic multipole is answered with M_L under ANY gauge -- it has a single form, and `Magnetic` therefore
+        states nothing that `mp` has not already stated -- while an ELECTRIC multipole under `Magnetic` RAISES, that being the one pairing
+        with no reading. This lets a caller sweep the electric gauges over a MIXED list of multipoles, as the two-photon modules do, without
+        each of them having to re-derive the rule; `module-Hfs.jl` and `module-PhotoEmission.jl` had each derived it separately.
+
         THE GAUGES, following Grant, J. Phys. B 7, 12 (1974): `Coulomb` is the velocity form and `Babushkin` the length form of the electric
-        multipole operator; `Magnetic` is used for magnetic multipoles. For exact one-body eigenfunctions the two electric forms must agree
+        multipole operator; `Magnetic` is the single form of a magnetic one. For exact one-body eigenfunctions the two electric forms must agree
         at the physical photon energy, and here they do -- H 1s-2p gives Coulomb/Babushkin = 1.000000 on shell. Away from that energy they
         legitimately differ: the length form scales with the omega it is given, while the velocity form carries the level difference through
         <f|p|i> = i m (E_f - E_i) <f|r|i>, so an OFF-SHELL call is not gauge invariant and must not be expected to be.
@@ -422,7 +428,21 @@ end
 function MabEmission(mp::EmMultipole, gauge::EmGauge, omega::Float64, a::Orbital, b::Orbital, grid::Radial.Grid)
     kapa = a.subshell.kappa;   kapb = b.subshell.kappa;    q = omega / Defaults.getDefaults("speed of light: c")
 
-    if       gauge == Basics.Magnetic
+    # THE FORMULA FAMILY IS SET BY THE MULTIPOLE, NOT BY THE GAUGE -- corrected 29-Oct-2026.  Until then this
+    # function branched on the GAUGE ALONE and never once looked at `mp`, so M_L asked for under an electric gauge
+    # returned the ELECTRIC strength E_L of the same rank, and E_L under `Magnetic` returned M_L:  measured on
+    # hydrogenic Z = 10 orbitals, M2/Coulomb equalled E2/Coulomb to every digit of a Float64, in both directions
+    # and at every rank.  A magnetic multipole has only ONE form, so `Magnetic` carries nothing that `mp` does not
+    # already carry;  a caller sweeping the electric gauges over a MIXED set of multipoles must still receive M_L
+    # for the magnetic members, the gauge then labelling the electric members alone -- which is what
+    # `module-Hfs.jl` arranges by hand at its own call sites and what `module-PhotoEmission.jl` arranges by
+    # branching on the multipole before it chooses a gauge.
+    #
+    # AND THE OLD BEHAVIOUR DID NOT MERELY MISSCALE AN AMPLITUDE:  the two families have OPPOSITE parity at equal
+    # rank, (-1)^L against (-1)^(L+1), so it swapped the SELECTION RULE.  That is why it was invisible for twenty
+    # months and then total -- every mixed-multipole two-photon channel came back EXACTLY zero rather than merely
+    # wrong, since the substituted operator was forbidden for precisely the orbital pairs the right one allows.
+    if       !mp.electric
         JohnsonI = AngularMomentum.JohnsonI(-kapa, kapb, AngularJ64(mp.L))
         wa     = JohnsonI * (kapa + kapb)/(mp.L+1) * RadialIntegrals.GrantILplus(mp.L, q, a, b, grid::Radial.Grid)
 
@@ -449,6 +469,17 @@ function MabEmission(mp::EmMultipole, gauge::EmGauge, omega::Float64, a::Orbital
         wr       = wr  +  mp.L/(2mp.L+1) * RadialIntegrals.GrantILminus(mp.L-1, q, a, b, grid::Radial.Grid)
         wr       = wr  +  mp.L/(2mp.L+1) * RadialIntegrals.GrantILminus(mp.L+1, q, a, b, grid::Radial.Grid)
         wa       = JohnsonI * wr
+
+    elseif   gauge == Basics.Magnetic
+        # AN ELECTRIC MULTIPOLE WITH `Magnetic` IS THE ONE COMBINATION WITH NO READING, and it is not answered
+        # silently:  returning the magnetic strength would hand back a DIFFERENT OPERATOR under the caller's name,
+        # and returning an electric one would invent a gauge choice the caller never made.  Nothing in `src/`
+        # reaches here -- checked over every call path of this function on 29-Oct-2026 -- so the raise is a
+        # detector for a future caller rather than a behaviour change.
+        error("InteractionStrength.MabEmission(): the ELECTRIC multipole $mp was requested in the Magnetic "   *
+              "gauge. An electric multipole has the Coulomb (velocity) and Babushkin (length) forms only, and " *
+              "`Magnetic` is not a third one. Pass Coulomb or Babushkin for an electric multipole; a magnetic "  *
+              "multipole has a single form and takes it from its own type, under any gauge.")
     else     error("stop a")
     end
 

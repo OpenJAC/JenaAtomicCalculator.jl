@@ -630,17 +630,20 @@ function determineChannels_2pAbsorptionBichromatic(omega1::Float64, omega2::Floa
             symmetries = MultiPhotonTransition.allowedSymmetries_2pAbsorptionBichromatic(symf, mp2, mp1, symi)
             for  symn in symmetries
                 for  gauge in settings.gauges
-                    # Include further restrictions if appropriate
-                    if     string(mp1)[1] == 'E' && string(mp2)[1] == 'E'  &&   gauge == Basics.UseCoulomb
-                        for K in Klist  push!(channels, MultiPhotonTransition.Channel_2pAbsorptionBichromatic(K, omega1, omega2,
-                                                            mp1, mp2, Basics.Coulomb, symn, 0., 0.) )     end
-                    elseif string(mp1)[1] == 'E' && string(mp2)[1] == 'E'  &&   gauge == Basics.UseBabushkin
-                        for K in Klist  push!(channels, MultiPhotonTransition.Channel_2pAbsorptionBichromatic(K, omega1, omega2,
-                                                            mp1, mp2, Basics.Babushkin, symn, 0., 0.) )   end
-                    elseif string(mp1)[1] == 'M' && string(mp2)[1] == 'M'
-                        for K in Klist  push!(channels, MultiPhotonTransition.Channel_2pAbsorptionBichromatic(K, omega1, omega2,
-                                                            mp1, mp2, Basics.Magnetic, symn, 0., 0.) )    end
-                    end
+                    # THE GAUGE IS A PROPERTY OF AN ELECTRIC MULTIPOLE, NOT OF THE PAIR -- corrected 29-Oct-2026.  Until
+                    # then a pair was filed under `Magnetic` when BOTH multipoles were magnetic and under the requested
+                    # electric gauge otherwise, and in THIS file that cost two things.  A MIXED pair matched NONE of the
+                    # three tests, since the first two demanded that mp1 and mp2 be electric TOGETHER, so it was dropped
+                    # before it was ever stored.  And a pure-magnetic pair was stored once per requested gauge, twice over,
+                    # and then never found at all:  `getReducedAmplitudeBichromatic` compares the gauge strictly, so the
+                    # amplitude was computed twice and retrieved zero times.
+                    # Each pair is now filed under the gauge that was actually asked for, and the one-photon factors take
+                    # their form from their OWN multipole inside `InteractionStrength.MabEmission`, so a pure-magnetic pair
+                    # carries the same number in both gauges exactly as it does in `module-PhotoEmission.jl`.  Pure-E1E1
+                    # results are bit-identical, which is what the whole of `examples/example-Dh.jl` rests on.
+                    gaugex = EmGauge(string(gauge))
+                    for K in Klist  push!(channels, MultiPhotonTransition.Channel_2pAbsorptionBichromatic(K, omega1, omega2,
+                                                        mp1, mp2, gaugex, symn, 0., 0.) )     end
                 end
             end
         end
