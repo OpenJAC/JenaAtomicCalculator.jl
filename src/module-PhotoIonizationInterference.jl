@@ -66,6 +66,10 @@ using  Printf, ..AutoIonization, ..Basics, ..Bsplines, ..Continuum, ..Defaults, 
                                                             computed.
     + printBefore              ::Bool                   ... True, if all selected pathways are printed before their evaluation.
     + pathwaySelection         ::PathwaySelection       ... Specifies the selected pathways, if any.
+    + continuumExchange        ::Union{Nothing,Bool}    ... True/false to force exchange between the photoelectron and the bound
+                                                            electrons on or off; `nothing` -- the default -- lets `Basics.perform`
+                                                            decide automatically from the final-ion `AsfSettings.scField`
+                                                            (`Continuum.resolveExchangeDefault`, item 99).
 """
 struct Settings  <:  AbstractProcessSettings
     multipoles                 ::Array{EmMultipole,1}
@@ -79,6 +83,7 @@ struct Settings  <:  AbstractProcessSettings
     calcAnisotropy             ::Bool
     printBefore                ::Bool
     pathwaySelection           ::PathwaySelection
+    continuumExchange          ::Union{Nothing,Bool}
 end
 
 
@@ -88,7 +93,7 @@ end
 """
 function Settings()
     Settings( EmMultipole[E1], UseGauge[UseCoulomb], Float64[], [0,1,2,3,4,5], CoulombInteraction(), true, true,
-              Dict{Int64,Float64}(), false, false, PathwaySelection() )
+              Dict{Int64,Float64}(), false, false, PathwaySelection(), nothing )
 end
 
 
@@ -97,7 +102,7 @@ end
 
         multipoles=..,          gauges=..,              photonEnergies=..,     lValues=..,
         augerOperator=..,       includePI=..,           includeResonance=..,   intermediateWidths=..,
-        calcAnisotropy=..,      printBefore=..,          pathwaySelection=..)
+        calcAnisotropy=..,      printBefore=..,          pathwaySelection=..,  continuumExchange=..)
 
     ... keyword copy-constructor for re-defining selected values of a settings::PhotoIonizationInterference.Settings; a
         settings::Settings is returned.
@@ -108,7 +113,7 @@ function Settings(set::PhotoIonizationInterference.Settings;
     augerOperator::Union{Nothing,AbstractEeInteraction}=nothing,     includePI::Union{Nothing,Bool}=nothing,
     includeResonance::Union{Nothing,Bool}=nothing,                   intermediateWidths::Union{Nothing,Dict{Int64,Float64}}=nothing,
     calcAnisotropy::Union{Nothing,Bool}=nothing,                     printBefore::Union{Nothing,Bool}=nothing,
-    pathwaySelection::Union{Nothing,PathwaySelection}=nothing)
+    pathwaySelection::Union{Nothing,PathwaySelection}=nothing,        continuumExchange::Union{Nothing,Bool}=nothing)
 
     if  isnothing(multipoles)          multipolesx         = set.multipoles         else   multipolesx         = multipoles         end
     if  isnothing(gauges)              gaugesx             = set.gauges             else   gaugesx             = gauges             end
@@ -121,9 +126,10 @@ function Settings(set::PhotoIonizationInterference.Settings;
     if  isnothing(calcAnisotropy)      calcAnisotropyx     = set.calcAnisotropy     else   calcAnisotropyx     = calcAnisotropy     end
     if  isnothing(printBefore)         printBeforex        = set.printBefore        else   printBeforex        = printBefore        end
     if  isnothing(pathwaySelection)    pathwaySelectionx   = set.pathwaySelection   else   pathwaySelectionx   = pathwaySelection   end
+    if  isnothing(continuumExchange)   continuumExchangex  = set.continuumExchange  else   continuumExchangex  = continuumExchange  end
 
     Settings( multipolesx, gaugesx, photonEnergiesx, lValuesx, augerOperatorx, includePIx, includeResonancex, intermediateWidthsx,
-              calcAnisotropyx, printBeforex, pathwaySelectionx )
+              calcAnisotropyx, printBeforex, pathwaySelectionx, continuumExchangex )
 end
 
 
@@ -140,6 +146,7 @@ function Base.show(io::IO, settings::PhotoIonizationInterference.Settings)
     println(io, "calcAnisotropy:           $(settings.calcAnisotropy)  ")
     println(io, "printBefore:              $(settings.printBefore)  ")
     println(io, "pathwaySelection:         $(settings.pathwaySelection)  ")
+    println(io, "continuumExchange:        $(settings.continuumExchange)  ")
 end
 
 
@@ -378,7 +385,7 @@ function computeAmplitudesProperties(pathway::PhotoIonizationInterference.Pathwa
                                      widths::Dict{Int64,Float64}, nm::Nuclear.Model, grid::Radial.Grid, nrContinuum::Int64,
                                      settings::PhotoIonizationInterference.Settings,
                                      exciteCache::Dict{Tuple{EmMultipole,Int64,Int64},EmPropertyC} = Dict{Tuple{EmMultipole,Int64,Int64},EmPropertyC}())
-    contSettings = Continuum.Settings(false, nrContinuum)
+    contSettings = Continuum.Settings(isnothing(settings.continuumExchange) ? false : settings.continuumExchange, nrContinuum)
     redILevel    = Basics.generateLevelWithSymmetryReducedBasis(pathway.initialLevel, pathway.initialLevel.basis.subshells)
     newfLevel    = Basics.generateLevelWithSymmetryReducedBasis(pathway.finalLevel, redILevel.basis.subshells)
     totalEnergy  = pathway.initialLevel.energy + pathway.photonEnergy

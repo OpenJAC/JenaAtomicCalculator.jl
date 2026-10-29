@@ -34,7 +34,7 @@ elseif true
     # `daGreen` is produced by branch a of this file (line 29); without it this branch used to die on an
     # UndefVarError that named the symbol but not the remedy.
     if  !@isdefined(daGreen)   error("Run branch a of this file first; it defines `daGreen`.")   end
-    daSettings = DoubleAutoIonization.Settings(daGreen, 2, true, 0.1, 1000., 2, CoulombInteraction(), LineSelection(true, indexPairs=[(1,4)]))
+    daSettings = DoubleAutoIonization.Settings(daGreen, 2, true, 0.1, 1000., 2, CoulombInteraction(), LineSelection(true, indexPairs=[(1,4)]), nothing)
     
     wa = Atomic.Computation(Atomic.Computation(), name="xx", grid=grid, nuclearModel=Nuclear.Model(10.), 
                             initialConfigs  = [Configuration("1s 2s^2 2p^6")],

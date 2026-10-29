@@ -56,13 +56,19 @@ using  Printf, ..AngularMomentum, ..Basics, ..BiOrthogonal, ..Bsplines, ..Contin
             continuum branch; see AutoIonization.computeTeaRegularAmplitude. ZERO -- the default -- omits R(eps) entirely and leaves only
             the delta piece, so that the field is opt-in and an existing computation is unchanged by its presence. It truncates a complete
             set and is therefore a CONVERGENCE PARAMETER, not a tuning knob.
-    + intermediateEnergyFactor ::Float64  
+    + intermediateEnergyFactor ::Float64
         ... Factor by which the intermediate-energy range exceeds the energetically allowed maximum. It must EXCEED ONE: an intermediate
             state is virtual, so its energy is not restricted by energy conservation, and the on-shell pole must lie strictly INSIDE the
             interval or there is nothing to regularize. Like the point count it is a convergence parameter.
+    + continuumExchange   ::Union{Nothing,Bool}
+        ... True/false to force exchange between the free (Auger) electron and the bound electrons on or off; `nothing` --
+            the default -- lets `Basics.perform` decide automatically from the final-ion `AsfSettings.scField`
+            (`Continuum.resolveExchangeDefault`, item 99): on for `ALField`/`EOLField`, off otherwise. A caller of
+            `AutoIonization.computeLines` OUTSIDE `Basics.perform` that leaves this `nothing` gets `false`, the behaviour
+            this field did not change.
 """
 struct Settings  <:  AbstractProcessSettings
-    calcAnisotropy        ::Bool         
+    calcAnisotropy        ::Bool
     calcTeAuger           ::Bool
     calcBiorthogonal      ::Bool
     printBefore           ::Bool
@@ -71,19 +77,20 @@ struct Settings  <:  AbstractProcessSettings
     minAugerEnergy        ::Float64
     maxAugerEnergy        ::Float64
     maxKappa              ::Int64
-    operator              ::AbstractEeInteraction 
-    gMultiplet            ::Multiplet      
-    gCoreMultiplet        ::Multiplet      
+    operator              ::AbstractEeInteraction
+    gMultiplet            ::Multiplet
+    gCoreMultiplet        ::Multiplet
     NoIntermediateEnergies ::Int64
     intermediateEnergyFactor ::Float64
-end 
+    continuumExchange     ::Union{Nothing,Bool}
+end
 
 
 """
 `AutoIonization.Settings()`  ... constructor for the default values of AutoIonization line computations.
 """
 function Settings()
-    Settings(false, false, false, false, LineSelection(), 0., 0., 10e5, 100, CoulombInteraction(), Multiplet(), Multiplet(), 0, 3.)
+    Settings(false, false, false, false, LineSelection(), 0., 0., 10e5, 100, CoulombInteraction(), Multiplet(), Multiplet(), 0, 3., nothing)
 end
 
 
@@ -93,8 +100,9 @@ end
         calcAnisotropy=..,      calcTeAuger..,              calcBiorthogonal=..,    printBefore=..,
         augerEnergyShift=..,    minAugerEnergy=..,          maxAugerEnergy=..,      maxKappa=..,
         operator=..,            gMultiplet=..,              gCoreMultiplet=..,
-        NoIntermediateEnergies=..,                          intermediateEnergyFactor=.. )
-                    
+        NoIntermediateEnergies=..,                          intermediateEnergyFactor=..,
+        continuumExchange=.. )
+
     ... constructor for modifying the given AutoIonization.Settings by 'overwriting' the previously selected parameters.
 """
 function Settings(set::AutoIonization.Settings;
@@ -105,7 +113,8 @@ function Settings(set::AutoIonization.Settings;
     minAugerEnergy::Union{Nothing,Float64}=nothing,         maxAugerEnergy::Union{Nothing,Float64}=nothing,
     maxKappa::Union{Nothing,Int64}=nothing,                 operator::Union{Nothing,AbstractEeInteraction}=nothing,
     gMultiplet::Union{Nothing,Multiplet}=nothing,           gCoreMultiplet::Union{Nothing,Multiplet}=nothing,
-    NoIntermediateEnergies::Union{Nothing,Int64}=nothing,   intermediateEnergyFactor::Union{Nothing,Float64}=nothing)
+    NoIntermediateEnergies::Union{Nothing,Int64}=nothing,   intermediateEnergyFactor::Union{Nothing,Float64}=nothing,
+    continuumExchange::Union{Nothing,Bool}=nothing)
 
     if  isnothing(calcAnisotropy)     calcAnisotropyx    = set.calcAnisotropy    else  calcAnisotropyx    = calcAnisotropy    end
     if  isnothing(calcTeAuger)        calcTeAugerx       = set.calcTeAuger       else  calcTeAugerx       = calcTeAuger       end
@@ -121,15 +130,16 @@ function Settings(set::AutoIonization.Settings;
     if  isnothing(gCoreMultiplet)     gCoreMultipletx    = set.gCoreMultiplet    else  gCoreMultipletx    = gCoreMultiplet    end
     if  isnothing(NoIntermediateEnergies)     NoIntermediateEnergiesx   = set.NoIntermediateEnergies    else  NoIntermediateEnergiesx   = NoIntermediateEnergies    end
     if  isnothing(intermediateEnergyFactor)   intermediateEnergyFactorx = set.intermediateEnergyFactor  else  intermediateEnergyFactorx = intermediateEnergyFactor  end
+    if  isnothing(continuumExchange)          continuumExchangex        = set.continuumExchange         else  continuumExchangex        = continuumExchange         end
 
     Settings( calcAnisotropyx, calcTeAugerx, calcBiorthogonalx, printBeforex, lineSelectionx, augerEnergyShiftx,
               minAugerEnergyx, maxAugerEnergyx, maxKappax, operatorx, gMultipletx, gCoreMultipletx,
-              NoIntermediateEnergiesx, intermediateEnergyFactorx)
+              NoIntermediateEnergiesx, intermediateEnergyFactorx, continuumExchangex)
 end
 
 
 # `Base.show(io::IO, settings::AutoIonization.Settings)`  ... prepares a proper printout of the variable settings::AutoIonization.Settings.
-function Base.show(io::IO, settings::AutoIonization.Settings) 
+function Base.show(io::IO, settings::AutoIonization.Settings)
     println(io, "calcAnisotropy:                $(settings.calcAnisotropy)  ")
     println(io, "calcTeAuger:                   $(settings.calcTeAuger)  ")
     println(io, "calcBiorthogonal:              $(settings.calcBiorthogonal)  ")
@@ -144,6 +154,7 @@ function Base.show(io::IO, settings::AutoIonization.Settings)
     println(io, "gCoreMultiplet.name:           $(settings.gCoreMultiplet.name)  ")
     println(io, "NoIntermediateEnergies:        $(settings.NoIntermediateEnergies)  ")
     println(io, "intermediateEnergyFactor:      $(settings.intermediateEnergyFactor)  ")
+    println(io, "continuumExchange:             $(settings.continuumExchange)  ")
 end
 
 
@@ -436,7 +447,8 @@ function computeAmplitudesProperties(line::AutoIonization.Line, nm::Nuclear.Mode
                                            nrContinuum::Int64, settings::AutoIonization.Settings; printout::Bool=true,
                                            nuclearPot::Union{Nothing,Radial.Potential}=nothing,
                                            primitives::Union{Nothing,Bsplines.Primitives}=nothing)
-    newPartialWaves = AutoIonization.PartialWave[];   contSettings = Continuum.Settings(false, nrContinuum)
+    newPartialWaves = AutoIonization.PartialWave[]
+    contSettings = Continuum.Settings(isnothing(settings.continuumExchange) ? false : settings.continuumExchange, nrContinuum)
     rate = 0.
     subshellList = Basics.generate(OrderedSubshellList(), line.finalLevel.basis, line.initialLevel.basis)
     nucPot    = isnothing(nuclearPot) ? Nuclear.nuclearPotential(nm, grid) : nuclearPot

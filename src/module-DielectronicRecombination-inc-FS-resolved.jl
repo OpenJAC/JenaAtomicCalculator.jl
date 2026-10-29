@@ -219,7 +219,8 @@ function  computeCaptureAmplitudes(captureLine::DielectronicRecombination.Captur
                                          nuclearPot::Union{Nothing,Radial.Potential}=nothing,
                                          primitives::Union{Nothing,Bsplines.Primitives}=nothing)
     rateA             = 0.
-    newPartialWaves   = AutoIonization.PartialWave[];   contSettings = Continuum.Settings(false, nrContinuum)
+    newPartialWaves   = AutoIonization.PartialWave[]
+    contSettings = Continuum.Settings(isnothing(settings.continuumExchange) ? false : settings.continuumExchange, nrContinuum)
     initialLevel      = deepcopy(captureLine.initialLevel)
     intermediateLevel = deepcopy(captureLine.intermediateLevel)
     redNLevel = Basics.generateLevelWithSymmetryReducedBasis(intermediateLevel, intermediateLevel.basis.subshells)

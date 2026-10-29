@@ -423,20 +423,30 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
             if  output   results["intermediateMultiplet"] = intermediateMultiplet    end 
         end
         #
-        if      typeof(computation.processSettings) == AutoIonization.Settings 
-            outcome = AutoIonization.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid, computation.processSettings) 
+        if      typeof(computation.processSettings) == AutoIonization.Settings
+            # continuumExchange is resolved HERE, where computation.finalAsfSettings.scField is in scope, and travels on as an
+            # ordinary (now concrete) field of the settings object handed to computeLines -- see Continuum.resolveExchangeDefault,
+            # item 99.
+            exchangex = Continuum.resolveExchangeDefault(computation.processSettings.continuumExchange, computation.finalAsfSettings.scField)
+            outcome = AutoIonization.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid,
+                           AutoIonization.Settings(computation.processSettings; continuumExchange=exchangex))
             if output    results = Base.merge( results, Dict("AutoIonization lines:" => outcome) )                  end
         elseif  typeof(computation.processSettings) == RayleighCompton.Settings 
             outcome = RayleighCompton.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings) 
             if output    results = Base.merge( results, Dict("Rayleigh-Compton lines:" => outcome) )                end
         elseif  typeof(computation.processSettings) == ElectronCapture.Settings
             ## The capture is the time reverse of an Auger transition, so `initialConfigs` are the ion BEFORE the
-            ## capture and `finalConfigs` the doubly excited resonance it forms.
+            ## capture and `finalConfigs` the doubly excited resonance it forms. The free electron approaches that
+            ## INITIAL ion (see ElectronCapture.computeAmplitudesProperties), so it is initialAsfSettings.scField
+            ## that decides the automatic default here, unlike every OUTGOING-electron process above.
+            exchangex = Continuum.resolveExchangeDefault(computation.processSettings.continuumExchange, computation.initialAsfSettings.scField)
             outcome = ElectronCapture.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid,
-                                                   computation.processSettings)
+                           ElectronCapture.Settings(computation.processSettings; continuumExchange=exchangex))
             if output    results = Base.merge( results, Dict("electron-capture lines:" => outcome) )               end
-        elseif  typeof(computation.processSettings) == DoubleAutoIonization.Settings   
-            outcome = DoubleAutoIonization.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid, computation.processSettings) 
+        elseif  typeof(computation.processSettings) == DoubleAutoIonization.Settings
+            exchangex = Continuum.resolveExchangeDefault(computation.processSettings.continuumExchange, computation.finalAsfSettings.scField)
+            outcome = DoubleAutoIonization.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid,
+                           DoubleAutoIonization.Settings(computation.processSettings; continuumExchange=exchangex))
             if output    results = Base.merge( results, Dict("Double-Auger lines:" => outcome) )                    end
         elseif  typeof(computation.processSettings) == ThreeBodyRecombination.Settings
             ## initialConfigs are the ion BEFORE capture (one electron fewer); finalConfigs the bound level the
@@ -448,24 +458,32 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
             ## settings.calcHyperfineResolved selects the hyperfine-resolved route, which builds the hyperfine
             ## multiplets itself from these same three ELECTRONIC multiplets and recouples the electronic
             ## amplitudes; it is a strict analogue of the fine-structure one and needs no separate entry.
+            ## The captured electron approaches the INITIAL ion in both routes (as in ElectronCapture and
+            ## PhotoRecombination), so initialAsfSettings.scField decides the automatic default.
+            exchangex = Continuum.resolveExchangeDefault(computation.processSettings.continuumExchange, computation.initialAsfSettings.scField)
+            dcrSettings = DielectronicRecombination.Settings(computation.processSettings; continuumExchange=exchangex)
             if  computation.processSettings.calcHyperfineResolved
                 outcome = DielectronicRecombination.computeHfCaptureLines(finalMultiplet, intermediateMultiplet, initialMultiplet,
-                                                                          nModel, computation.grid, computation.processSettings)
+                                                                          nModel, computation.grid, dcrSettings)
                 if output    results = Base.merge( results, Dict("hyperfine-resolved dielectronic recombination lines:" => outcome) )   end
             else
                 outcome = DielectronicRecombination.computeCaptureLines(finalMultiplet, intermediateMultiplet, initialMultiplet, nModel,
-                                                                        computation.grid, computation.processSettings)
+                                                                        computation.grid, dcrSettings)
                 if output    results = Base.merge( results, Dict("dielectronic recombination lines:" => outcome) )   end
             end
         elseif  typeof(computation.processSettings) == MultiPhotonTransition.Settings
             outcome = MultiPhotonTransition.computeLines(computation.processSettings.scheme,
                                                             finalMultiplet, initialMultiplet, computation.grid, computation.processSettings) 
             if output    results = Base.merge( results, Dict("multi-photon transition lines:" => outcome) )         end
-        elseif  typeof(computation.processSettings) == PhotoIonization.Settings   
-            outcome = PhotoIonization.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid, computation.processSettings) 
+        elseif  typeof(computation.processSettings) == PhotoIonization.Settings
+            exchangex = Continuum.resolveExchangeDefault(computation.processSettings.continuumExchange, computation.finalAsfSettings.scField)
+            outcome = PhotoIonization.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid,
+                           PhotoIonization.Settings(computation.processSettings; continuumExchange=exchangex))
             if output    results = Base.merge( results, Dict("photoionization lines:" => outcome) )                 end
-        elseif  typeof(computation.processSettings) == PhotoDoubleIonization.Settings   
-            outcome = PhotoDoubleIonization.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid, computation.processSettings) 
+        elseif  typeof(computation.processSettings) == PhotoDoubleIonization.Settings
+            exchangex = Continuum.resolveExchangeDefault(computation.processSettings.continuumExchange, computation.finalAsfSettings.scField)
+            outcome = PhotoDoubleIonization.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid,
+                           PhotoDoubleIonization.Settings(computation.processSettings; continuumExchange=exchangex))
             if output    results = Base.merge( results, Dict("Single-photon double-ionization lines:" => outcome) )      end
         elseif  typeof(computation.processSettings) == PhotoExcitation.Settings
             outcome = PhotoExcitation.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings)
@@ -493,11 +511,17 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
         elseif  typeof(computation.processSettings) == RadiativeAuger.Settings
             outcome = RadiativeAuger.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings) 
             if output    results = Base.merge( results, Dict("radiative Auger sharings:" => outcome) )                   end
-        elseif  typeof(computation.processSettings) == PhotoRecombination.Settings 
-            outcome = PhotoRecombination.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid, computation.processSettings) 
+        elseif  typeof(computation.processSettings) == PhotoRecombination.Settings
+            ## The captured electron approaches the INITIAL ion (see PhotoRecombination.computeAmplitudesProperties), so
+            ## initialAsfSettings.scField decides the automatic default here, not finalAsfSettings.
+            exchangex = Continuum.resolveExchangeDefault(computation.processSettings.continuumExchange, computation.initialAsfSettings.scField)
+            outcome = PhotoRecombination.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid,
+                           PhotoRecombination.Settings(computation.processSettings; continuumExchange=exchangex))
             if output    results = Base.merge( results, Dict("photo recombination lines:" => outcome) )                  end
-        elseif  typeof(computation.processSettings) == ImpactExcitation.Settings 
-            outcome = ImpactExcitation.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid, computation.processSettings) 
+        elseif  typeof(computation.processSettings) == ImpactExcitation.Settings
+            exchangex = Continuum.resolveExchangeDefault(computation.processSettings.continuumExchange, computation.finalAsfSettings.scField)
+            outcome = ImpactExcitation.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid,
+                           ImpactExcitation.Settings(computation.processSettings; continuumExchange=exchangex))
             if output    results = Base.merge( results, Dict("impact-excitation lines:" => outcome) )                    end
         elseif  typeof(computation.processSettings) == InternalRecombination.Settings 
             outcome = InternalRecombination.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid, computation.processSettings) 
@@ -535,26 +559,33 @@ function Basics.perform(computation::Atomic.Computation; output::Bool=false)
         elseif  typeof(computation.processSettings) == CoulombIonization.Settings
             ## Reserved and empty until 25-Aug-2026, when the module was written; this branch used to raise and say
             ## that CoulombIonization held no computation to reach.  It now does.
+            exchangex = Continuum.resolveExchangeDefault(computation.processSettings.continuumExchange, computation.finalAsfSettings.scField)
             outcome = CoulombIonization.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid,
-                                                     computation.processSettings)
+                           CoulombIonization.Settings(computation.processSettings; continuumExchange=exchangex))
             if output    results = Base.merge( results, Dict("Coulomb ionization lines:" => outcome) )           end
         elseif  typeof(computation.processSettings) == MultiPhotonIonization.Settings
             outcome = MultiPhotonIonization.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid,
                                                          computation.processSettings) 
             if output    results = Base.merge( results, Dict("multi-photon single ionization:" => outcome) )        end
         elseif  typeof(computation.processSettings) == InternalConversion.Settings
-            outcome = InternalConversion.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid, computation.processSettings)
+            exchangex = Continuum.resolveExchangeDefault(computation.processSettings.continuumExchange, computation.finalAsfSettings.scField)
+            outcome = InternalConversion.computeLines(finalMultiplet, initialMultiplet, nModel, computation.grid,
+                           InternalConversion.Settings(computation.processSettings; continuumExchange=exchangex))
             if output    results = Base.merge( results, Dict("internal conversion lines:" => outcome) )        end
         elseif  typeof(computation.processSettings) == CrystalFieldEmission.Settings
             outcome = CrystalFieldEmission.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings)
             if output    results = Base.merge( results, Dict("crystal-field-resolved emission lines:" => outcome) )    end
         elseif  typeof(computation.processSettings) == PhotoRecombinationInterference.Settings
+            ## As in PhotoRecombination: the captured electron approaches the INITIAL ion, so initialAsfSettings.scField
+            ## decides the automatic default here.
+            exchangex = Continuum.resolveExchangeDefault(computation.processSettings.continuumExchange, computation.initialAsfSettings.scField)
             outcome = PhotoRecombinationInterference.computePathways(finalMultiplet, intermediateMultiplet, initialMultiplet, nModel,
-                                                                     computation.grid, computation.processSettings)
+                           computation.grid, PhotoRecombinationInterference.Settings(computation.processSettings; continuumExchange=exchangex))
             if output    results = Base.merge( results, Dict("photorecombination-interference pathways:" => outcome) )    end
         elseif  typeof(computation.processSettings) == PhotoIonizationInterference.Settings
+            exchangex = Continuum.resolveExchangeDefault(computation.processSettings.continuumExchange, computation.finalAsfSettings.scField)
             outcome = PhotoIonizationInterference.computePathways(finalMultiplet, intermediateMultiplet, initialMultiplet, nModel,
-                                                                  computation.grid, computation.processSettings)
+                           computation.grid, PhotoIonizationInterference.Settings(computation.processSettings; continuumExchange=exchangex))
             if output    results = Base.merge( results, Dict("photoionization-interference pathways:" => outcome) )    end
         elseif  typeof(computation.processSettings) == GeneralizedOscillatorStrength.Settings
             outcome = GeneralizedOscillatorStrength.computeLines(finalMultiplet, initialMultiplet, computation.grid, computation.processSettings)

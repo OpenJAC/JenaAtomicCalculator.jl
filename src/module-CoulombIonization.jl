@@ -69,23 +69,28 @@ using  Printf, ..AngularMomentum, ..Basics, ..Continuum, ..CoulombExcitation, ..
     + lineSelection           ::LineSelection       ... Specifies the selected levels, if any.
     + zerosGL                 ::Int64               ... Number of Gauss-Legendre zeros in the momentum-transfer integral.
     + lValues                 ::Array{Int64,1}      ... Orbital angular momenta of the ejected electron to be included.
+    + continuumExchange       ::Union{Nothing,Bool} ... True/false to force exchange between the ejected electron and
+                                                         the bound electrons on or off; `nothing` -- the default -- lets
+                                                         `Basics.perform` decide automatically from the final-ion
+                                                         `AsfSettings.scField` (`Continuum.resolveExchangeDefault`, item 99).
 """
-struct Settings  <:  AbstractProcessSettings 
-    ionEnergies               ::Array{Float64,1} 
+struct Settings  <:  AbstractProcessSettings
+    ionEnergies               ::Array{Float64,1}
     electronEnergies          ::Array{Float64,1}
-    calcAlignment             ::Bool 
-    printBefore               ::Bool 
+    calcAlignment             ::Bool
+    printBefore               ::Bool
     lineSelection             ::LineSelection
     zerosGL                   ::Int64
     lValues                   ::Array{Int64,1}
-end 
+    continuumExchange         ::Union{Nothing,Bool}
+end
 
 
 """
 `CoulombIonization.Settings()`  ... constructor for the default values of Coulomb-ionization line computations.
 """
 function Settings()
-    Settings(Float64[], Float64[], false, false, LineSelection(), 0, Int64[])
+    Settings(Float64[], Float64[], false, false, LineSelection(), 0, Int64[], nothing)
 end
 
 
@@ -93,31 +98,32 @@ end
 `CoulombIonization.Settings(set::CoulombIonization.Settings;`
 
         ionEnergies=..,         electronEnergies=..,        calcAlignment=..,       printBefore=..,
-        lineSelection=..,       zerosGL=..,                 lValues=..)
-                    
+        lineSelection=..,       zerosGL=..,                 lValues=..,             continuumExchange=..)
+
     ... constructor for modifying the given CoulombIonization.Settings by 'overwriting' the previously selected
         parameters.  A settings::CoulombIonization.Settings is returned.
 """
-function Settings(set::CoulombIonization.Settings;    
+function Settings(set::CoulombIonization.Settings;
     ionEnergies::Union{Nothing,Array{Float64,1}}=nothing,           electronEnergies::Union{Nothing,Array{Float64,1}}=nothing,
     calcAlignment::Union{Nothing,Bool}=nothing,                     printBefore::Union{Nothing,Bool}=nothing,
     lineSelection::Union{Nothing,LineSelection}=nothing,            zerosGL::Union{Nothing,Int64}=nothing,
-    lValues::Union{Nothing,Array{Int64,1}}=nothing)  
-    
-    if  isnothing(ionEnergies)         ionEnergiesx      = set.ionEnergies       else  ionEnergiesx      = ionEnergies       end 
-    if  isnothing(electronEnergies)    electronEnergiesx = set.electronEnergies  else  electronEnergiesx = electronEnergies  end 
-    if  isnothing(calcAlignment)       calcAlignmentx    = set.calcAlignment     else  calcAlignmentx    = calcAlignment     end 
-    if  isnothing(printBefore)         printBeforex      = set.printBefore       else  printBeforex      = printBefore       end 
-    if  isnothing(lineSelection)       lineSelectionx    = set.lineSelection     else  lineSelectionx    = lineSelection     end 
-    if  isnothing(zerosGL)             zerosGLx          = set.zerosGL           else  zerosGLx          = zerosGL           end 
-    if  isnothing(lValues)             lValuesx          = set.lValues           else  lValuesx          = lValues           end 
-    
-    Settings( ionEnergiesx, electronEnergiesx, calcAlignmentx, printBeforex, lineSelectionx, zerosGLx, lValuesx)
+    lValues::Union{Nothing,Array{Int64,1}}=nothing,                 continuumExchange::Union{Nothing,Bool}=nothing)
+
+    if  isnothing(ionEnergies)         ionEnergiesx      = set.ionEnergies       else  ionEnergiesx      = ionEnergies       end
+    if  isnothing(electronEnergies)    electronEnergiesx = set.electronEnergies  else  electronEnergiesx = electronEnergies  end
+    if  isnothing(calcAlignment)       calcAlignmentx    = set.calcAlignment     else  calcAlignmentx    = calcAlignment     end
+    if  isnothing(printBefore)         printBeforex      = set.printBefore       else  printBeforex      = printBefore       end
+    if  isnothing(lineSelection)       lineSelectionx    = set.lineSelection     else  lineSelectionx    = lineSelection     end
+    if  isnothing(zerosGL)             zerosGLx          = set.zerosGL           else  zerosGLx          = zerosGL           end
+    if  isnothing(lValues)             lValuesx          = set.lValues           else  lValuesx          = lValues           end
+    if  isnothing(continuumExchange)   continuumExchangex = set.continuumExchange else  continuumExchangex = continuumExchange end
+
+    Settings( ionEnergiesx, electronEnergiesx, calcAlignmentx, printBeforex, lineSelectionx, zerosGLx, lValuesx, continuumExchangex)
 end
 
 
 # `Base.show(io::IO, settings::CoulombIonization.Settings)`  ... prepares a proper printout of the settings.
-function Base.show(io::IO, settings::CoulombIonization.Settings) 
+function Base.show(io::IO, settings::CoulombIonization.Settings)
     println(io, "ionEnergies:              $(settings.ionEnergies)  ")
     println(io, "electronEnergies:         $(settings.electronEnergies)  ")
     println(io, "calcAlignment:            $(settings.calcAlignment)  ")
@@ -125,6 +131,7 @@ function Base.show(io::IO, settings::CoulombIonization.Settings)
     println(io, "lineSelection:            $(settings.lineSelection)  ")
     println(io, "zerosGL:                  $(settings.zerosGL)  ")
     println(io, "lValues:                  $(settings.lValues)  ")
+    println(io, "continuumExchange:        $(settings.continuumExchange)  ")
 end
 
 
@@ -296,7 +303,7 @@ end
 """
 function  generateContinuumLevels(line::CoulombIonization.Line, nm::Nuclear.Model, grid::Radial.Grid,
                                   settings::CoulombIonization.Settings)
-    contSettings = Continuum.Settings(false, grid.NoPoints-50)
+    contSettings = Continuum.Settings(isnothing(settings.continuumExchange) ? false : settings.continuumExchange, grid.NoPoints-50)
     nuclearPot   = Nuclear.nuclearPotential(nm, grid)
     ## THE BASIS MUST BE REDUCED TO THE LEVEL'S OWN SYMMETRY FIRST.  A multiplet's basis carries the CSFs of every
     ## symmetry of its configuration -- 1s2s holds both J=0 and J=1 -- and Basics.generateLevelWithExtraElectron

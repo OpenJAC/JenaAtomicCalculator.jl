@@ -23,24 +23,29 @@ using Printf, ..AngularMomentum, ..AtomicState, ..AutoIonization, ..Basics, ..Bs
     + operator                ::AbstractEeInteraction   ... Auger operator that is to be used for evaluating the Auger amplitudes: 
                                                             allowed values are: CoulombInteraction(), BreitInteraction(), ...
     + lineSelection           ::LineSelection           ... Specifies the selected levels, if any.
+    + continuumExchange       ::Union{Nothing,Bool}     ... True/false to force exchange between the free electrons and
+                                                            the bound electrons on or off; `nothing` -- the default -- lets
+                                                            `Basics.perform` decide automatically from the final-ion
+                                                            `AsfSettings.scField` (`Continuum.resolveExchangeDefault`, item 99).
 """
 struct Settings  <:  AbstractProcessSettings
     green                     ::Array{GreenChannel,1}
-    NoEnergySharings          ::Int64 
-    printBefore               ::Bool 
+    NoEnergySharings          ::Int64
+    printBefore               ::Bool
     minAugerEnergy            ::Float64
     maxAugerEnergy            ::Float64
-    maxKappa                  ::Int64  
+    maxKappa                  ::Int64
     operator                  ::AbstractEeInteraction
-    lineSelection             ::LineSelection 
-end 
+    lineSelection             ::LineSelection
+    continuumExchange         ::Union{Nothing,Bool}
+end
 
 
 """
 `DoubleAutoIonization.Settings()`  ... constructor for the default values of DoubleAutoIonization line computations
 """
 function Settings()
-    Settings(GreenChannel[], 0, false, 0., 10e5, 100, CoulombInteraction(), LineSelection())
+    Settings(GreenChannel[], 0, false, 0., 10e5, 100, CoulombInteraction(), LineSelection(), nothing)
 end
 
 
@@ -48,7 +53,7 @@ end
 `DoubleAutoIonization.Settings(set::DoubleAutoIonization.Settings;`
 
     green..., NoEnergySharings..., printBefore..., minAugerEnergy..., maxAugerEnergy..., maxKappa..., operator...,
-    lineSelection...)
+    lineSelection..., continuumExchange...)
 
     ... constructor for modifying the given DoubleAutoIonization.Settings by 'overwriting' the previously selected parameters.
         A settings::DoubleAutoIonization.Settings is returned.
@@ -61,7 +66,8 @@ function Settings(set::DoubleAutoIonization.Settings;
                         maxAugerEnergy::Union{Nothing,Float64} = nothing,
                         maxKappa::Union{Nothing,Int64} = nothing,
                         operator::Union{Nothing,AbstractEeInteraction} = nothing,
-                        lineSelection::Union{Nothing,LineSelection} = nothing )
+                        lineSelection::Union{Nothing,LineSelection} = nothing,
+                        continuumExchange::Union{Nothing,Bool} = nothing )
 
     if  isnothing(green)              greenx            = set.green              else   greenx            = green              end
     if  isnothing(NoEnergySharings)   NoEnergySharingsx = set.NoEnergySharings   else   NoEnergySharingsx = NoEnergySharings   end
@@ -71,14 +77,15 @@ function Settings(set::DoubleAutoIonization.Settings;
     if  isnothing(maxKappa)           maxKappax         = set.maxKappa           else   maxKappax         = maxKappa           end
     if  isnothing(operator)           operatorx         = set.operator           else   operatorx         = operator           end
     if  isnothing(lineSelection)      lineSelectionx    = set.lineSelection      else   lineSelectionx    = lineSelection      end
+    if  isnothing(continuumExchange)  continuumExchangex = set.continuumExchange else   continuumExchangex = continuumExchange end
 
     Settings( greenx, NoEnergySharingsx, printBeforex, minAugerEnergyx, maxAugerEnergyx, maxKappax, operatorx,
-              lineSelectionx )
+              lineSelectionx, continuumExchangex )
 end
 
 
 # `Base.show(io::IO, settings::DoubleAutoIonization.Settings)`  ... prepares a proper printout of the variable settings::DoubleAutoIonization.Settings.
-function Base.show(io::IO, settings::DoubleAutoIonization.Settings) 
+function Base.show(io::IO, settings::DoubleAutoIonization.Settings)
     println(io, "green:                         (settings.green)  ")
     println(io, "NoEnergySharings:             $(settings.NoEnergySharings)  ")
     println(io, "printBefore:                  $(settings.printBefore)  ")
@@ -87,6 +94,7 @@ function Base.show(io::IO, settings::DoubleAutoIonization.Settings)
     println(io, "maxKappa:                     $(settings.maxKappa)  ")
     println(io, "operator:                     $(settings.operator)  ")
     println(io, "lineSelection:                $(settings.lineSelection)  ")
+    println(io, "continuumExchange:            $(settings.continuumExchange)  ")
 end
 
 
@@ -240,7 +248,7 @@ end
 function  computeAmplitudesProperties(line::DoubleAutoIonization.Line, nm::Nuclear.Model, grid::Radial.Grid, 
                                         settings::DoubleAutoIonization.Settings)
     newSharings  = DoubleAutoIonization.Sharing[]
-    contSettings = Continuum.Settings(false, grid.NoPoints-50);    trate = 0.
+    contSettings = Continuum.Settings(isnothing(settings.continuumExchange) ? false : settings.continuumExchange, grid.NoPoints-50);    trate = 0.
     # The nuclear potential and the B-spline primitives depend only on (nm, grid) and are constant here, while the loop
     # below generates TWO continuum orbitals per channel and per sharing; building them once keeps that work out of it.
     nucPot       = Nuclear.nuclearPotential(nm, grid)

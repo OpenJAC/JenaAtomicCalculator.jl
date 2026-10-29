@@ -60,25 +60,30 @@ using Printf, ..AngularMomentum, ..Basics, ..BiOrthogonal, ..Bsplines, ..Continu
     + freeElectronShift             ::Float64             ... An overall energy shift of all free-electron energies [user-specified units].
     + lValues                       ::Array{Int64,1}      ... Orbital angular momentum of free-electrons, for which partial waves are
                                                               considered.
+    + continuumExchange             ::Union{Nothing,Bool} ... True/false to force exchange between the photoelectron and the bound
+                                                              electrons on or off; `nothing` -- the default -- lets `Basics.perform`
+                                                              decide automatically from the final-ion `AsfSettings.scField`
+                                                              (`Continuum.resolveExchangeDefault`, item 99).
 """
-struct Settings  <:  AbstractProcessSettings 
+struct Settings  <:  AbstractProcessSettings
     multipoles                      ::Array{EmMultipole}
     gauges                          ::Array{UseGauge}
-    photonEnergies                  ::Array{Float64,1} 
-    electronEnergies                ::Array{Float64,1} 
+    photonEnergies                  ::Array{Float64,1}
+    electronEnergies                ::Array{Float64,1}
     thetas                          ::Array{Float64,1}
-    calcAnisotropy                  ::Bool 
-    calcPartialCs                   ::Bool 
-    calcTimeDelay                   ::Bool 
-    calcNonE1AngleDifferentialCS    ::Bool  
+    calcAnisotropy                  ::Bool
+    calcPartialCs                   ::Bool
+    calcTimeDelay                   ::Bool
+    calcNonE1AngleDifferentialCS    ::Bool
     calcTensors                     ::Bool
     calcBiorthogonal                ::Bool
     printBefore                     ::Bool
     lineSelection                   ::LineSelection
     stokes                          ::ExpStokes
-    freeElectronShift               ::Float64 
+    freeElectronShift               ::Float64
     lValues                         ::Array{Int64,1}
-end 
+    continuumExchange               ::Union{Nothing,Bool}
+end
 
 
 """
@@ -86,7 +91,7 @@ end
 """
 function Settings()
     Settings(Basics.EmMultipole[E1], Basics.UseGauge[Basics.UseCoulomb, Basics.UseBabushkin], Float64[], Float64[], Float64[],
-                false, false, false, false, false, false, false, LineSelection(), Basics.ExpStokes(), 0., [0,1,2,3,4,5])
+                false, false, false, false, false, false, false, LineSelection(), Basics.ExpStokes(), 0., [0,1,2,3,4,5], nothing)
 end
 
 
@@ -96,47 +101,50 @@ end
         multipoles=..,                      gauges=..,                  photonEnergies=..,          electronEnergies=..,
         thetas=..,                          calcAnisotropy=..,          calcPartialCs..,            calcTimeDelay=..,
         calcNonE1AngleDifferentialCS=..,    calcTensors=..,             calcBiorthogonal=..,        printBefore=..,
-        lineSelection=..,                   stokes=..,                  freeElectronShift=..,       lValues=.. )
-                    
+        lineSelection=..,                   stokes=..,                  freeElectronShift=..,       lValues=..,
+        continuumExchange=.. )
+
     ... constructor for modifying the given PhotoIonization.Settings by 'overwriting' the previously selected parameters.
 """
-function Settings(set::PhotoIonization.Settings;    
-    multipoles::Union{Nothing,Array{EmMultipole,1}}=nothing,                gauges::Union{Nothing,Array{UseGauge,1}}=nothing,  
-    photonEnergies::Union{Nothing,Array{Float64,1}}=nothing,                electronEnergies::Union{Nothing,Array{Float64,1}}=nothing, 
+function Settings(set::PhotoIonization.Settings;
+    multipoles::Union{Nothing,Array{EmMultipole,1}}=nothing,                gauges::Union{Nothing,Array{UseGauge,1}}=nothing,
+    photonEnergies::Union{Nothing,Array{Float64,1}}=nothing,                electronEnergies::Union{Nothing,Array{Float64,1}}=nothing,
     thetas::Union{Nothing,Array{Float64,1}}=nothing,                        calcAnisotropy::Union{Nothing,Bool}=nothing,
-    calcPartialCs::Union{Nothing,Bool}=nothing,                             calcTimeDelay::Union{Nothing,Bool}=nothing,  
+    calcPartialCs::Union{Nothing,Bool}=nothing,                             calcTimeDelay::Union{Nothing,Bool}=nothing,
     calcNonE1AngleDifferentialCS::Union{Nothing,Bool}=nothing,              calcTensors::Union{Nothing,Bool}=nothing,
     calcBiorthogonal::Union{Nothing,Bool}=nothing,                          printBefore::Union{Nothing,Bool}=nothing,
     lineSelection::Union{Nothing,LineSelection}=nothing,
     stokes::Union{Nothing,ExpStokes}=nothing,                               freeElectronShift::Union{Nothing,Float64}=nothing,
-    lValues::Union{Nothing,Array{Int64,1}}=nothing)  
-    
-    if  isnothing(multipoles)          multipolesx        = set.multipoles        else  multipolesx        = multipoles         end 
-    if  isnothing(gauges)              gaugesx            = set.gauges            else  gaugesx            = gauges             end 
-    if  isnothing(photonEnergies)      photonEnergiesx    = set.photonEnergies    else  photonEnergiesx    = photonEnergies     end 
-    if  isnothing(electronEnergies)    electronEnergiesx  = set.electronEnergies  else  electronEnergiesx  = electronEnergies   end 
-    if  isnothing(thetas)              thetasx            = set.thetas            else  thetasx            = thetas             end 
-    if  isnothing(calcAnisotropy)      calcAnisotropyx    = set.calcAnisotropy    else  calcAnisotropyx    = calcAnisotropy     end 
-    if  isnothing(calcPartialCs)       calcPartialCsx     = set.calcPartialCs     else  calcPartialCsx     = calcPartialCs      end 
-    if  isnothing(calcTimeDelay)       calcTimeDelayx     = set.calcTimeDelay     else  calcTimeDelayx     = calcTimeDelay      end 
-    if  isnothing(calcNonE1AngleDifferentialCS)     calcNonE1AngleDifferentialCSx = set.calcNonE1AngleDifferentialCS        else  
-        calcNonE1AngleDifferentialCSx  = calcNonE1AngleDifferentialCS                                                           end 
+    lValues::Union{Nothing,Array{Int64,1}}=nothing,                         continuumExchange::Union{Nothing,Bool}=nothing)
+
+    if  isnothing(multipoles)          multipolesx        = set.multipoles        else  multipolesx        = multipoles         end
+    if  isnothing(gauges)              gaugesx            = set.gauges            else  gaugesx            = gauges             end
+    if  isnothing(photonEnergies)      photonEnergiesx    = set.photonEnergies    else  photonEnergiesx    = photonEnergies     end
+    if  isnothing(electronEnergies)    electronEnergiesx  = set.electronEnergies  else  electronEnergiesx  = electronEnergies   end
+    if  isnothing(thetas)              thetasx            = set.thetas            else  thetasx            = thetas             end
+    if  isnothing(calcAnisotropy)      calcAnisotropyx    = set.calcAnisotropy    else  calcAnisotropyx    = calcAnisotropy     end
+    if  isnothing(calcPartialCs)       calcPartialCsx     = set.calcPartialCs     else  calcPartialCsx     = calcPartialCs      end
+    if  isnothing(calcTimeDelay)       calcTimeDelayx     = set.calcTimeDelay     else  calcTimeDelayx     = calcTimeDelay      end
+    if  isnothing(calcNonE1AngleDifferentialCS)     calcNonE1AngleDifferentialCSx = set.calcNonE1AngleDifferentialCS        else
+        calcNonE1AngleDifferentialCSx  = calcNonE1AngleDifferentialCS                                                           end
     if  isnothing(calcTensors)         calcTensorsx       = set.calcTensors       else  calcTensorsx       = calcTensors        end
     if  isnothing(calcBiorthogonal)    calcBiorthogonalx  = set.calcBiorthogonal  else  calcBiorthogonalx  = calcBiorthogonal   end
     if  isnothing(printBefore)         printBeforex       = set.printBefore       else  printBeforex       = printBefore        end
-    if  isnothing(lineSelection)       lineSelectionx     = set.lineSelection     else  lineSelectionx     = lineSelection      end 
-    if  isnothing(stokes)              stokesx            = set.stokes            else  stokesx            = stokes             end 
-    if  isnothing(freeElectronShift)   freeElectronShiftx = set.freeElectronShift else  freeElectronShiftx = freeElectronShift  end 
-    if  isnothing(lValues)             lValuesx           = set.lValues           else  lValuesx           = lValues            end 
+    if  isnothing(lineSelection)       lineSelectionx     = set.lineSelection     else  lineSelectionx     = lineSelection      end
+    if  isnothing(stokes)              stokesx            = set.stokes            else  stokesx            = stokes             end
+    if  isnothing(freeElectronShift)   freeElectronShiftx = set.freeElectronShift else  freeElectronShiftx = freeElectronShift  end
+    if  isnothing(lValues)             lValuesx           = set.lValues           else  lValuesx           = lValues            end
+    if  isnothing(continuumExchange)   continuumExchangex = set.continuumExchange else  continuumExchangex = continuumExchange  end
 
     Settings( multipolesx, gaugesx, photonEnergiesx, electronEnergiesx, thetasx, calcAnisotropyx, calcPartialCsx, calcTimeDelayx,
-                calcNonE1AngleDifferentialCSx, calcTensorsx, calcBiorthogonalx, printBeforex, lineSelectionx, stokesx, freeElectronShiftx, lValuesx)
+                calcNonE1AngleDifferentialCSx, calcTensorsx, calcBiorthogonalx, printBeforex, lineSelectionx, stokesx, freeElectronShiftx,
+                lValuesx, continuumExchangex)
 end
 
 
 # `Base.show(io::IO, settings::PhotoIonization.Settings)`
 # ... prepares a proper printout of the variable settings::PhotoIonization.Settings.
-function Base.show(io::IO, settings::PhotoIonization.Settings) 
+function Base.show(io::IO, settings::PhotoIonization.Settings)
     println(io, "multipoles:                    $(settings.multipoles)  ")
     println(io, "gauges:                        $(settings.gauges)  ")
     println(io, "photonEnergies:                $(settings.photonEnergies)  ")
@@ -153,6 +161,7 @@ function Base.show(io::IO, settings::PhotoIonization.Settings)
     println(io, "stokes:                        $(settings.stokes)  ")
     println(io, "freeElectronShift:             $(settings.freeElectronShift)  ")
     println(io, "lValues:                       $(settings.lValues)  ")
+    println(io, "continuumExchange:             $(settings.continuumExchange)  ")
 end
 
 
@@ -355,7 +364,7 @@ function computeAmplitudesProperties(line::PhotoIonization.Line, nm::Nuclear.Mod
                                            nrContinuum::Int64, settings::PhotoIonization.Settings; printout::Bool=false,
                                            nuclearPot::Union{Nothing,Radial.Potential}=nothing,
                                            primitives::Union{Nothing,Bsplines.Primitives}=nothing)
-    contSettings = Continuum.Settings(false, nrContinuum)
+    contSettings = Continuum.Settings(isnothing(settings.continuumExchange) ? false : settings.continuumExchange, nrContinuum)
     redILevel = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, line.initialLevel.basis.subshells)
     newfLevel = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel, redILevel.basis.subshells)
     newPartialWaves = PhotoIonization.PartialWave[]
@@ -786,7 +795,7 @@ function  computeLinesPlasma(finalMultiplet::Multiplet, initialMultiplet::Multip
     println("")
     photoSettings = PhotoIonization.Settings(settings.multipoles, settings.gauges, settings.photonEnergies, Float64[], Float64[],
                         false, false, false, false, false, false, settings.printBefore, settings.lineSelection,
-                        Basics.ExpStokes(), 0., [0,1,2,3,4,5])
+                        Basics.ExpStokes(), 0., [0,1,2,3,4,5], nothing)
 
     lines = PhotoIonization.determineLines(finalMultiplet, initialMultiplet, photoSettings)
     # Display-only and the same for every line; set ONCE per computation, never from inside the line loop.

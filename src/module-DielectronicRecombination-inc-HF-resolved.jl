@@ -210,7 +210,7 @@ function  hfDrivenAugerAmplitude(iLevel::Level, mLevel::Level, kappa::Int64, eEn
                                  settings::DielectronicRecombination.Settings;
                                  nuclearPot::Union{Nothing,Radial.Potential}=nothing,
                                  primitives::Union{Nothing,Bsplines.Primitives}=nothing)
-    contSettings = Continuum.Settings(false, nrContinuum)
+    contSettings = Continuum.Settings(isnothing(settings.continuumExchange) ? false : settings.continuumExchange, nrContinuum)
     redNLevel    = Basics.generateLevelWithSymmetryReducedBasis(mLevel, mLevel.basis.subshells)
     newiLevel    = Basics.generateLevelWithSymmetryReducedBasis(iLevel, redNLevel.basis.subshells)
     symn         = LevelSymmetry(mLevel.J, mLevel.parity)

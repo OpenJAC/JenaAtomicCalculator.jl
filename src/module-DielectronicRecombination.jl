@@ -355,11 +355,16 @@ end
             the experiment scans. Empty means none is wanted.
     + corrections           ::Array{DielectronicRecombination.AbstractCorrections,1}
         ... Specify, if appropriate, the inclusion of additional corrections to the rates and DR strengths.
-    + augerOperator         ::AbstractEeInteraction 
-        ... Auger operator that is to be used for evaluating the Auger amplitude's; the allowed values are: 
+    + augerOperator         ::AbstractEeInteraction
+        ... Auger operator that is to be used for evaluating the Auger amplitude's; the allowed values are:
             CoulombInteraction(), BreitInteration(), CoulombBreit(), CoulombGaunt().
+    + continuumExchange     ::Union{Nothing,Bool}
+        ... True/false to force exchange between the captured electron and the bound electrons on or off; `nothing` --
+            the default -- lets `Basics.perform` decide automatically from the INITIAL-ion `AsfSettings.scField`
+            (`Continuum.resolveExchangeDefault`, item 99): the captured electron approaches the initial ion, as in
+            `PhotoRecombination` and `ElectronCapture`.
 """
-struct Settings  <:  AbstractProcessSettings 
+struct Settings  <:  AbstractProcessSettings
     multipoles              ::Array{EmMultipole,1}
     gauges                  ::Array{UseGauge}
     calcOnlyPassages        ::Bool
@@ -377,64 +382,68 @@ struct Settings  <:  AbstractProcessSettings
     mergedBeamEnergies      ::Array{Float64,1}
     corrections             ::Array{DielectronicRecombination.AbstractCorrections,1}
     augerOperator           ::AbstractEeInteraction
-end 
+    continuumExchange       ::Union{Nothing,Bool}
+end
 
 
 """
-`DielectronicRecombination.Settings()`  
+`DielectronicRecombination.Settings()`
     ... constructor for the default values of dielectronic recombination pathway computations.
 """
 function Settings()
     Settings([E1], UseGauge[], false, false, false, false, false, false, PathwaySelection(), 0., 0., 0., Float64[],
-             (0., 0.), Float64[], DielectronicRecombination.AbstractCorrections[], CoulombInteraction())
+             (0., 0.), Float64[], DielectronicRecombination.AbstractCorrections[], CoulombInteraction(), nothing)
 end
 
 
 """
 ` (set::DielectronicRecombination.Settings;`
 
-        multipoles=..,             gauges=..,                  
+        multipoles=..,             gauges=..,
         calcOnlyPassages=..,       calcRateAlpha=..,         calcHyperfineResolved=..,  hfDrivenCapture=..,
         mergedBeamKT=..,           mergedBeamEnergies=..,
         calcPhotonSpectrum=..,
-        printBefore=..,            pathwaySelection=..,      electronEnergyShift=..,   photonEnergyShift=..,       
-        mimimumPhotonEnergy=..,    temperatures=..,          corrections=..,           augerOperator=..)
-                    
+        printBefore=..,            pathwaySelection=..,      electronEnergyShift=..,   photonEnergyShift=..,
+        mimimumPhotonEnergy=..,    temperatures=..,          corrections=..,           augerOperator=..,
+        continuumExchange=..)
+
     ... constructor for modifying the given DielectronicRecombination.Settings by 'overwriting' the previously selected parameters.
 """
-function Settings(set::DielectronicRecombination.Settings;    
-    multipoles::Union{Nothing,Array{EmMultipole,1}}=nothing,               gauges::Union{Nothing,Array{UseGauge,1}}=nothing,  
-    calcOnlyPassages::Union{Nothing,Bool}=nothing,                         calcRateAlpha::Union{Nothing,Bool}=nothing,  
+function Settings(set::DielectronicRecombination.Settings;
+    multipoles::Union{Nothing,Array{EmMultipole,1}}=nothing,               gauges::Union{Nothing,Array{UseGauge,1}}=nothing,
+    calcOnlyPassages::Union{Nothing,Bool}=nothing,                         calcRateAlpha::Union{Nothing,Bool}=nothing,
     calcHyperfineResolved::Union{Nothing,Bool}=nothing,                     hfDrivenCapture::Union{Nothing,Bool}=nothing,
     calcPhotonSpectrum::Union{Nothing,Bool}=nothing,
     printBefore::Union{Nothing,Bool}=nothing,                              pathwaySelection::Union{Nothing,PathwaySelection}=nothing,
-    electronEnergyShift::Union{Nothing,Float64}=nothing,                   photonEnergyShift::Union{Nothing,Float64}=nothing, 
-    mimimumPhotonEnergy::Union{Nothing,Float64}=nothing,                   temperatures::Union{Nothing,Array{Float64,1}}=nothing,    
+    electronEnergyShift::Union{Nothing,Float64}=nothing,                   photonEnergyShift::Union{Nothing,Float64}=nothing,
+    mimimumPhotonEnergy::Union{Nothing,Float64}=nothing,                   temperatures::Union{Nothing,Array{Float64,1}}=nothing,
     mergedBeamKT::Union{Nothing,Tuple{Float64,Float64}}=nothing,           mergedBeamEnergies::Union{Nothing,Array{Float64,1}}=nothing,
-    corrections::Union{Nothing,Array{AbstractCorrections,1}}=nothing,      augerOperator::Union{Nothing,AbstractEeInteraction}=nothing)
-    
-    if  isnothing(multipoles)            multipolesx           = set.multipoles            else  multipolesx           = multipoles            end 
-    if  isnothing(gauges)                gaugesx               = set.gauges                else  gaugesx               = gauges                end 
-    if  isnothing(calcOnlyPassages)      calcOnlyPassagesx     = set.calcOnlyPassages      else  calcOnlyPassagesx     = calcOnlyPassages      end 
-    if  isnothing(calcRateAlpha)         calcRateAlphax        = set.calcRateAlpha         else  calcRateAlphax        = calcRateAlpha         end 
+    corrections::Union{Nothing,Array{AbstractCorrections,1}}=nothing,      augerOperator::Union{Nothing,AbstractEeInteraction}=nothing,
+    continuumExchange::Union{Nothing,Bool}=nothing)
+
+    if  isnothing(multipoles)            multipolesx           = set.multipoles            else  multipolesx           = multipoles            end
+    if  isnothing(gauges)                gaugesx               = set.gauges                else  gaugesx               = gauges                end
+    if  isnothing(calcOnlyPassages)      calcOnlyPassagesx     = set.calcOnlyPassages      else  calcOnlyPassagesx     = calcOnlyPassages      end
+    if  isnothing(calcRateAlpha)         calcRateAlphax        = set.calcRateAlpha         else  calcRateAlphax        = calcRateAlpha         end
     if  isnothing(calcHyperfineResolved) calcHyperfineResolvedx= set.calcHyperfineResolved else  calcHyperfineResolvedx= calcHyperfineResolved end
     if  isnothing(hfDrivenCapture)       hfDrivenCapturex      = set.hfDrivenCapture       else  hfDrivenCapturex      = hfDrivenCapture       end
-    if  isnothing(calcPhotonSpectrum)    calcPhotonSpectrumx   = set.calcPhotonSpectrum    else  calcPhotonSpectrumx   = calcPhotonSpectrum    end 
-    if  isnothing(printBefore)           printBeforex          = set.printBefore           else  printBeforex          = printBefore           end 
-    if  isnothing(pathwaySelection)      pathwaySelectionx     = set.pathwaySelection      else  pathwaySelectionx     = pathwaySelection      end 
-    if  isnothing(electronEnergyShift)   electronEnergyShiftx  = set.electronEnergyShift   else  electronEnergyShiftx  = electronEnergyShift   end 
-    if  isnothing(photonEnergyShift)     photonEnergyShiftx    = set.photonEnergyShift     else  photonEnergyShiftx    = photonEnergyShift     end 
-    if  isnothing(mimimumPhotonEnergy)   mimimumPhotonEnergyx  = set.mimimumPhotonEnergy   else  mimimumPhotonEnergyx  = mimimumPhotonEnergy   end 
-    if  isnothing(temperatures)          temperaturesx         = set.temperatures          else  temperaturesx         = temperatures          end 
-    if  isnothing(mergedBeamKT)          mergedBeamKTx         = set.mergedBeamKT         else  mergedBeamKTx         = mergedBeamKT         end 
-    if  isnothing(mergedBeamEnergies)    mergedBeamEnergiesx   = set.mergedBeamEnergies   else  mergedBeamEnergiesx   = mergedBeamEnergies   end 
-    if  isnothing(corrections)           correctionsx          = set.corrections           else  correctionsx          = corrections           end 
-    if  isnothing(augerOperator)         augerOperatorx        = set.augerOperator         else  augerOperatorx        = augerOperator         end 
+    if  isnothing(calcPhotonSpectrum)    calcPhotonSpectrumx   = set.calcPhotonSpectrum    else  calcPhotonSpectrumx   = calcPhotonSpectrum    end
+    if  isnothing(printBefore)           printBeforex          = set.printBefore           else  printBeforex          = printBefore           end
+    if  isnothing(pathwaySelection)      pathwaySelectionx     = set.pathwaySelection      else  pathwaySelectionx     = pathwaySelection      end
+    if  isnothing(electronEnergyShift)   electronEnergyShiftx  = set.electronEnergyShift   else  electronEnergyShiftx  = electronEnergyShift   end
+    if  isnothing(photonEnergyShift)     photonEnergyShiftx    = set.photonEnergyShift     else  photonEnergyShiftx    = photonEnergyShift     end
+    if  isnothing(mimimumPhotonEnergy)   mimimumPhotonEnergyx  = set.mimimumPhotonEnergy   else  mimimumPhotonEnergyx  = mimimumPhotonEnergy   end
+    if  isnothing(temperatures)          temperaturesx         = set.temperatures          else  temperaturesx         = temperatures          end
+    if  isnothing(mergedBeamKT)          mergedBeamKTx         = set.mergedBeamKT         else  mergedBeamKTx         = mergedBeamKT         end
+    if  isnothing(mergedBeamEnergies)    mergedBeamEnergiesx   = set.mergedBeamEnergies   else  mergedBeamEnergiesx   = mergedBeamEnergies   end
+    if  isnothing(corrections)           correctionsx          = set.corrections           else  correctionsx          = corrections           end
+    if  isnothing(augerOperator)         augerOperatorx        = set.augerOperator         else  augerOperatorx        = augerOperator         end
+    if  isnothing(continuumExchange)     continuumExchangex    = set.continuumExchange      else  continuumExchangex    = continuumExchange     end
 
     Settings( multipolesx, gaugesx, calcOnlyPassagesx, calcRateAlphax, calcHyperfineResolvedx, hfDrivenCapturex,
               calcPhotonSpectrumx, printBeforex,
               pathwaySelectionx, electronEnergyShiftx, photonEnergyShiftx, mimimumPhotonEnergyx, temperaturesx,
-              mergedBeamKTx, mergedBeamEnergiesx, correctionsx, augerOperatorx )
+              mergedBeamKTx, mergedBeamEnergiesx, correctionsx, augerOperatorx, continuumExchangex )
 end
 
 
@@ -442,7 +451,7 @@ end
 `Base.show(io::IO, settings::DielectronicRecombination.Settings)`
     ... prepares a proper printout of the variable settings::DielectronicRecombination.Settings; nothing is returned.
 """
-function Base.show(io::IO, settings::DielectronicRecombination.Settings) 
+function Base.show(io::IO, settings::DielectronicRecombination.Settings)
     println(io, "multipoles:                 $(settings.multipoles)  ")
     println(io, "use-gauges:                 $(settings.gauges)  ")
     println(io, "calcOnlyPassages:           $(settings.calcOnlyPassages)  ")
@@ -460,6 +469,7 @@ function Base.show(io::IO, settings::DielectronicRecombination.Settings)
     println(io, "mergedBeamEnergies:         $(settings.mergedBeamEnergies)  ")
     println(io, "corrections:                $(settings.corrections)  ")
     println(io, "augerOperator:              $(settings.augerOperator)  ")
+    println(io, "continuumExchange:          $(settings.continuumExchange)  ")
 end
 
 

@@ -929,7 +929,7 @@ function testModule_PhotoRecombination(; short::Bool=true)
                             initialConfigs=[Configuration("1s^2")],
                             finalConfigs  =[Configuration("1s^2 2s"), Configuration("1s^2 3s"), Configuration("1s^2 3p"), Configuration("1s^2 3d")],
                             processSettings=PhotoRecombination.Settings([E1, M1], [UseCoulomb, UseBabushkin], [10.],
-                                                    [2.18, 21.8, 218.0], false, false, false, false, true, 2, LineSelection() ) )
+                                                    [2.18, 21.8, 218.0], false, false, false, false, true, 2, LineSelection(), nothing ) )
     wb = perform(wa)
     ###
     Defaults.setDefaults("print summary: close", "")

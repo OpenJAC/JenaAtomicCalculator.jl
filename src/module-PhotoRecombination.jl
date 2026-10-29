@@ -26,53 +26,59 @@ using Printf, ..AngularMomentum, ..Basics, ..Bsplines, ..Continuum, ..Defaults, 
     + printBefore         ::Bool                ... True, if all energies and lines are printed before their evaluation.
     + maxKappa            ::Int64               ... Maximum kappa value of partial waves to be included.
     + lineSelection       ::LineSelection       ... Specifies the selected levels, if any.
+    + continuumExchange   ::Union{Nothing,Bool} ... True/false to force exchange between the captured electron and the bound
+                                                    electrons on or off; `nothing` -- the default -- lets `Basics.perform`
+                                                    decide automatically from the final-ion `AsfSettings.scField`
+                                                    (`Continuum.resolveExchangeDefault`, item 99).
 """
 struct Settings  <:  AbstractProcessSettings
     multipoles            ::Array{EmMultipole}
     gauges                ::Array{UseGauge}
-    electronEnergies      ::Array{Float64,1} 
+    electronEnergies      ::Array{Float64,1}
     ionEnergies           ::Array{Float64,1}
     useIonEnergies        ::Bool
     calcTotalCs           ::Bool
     calcAnisotropy        ::Bool
-    calcTensors           ::Bool 
-    printBefore           ::Bool 
-    maxKappa              ::Int64 
-    lineSelection         ::LineSelection 
-end 
+    calcTensors           ::Bool
+    printBefore           ::Bool
+    maxKappa              ::Int64
+    lineSelection         ::LineSelection
+    continuumExchange     ::Union{Nothing,Bool}
+end
 
 
 """
 `PhotoRecombination.Settings(set::PhotoRecombination.Settings;`
 
-        multipoles=..,          gauges=..,              electronEnergies=..,          ionEnergies=..,     
-        useIonEnergies=..,      calcTotalCs..,          calcAnisotropy=..,            calcTensors=..,             
-        printBefore=..,         maxKappa=..,            lineSelection=..)
-                    
+        multipoles=..,          gauges=..,              electronEnergies=..,          ionEnergies=..,
+        useIonEnergies=..,      calcTotalCs..,          calcAnisotropy=..,            calcTensors=..,
+        printBefore=..,         maxKappa=..,            lineSelection=..,             continuumExchange=..)
+
     ... constructor for modifying the given PhotoRecombination.Settings by 'overwriting' the previously selected parameters.
 """
-function Settings(set::PhotoRecombination.Settings;    
-    multipoles::Union{Nothing,Array{EmMultipole,1}}=nothing,                gauges::Union{Nothing,Array{UseGauge,1}}=nothing,  
-    electronEnergies::Union{Nothing,Array{Float64,1}}=nothing,              ionEnergies::Union{Nothing,Array{Float64,1}}=nothing,       
-    useIonEnergies::Union{Nothing,Bool}=nothing,                            calcTotalCs::Union{Nothing,Bool}=nothing, 
-    calcAnisotropy::Union{Nothing,Bool}=nothing,                            calcTensors::Union{Nothing,Bool}=nothing,   
-    printBefore::Union{Nothing,Bool}=nothing,                               maxKappa::Union{Nothing,Int64}=nothing, 
-    lineSelection::Union{Nothing,LineSelection}=nothing)  
-    
-    if  isnothing(multipoles)          multipolesx        = set.multipoles        else  multipolesx        = multipoles         end 
-    if  isnothing(gauges)              gaugesx            = set.gauges            else  gaugesx            = gauges             end 
-    if  isnothing(electronEnergies)    electronEnergiesx  = set.electronEnergies  else  electronEnergiesx  = electronEnergies   end 
-    if  isnothing(ionEnergies)         ionEnergiesx       = set.ionEnergies       else  ionEnergiesx       = ionEnergies        end 
-    if  isnothing(useIonEnergies)      useIonEnergiesx    = set.useIonEnergies    else  useIonEnergiesx    = useIonEnergies     end 
-    if  isnothing(calcTotalCs)         calcTotalCsx       = set.calcTotalCs       else  calcTotalCsx       = calcTotalCs        end 
-    if  isnothing(calcAnisotropy)      calcAnisotropyx    = set.calcAnisotropy    else  calcAnisotropyx    = calcAnisotropy     end 
-    if  isnothing(calcTensors)         calcTensorsx       = set.calcTensors       else  calcTensorsx       = calcTensors        end 
-    if  isnothing(printBefore)         printBeforex       = set.printBefore       else  printBeforex       = printBefore        end 
-    if  isnothing(maxKappa)            maxKappax          = set.maxKappa          else  maxKappax          = maxKappa           end 
-    if  isnothing(lineSelection)       lineSelectionx     = set.lineSelection     else  lineSelectionx     = lineSelection      end 
+function Settings(set::PhotoRecombination.Settings;
+    multipoles::Union{Nothing,Array{EmMultipole,1}}=nothing,                gauges::Union{Nothing,Array{UseGauge,1}}=nothing,
+    electronEnergies::Union{Nothing,Array{Float64,1}}=nothing,              ionEnergies::Union{Nothing,Array{Float64,1}}=nothing,
+    useIonEnergies::Union{Nothing,Bool}=nothing,                            calcTotalCs::Union{Nothing,Bool}=nothing,
+    calcAnisotropy::Union{Nothing,Bool}=nothing,                            calcTensors::Union{Nothing,Bool}=nothing,
+    printBefore::Union{Nothing,Bool}=nothing,                               maxKappa::Union{Nothing,Int64}=nothing,
+    lineSelection::Union{Nothing,LineSelection}=nothing,                    continuumExchange::Union{Nothing,Bool}=nothing)
 
-    Settings( multipolesx, gaugesx, electronEnergiesx, ionEnergiesx, useIonEnergiesx, calcTotalCsx, calcAnisotropyx, 
-              calcTensorsx, printBeforex, maxKappax, lineSelectionx)
+    if  isnothing(multipoles)          multipolesx        = set.multipoles        else  multipolesx        = multipoles         end
+    if  isnothing(gauges)              gaugesx            = set.gauges            else  gaugesx            = gauges             end
+    if  isnothing(electronEnergies)    electronEnergiesx  = set.electronEnergies  else  electronEnergiesx  = electronEnergies   end
+    if  isnothing(ionEnergies)         ionEnergiesx       = set.ionEnergies       else  ionEnergiesx       = ionEnergies        end
+    if  isnothing(useIonEnergies)      useIonEnergiesx    = set.useIonEnergies    else  useIonEnergiesx    = useIonEnergies     end
+    if  isnothing(calcTotalCs)         calcTotalCsx       = set.calcTotalCs       else  calcTotalCsx       = calcTotalCs        end
+    if  isnothing(calcAnisotropy)      calcAnisotropyx    = set.calcAnisotropy    else  calcAnisotropyx    = calcAnisotropy     end
+    if  isnothing(calcTensors)         calcTensorsx       = set.calcTensors       else  calcTensorsx       = calcTensors        end
+    if  isnothing(printBefore)         printBeforex       = set.printBefore       else  printBeforex       = printBefore        end
+    if  isnothing(maxKappa)            maxKappax          = set.maxKappa          else  maxKappax          = maxKappa           end
+    if  isnothing(lineSelection)       lineSelectionx     = set.lineSelection     else  lineSelectionx     = lineSelection      end
+    if  isnothing(continuumExchange)   continuumExchangex = set.continuumExchange else  continuumExchangex = continuumExchange  end
+
+    Settings( multipolesx, gaugesx, electronEnergiesx, ionEnergiesx, useIonEnergiesx, calcTotalCsx, calcAnisotropyx,
+              calcTensorsx, printBeforex, maxKappax, lineSelectionx, continuumExchangex)
 end
 
 
@@ -80,13 +86,13 @@ end
 `PhotoRecombination.Settings()`  ... constructor for the default values of photo recombination line computations
 """
 function Settings()
-    Settings(EmMultipole[], UseGauge[], Float64[], Float64[], false, false, false, false, false, 0, LineSelection() )
+    Settings(EmMultipole[], UseGauge[], Float64[], Float64[], false, false, false, false, false, 0, LineSelection(), nothing )
 end
 
 
-# `Base.show(io::IO, settings::PhotoRecombination.Settings)`  
+# `Base.show(io::IO, settings::PhotoRecombination.Settings)`
 #		... prepares a proper printout of the variable settings::PhotoRecombination.Settings.
-function Base.show(io::IO, settings::PhotoRecombination.Settings) 
+function Base.show(io::IO, settings::PhotoRecombination.Settings)
     println(io, "multipoles:               $(settings.multipoles)  ")
     println(io, "gauges:                   $(settings.gauges)  ")
     println(io, "electronEnergies:         $(settings.electronEnergies)  ")
@@ -98,6 +104,7 @@ function Base.show(io::IO, settings::PhotoRecombination.Settings)
     println(io, "printBefore:              $(settings.printBefore)  ")
     println(io, "maxKappa:                 $(settings.maxKappa)  ")
     println(io, "lineSelection:            $(settings.lineSelection)  ")
+    println(io, "continuumExchange:        $(settings.continuumExchange)  ")
 end
 
 
@@ -280,7 +287,7 @@ function computeAmplitudesProperties(line::PhotoRecombination.Line, nm::Nuclear.
                                            nrContinuum::Int64, settings::PhotoRecombination.Settings;
                                            nuclearPot::Union{Nothing,Radial.Potential}=nothing,
                                            primitives::Union{Nothing,Bsplines.Primitives}=nothing)
-    contSettings = Continuum.Settings(false, nrContinuum)
+    contSettings = Continuum.Settings(isnothing(settings.continuumExchange) ? false : settings.continuumExchange, nrContinuum)
     redFLevel    = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel, line.finalLevel.basis.subshells)
     newiLevel    = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, redFLevel.basis.subshells)
     newPartialWaves = PhotoRecombination.PartialWave[]

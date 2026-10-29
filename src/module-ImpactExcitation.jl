@@ -59,29 +59,34 @@ end
                                                         in electron energy range [0, (maxEnergyMultiplier * Excitation threshold energy)]
     + temperatures             ::Array{Float64, 1}  ... Electron temperatures [K] for eff. collision strengths and rate coefficients.
     + printBefore              ::Bool               ... True, if all energies and lines are printed before their evaluation.
-    + operator                 ::AbstractEeInteraction   
-        ... Interaction operator that is to be used for evaluating the e-e interaction amplitudes; allowed values are: 
+    + operator                 ::AbstractEeInteraction
+        ... Interaction operator that is to be used for evaluating the e-e interaction amplitudes; allowed values are:
             CoulombInteraction(), BreitInteraction(), ...
+    + continuumExchange        ::Union{Nothing,Bool}
+        ... True/false to force exchange between the impacting/scattered electron and the bound electrons on or off;
+            `nothing` -- the default -- lets `Basics.perform` decide automatically from the final-ion `AsfSettings.scField`
+            (`Continuum.resolveExchangeDefault`, item 99).
 """
 struct Settings  <:  AbstractProcessSettings
-    lineSelection             ::LineSelection  
+    lineSelection             ::LineSelection
     electronEnergies          ::Array{Float64,1}
-    energyShift               ::Float64   
+    energyShift               ::Float64
     maxKappa                  ::Int64
-    calcRateCoefficient       ::Bool 
+    calcRateCoefficient       ::Bool
     maxEnergyMultiplier       ::Float64
     numElectronEnergies       ::Int64
     temperatures              ::Array{Float64, 1}
-    printBefore               ::Bool  
-    operator                  ::AbstractEeInteraction 
-end 
+    printBefore               ::Bool
+    operator                  ::AbstractEeInteraction
+    continuumExchange         ::Union{Nothing,Bool}
+end
 
 
 """
 `ImpactExcitation.Settings()`  ... constructor for the default values of electron-impact excitation line computations.
 """
 function Settings()
-    Settings( LineSelection(), Float64[], 0., 300, false, 30.0, 6, [5e4, 1e5, 2e5, 3e5, 5e5, 7e5, 1e6], false, CoulombInteraction())
+    Settings( LineSelection(), Float64[], 0., 300, false, 30.0, 6, [5e4, 1e5, 2e5, 3e5, 5e5, 7e5, 1e6], false, CoulombInteraction(), nothing)
 end
 
 
@@ -90,12 +95,12 @@ end
 
     lineSelection...,  electronEnergies..., energyShift..., maxKappa...,
     calcRateCoefficient..., maxEnergyMultiplier..., numElectronEnergies..., temperatures...,
-    printBefore..., operator...)
+    printBefore..., operator..., continuumExchange...)
 
     ... constructor for modifying the given ImpactExcitation.Settings by 'overwriting' the previously selected parameters.
 """
 function Settings(set::ImpactExcitation.Settings;
-    lineSelection::Union{Nothing, LineSelection} = nothing, 
+    lineSelection::Union{Nothing, LineSelection} = nothing,
     electronEnergies::Union{ Nothing, Array{Float64,1} } = nothing,
     energyShift::Union{Nothing, Float64} = nothing,
     maxKappa::Union{Nothing, Int64} = nothing,
@@ -104,29 +109,32 @@ function Settings(set::ImpactExcitation.Settings;
     numElectronEnergies::Union{Nothing, Int64} = nothing,
     temperatures::Union{ Nothing, Array{Float64,1} } = nothing,
     printBefore::Union{Nothing, Bool} = nothing,
-    operator::Union{Nothing, AbstractEeInteraction} = nothing )
+    operator::Union{Nothing, AbstractEeInteraction} = nothing,
+    continuumExchange::Union{Nothing, Bool} = nothing )
 
     if isnothing(lineSelection)     lineSelectionx = set.lineSelection       else lineSelectionx = lineSelection        end
     if isnothing(electronEnergies)  electronEnergiesx = set.electronEnergies else electronEnergiesx = electronEnergies  end
     if isnothing(energyShift)       energyShiftx = set.energyShift           else energyShiftx = energyShift            end
     if isnothing(maxKappa)          maxKappax = set.maxKappa                 else maxKappax = maxKappa                  end
-    if isnothing(calcRateCoefficient)   calcRateCoefficientx = set.calcRateCoefficient else 
+    if isnothing(calcRateCoefficient)   calcRateCoefficientx = set.calcRateCoefficient else
                                                                                 calcRateCoefficientx = calcRateCoefficient end
     if isnothing(maxEnergyMultiplier) maxEnergyMultiplierx = set.maxEnergyMultiplier else maxEnergyMultiplierx = maxEnergyMultiplier end
-    if isnothing(numElectronEnergies) numElectronEnergiesx = set.numElectronEnergies else 
+    if isnothing(numElectronEnergies) numElectronEnergiesx = set.numElectronEnergies else
                                                                              numElectronEnergiesx = numElectronEnergies end
     if isnothing(temperatures)      temperaturesx = set.temperatures         else temperaturesx = temperatures          end
     if isnothing(printBefore)       printBeforex = set.printBefore           else printBeforex = printBefore            end
     if isnothing(operator)          operatorx = set.operator                 else operatorx = operator                  end
+    if isnothing(continuumExchange) continuumExchangex = set.continuumExchange else continuumExchangex = continuumExchange end
 
-    Settings( lineSelectionx, electronEnergiesx, energyShiftx, maxKappax, calcRateCoefficientx, maxEnergyMultiplierx, 
-                                                            numElectronEnergiesx, temperaturesx, printBeforex, operatorx )
+    Settings( lineSelectionx, electronEnergiesx, energyShiftx, maxKappax, calcRateCoefficientx, maxEnergyMultiplierx,
+                                                            numElectronEnergiesx, temperaturesx, printBeforex, operatorx,
+                                                            continuumExchangex )
 
 end
 
 
 # `Base.show(io::IO, settings::ImpactExcitation.Settings)`  ... prepares a proper printout of the variable settings::ImpactExcitation.Settings.
-function Base.show(io::IO, settings::ImpactExcitation.Settings) 
+function Base.show(io::IO, settings::ImpactExcitation.Settings)
     println(io, "lineSelection:              $(settings.lineSelection)  ")
     println(io, "electronEnergies:           $(settings.electronEnergies)  ")
     println(io, "energyShift:                $(settings.energyShift)  ")
@@ -137,6 +145,7 @@ function Base.show(io::IO, settings::ImpactExcitation.Settings)
     println(io, "temperatures:               $(settings.temperatures)  ")
     println(io, "printBefore:                $(settings.printBefore)  ")
     println(io, "operator:                   $(settings.operator)  ")
+    println(io, "continuumExchange:          $(settings.continuumExchange)  ")
 end
 
 
@@ -343,7 +352,8 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
                                         nuclearPot::Union{Nothing,Radial.Potential}=nothing,
                                         primitives::Union{Nothing,Bsplines.Primitives}=nothing)
     newChannels = ImpactExcitation.Channel[];
-    contSettings = Continuum.Settings(false, nrContinuum);   cross = 0.;   coll = 0.; convergence = 1.
+    contSettings = Continuum.Settings(isnothing(settings.continuumExchange) ? false : settings.continuumExchange, nrContinuum)
+    cross = 0.;   coll = 0.; convergence = 1.
     # The TTp B-spline matrices depend on the grid and on kappa but never on the potential or the energy, so all the continuum
     # orbitals of ONE line -- both directions and every partial wave, ~35 of them at the maxKappa of a typical case -- can share a
     # single storage dictionary instead of each rebuilding its own. It is created HERE, per line, and deliberately NOT hoisted

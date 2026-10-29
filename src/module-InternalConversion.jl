@@ -149,6 +149,10 @@ using Printf, GSL, ..AngularMomentum, ..Basics, ..Continuum, ..Defaults, ..ManyE
     + acceptUnvalidated ::Bool                ... True silences the printed note on what the absolute
                                                    coefficients have been validated against; see the STATUS
                                                    note in this module's docstring for that scope.
+    + continuumExchange ::Union{Nothing,Bool}     ... True/false to force exchange between the ejected electron and the
+                                                   bound electrons on or off; `nothing` -- the default -- lets
+                                                   `Basics.perform` decide automatically from the final-ion
+                                                   `AsfSettings.scField` (`Continuum.resolveExchangeDefault`, item 99).
 """
 struct Settings  <:  Basics.AbstractProcessSettings
     multipoles      ::Array{EmMultipole,1}
@@ -157,6 +161,7 @@ struct Settings  <:  Basics.AbstractProcessSettings
     printBefore     ::Bool
     lineSelection   ::LineSelection
     acceptUnvalidated ::Bool
+    continuumExchange ::Union{Nothing,Bool}
 end
 
 
@@ -164,7 +169,7 @@ end
 `InternalConversion.Settings()`  ... constructor for the default values of internal-conversion computations.
 """
 function Settings()
-    Settings(EmMultipole[], 0., 100, false, LineSelection(), false)
+    Settings(EmMultipole[], 0., 100, false, LineSelection(), false, nothing)
 end
 
 
@@ -172,22 +177,24 @@ end
 `InternalConversion.Settings(set::InternalConversion.Settings;`
 
         multipoles=.., gammaEnergy=.., maxKappa=.., printBefore=.., lineSelection=..,
-        acceptUnvalidated=..)
+        acceptUnvalidated=.., continuumExchange=..)
 
     ... keyword copy-constructor for re-defining selected values of a settings::InternalConversion.Settings.
 """
 function Settings(set::InternalConversion.Settings;
         multipoles::Union{Nothing,Array{EmMultipole,1}}=nothing,   gammaEnergy::Union{Nothing,Float64}=nothing,
         maxKappa::Union{Nothing,Int64}=nothing,                    printBefore::Union{Nothing,Bool}=nothing,
-        lineSelection::Union{Nothing,LineSelection}=nothing,       acceptUnvalidated::Union{Nothing,Bool}=nothing)
+        lineSelection::Union{Nothing,LineSelection}=nothing,       acceptUnvalidated::Union{Nothing,Bool}=nothing,
+        continuumExchange::Union{Nothing,Bool}=nothing)
     if  isnothing(multipoles)      multipolesx     = set.multipoles     else   multipolesx     = multipoles     end
     if  isnothing(gammaEnergy)     gammaEnergyx    = set.gammaEnergy    else   gammaEnergyx    = gammaEnergy    end
     if  isnothing(maxKappa)        maxKappax       = set.maxKappa       else   maxKappax       = maxKappa       end
     if  isnothing(printBefore)     printBeforex    = set.printBefore    else   printBeforex    = printBefore    end
     if  isnothing(lineSelection)   lineSelectionx  = set.lineSelection  else   lineSelectionx  = lineSelection  end
     if  isnothing(acceptUnvalidated)  acceptUnvalidatedx = set.acceptUnvalidated  else  acceptUnvalidatedx = acceptUnvalidated  end
+    if  isnothing(continuumExchange)  continuumExchangex = set.continuumExchange  else  continuumExchangex = continuumExchange  end
 
-    Settings( multipolesx, gammaEnergyx, maxKappax, printBeforex, lineSelectionx, acceptUnvalidatedx )
+    Settings( multipolesx, gammaEnergyx, maxKappax, printBeforex, lineSelectionx, acceptUnvalidatedx, continuumExchangex )
 end
 
 
@@ -199,6 +206,7 @@ function Base.show(io::IO, settings::InternalConversion.Settings)
     println(io, "printBefore:              $(settings.printBefore)  ")
     println(io, "lineSelection:            $(settings.lineSelection)  ")
     println(io, "acceptUnvalidated:        $(settings.acceptUnvalidated)  ")
+    println(io, "continuumExchange:        $(settings.continuumExchange)  ")
 end
 
 
@@ -581,7 +589,8 @@ end
 """
 function computeAmplitudesProperties(line::InternalConversion.Line, nm::Nuclear.Model, grid::Radial.Grid, nrContinuum::Int64,
                                       settings::InternalConversion.Settings)
-    newChannels = InternalConversion.Channel[];   contSettings = Continuum.Settings(false, nrContinuum);   icc = 0.
+    newChannels = InternalConversion.Channel[]
+    contSettings = Continuum.Settings(isnothing(settings.continuumExchange) ? false : settings.continuumExchange, nrContinuum);   icc = 0.
     alfa        = Defaults.getDefaults("alpha")
     subshellList = Basics.generate(OrderedSubshellList(), line.finalLevel.basis, line.initialLevel.basis)
     Defaults.setDefaults("relativistic subshell list", subshellList; printout=false)

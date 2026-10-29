@@ -27,25 +27,30 @@ using  Printf, ..AngularMomentum, ..AutoIonization, ..Basics, ..Beam, ..Bsplines
     + impactVectors           ::Array{Tuple{Float64,Float64},1}
         ... (bPerp, phiB) impact vectors [a.u., rad] of the target from the beam axis; unused by Beam.PlaneWave(),
             where on-axis capture is the only notion defined. Default [(0., 0.)], a single on-axis entry.
+    + continuumExchange       ::Union{Nothing,Bool}
+        ... True/false to force exchange between the captured electron and the bound electrons on or off; `nothing` --
+            the default -- lets `Basics.perform` decide automatically from the final-ion `AsfSettings.scField`
+            (`Continuum.resolveExchangeDefault`, item 99).
 """
 struct Settings  <:  AbstractProcessSettings
-    printBefore               ::Bool 
-    lineSelection             ::LineSelection 
+    printBefore               ::Bool
+    lineSelection             ::LineSelection
     minCaptureEnergy          ::Float64
     maxCaptureEnergy          ::Float64
     maxKappa                  ::Int64
-    operator                  ::AbstractEeInteraction 
+    operator                  ::AbstractEeInteraction
     calcAlignment             ::Bool
     beamType                  ::Beam.AbstractBeamType
     impactVectors             ::Array{Tuple{Float64,Float64},1}
-end 
+    continuumExchange         ::Union{Nothing,Bool}
+end
 
 
 """
 `ElectronCapture.Settings()`  ... constructor for the default values of ElectronCapture line computations
 """
 function Settings()
-    Settings(false, LineSelection(), 0., 1.0e5, 2, CoulombInteraction(), true, Beam.PlaneWave(), [(0., 0.)])
+    Settings(false, LineSelection(), 0., 1.0e5, 2, CoulombInteraction(), true, Beam.PlaneWave(), [(0., 0.)], nothing)
 end
 
 
@@ -53,34 +58,36 @@ end
 `ElectronCapture.Settings(set::ElectronCapture.Settings;`
 
         printBefore=..,       minCaptureEnergy=..,       maxCaptureEnergy=..,       maxKappa=..,       operator=..,
-        beamType=..,          impactVectors=..)
-                    
+        beamType=..,          impactVectors=..,          continuumExchange=..)
+
     ... constructor for modifying the given ElectronCapture.Settings by 'overwriting' the previously selected parameters.
 """
-function Settings(set::ElectronCapture.Settings;    
-    printBefore::Union{Nothing,Bool}=nothing,               lineSelection::Union{Nothing,LineSelection}=nothing, 
+function Settings(set::ElectronCapture.Settings;
+    printBefore::Union{Nothing,Bool}=nothing,               lineSelection::Union{Nothing,LineSelection}=nothing,
     minCaptureEnergy::Union{Nothing,Float64}=nothing,       maxCaptureEnergy::Union{Nothing,Float64}=nothing,
     maxKappa::Union{Nothing,Int64}=nothing,                 operator::Union{Nothing,AbstractEeInteraction}=nothing,
     calcAlignment::Union{Nothing,Bool}=nothing,
-    beamType::Union{Nothing,Beam.AbstractBeamType}=nothing, impactVectors::Union{Nothing,Array{Tuple{Float64,Float64},1}}=nothing)  
-    
-    if  isnothing(printBefore)        printBeforex      = set.printBefore       else  printBeforex      = printBefore        end 
-    if  isnothing(lineSelection)      lineSelectionx    = set.lineSelection     else  lineSelectionx    = lineSelection      end 
-    if  isnothing(minCaptureEnergy)   minCaptureEnergyx = set.minCaptureEnergy  else  minCaptureEnergyx = minCaptureEnergy   end 
-    if  isnothing(maxCaptureEnergy)   maxCaptureEnergyx = set.maxCaptureEnergy  else  maxCaptureEnergyx = maxCaptureEnergy   end 
-    if  isnothing(maxKappa)           maxKappax         = set.maxKappa          else  maxKappax         = maxKappa           end 
-    if  isnothing(operator)           operatorx         = set.operator          else  operatorx         = operator           end 
-    if  isnothing(calcAlignment)      calcAlignmentx    = set.calcAlignment     else  calcAlignmentx    = calcAlignment      end 
-    if  isnothing(beamType)           beamTypex         = set.beamType          else  beamTypex         = beamType           end 
-    if  isnothing(impactVectors)      impactVectorsx    = set.impactVectors     else  impactVectorsx    = impactVectors      end 
+    beamType::Union{Nothing,Beam.AbstractBeamType}=nothing, impactVectors::Union{Nothing,Array{Tuple{Float64,Float64},1}}=nothing,
+    continuumExchange::Union{Nothing,Bool}=nothing)
+
+    if  isnothing(printBefore)        printBeforex      = set.printBefore       else  printBeforex      = printBefore        end
+    if  isnothing(lineSelection)      lineSelectionx    = set.lineSelection     else  lineSelectionx    = lineSelection      end
+    if  isnothing(minCaptureEnergy)   minCaptureEnergyx = set.minCaptureEnergy  else  minCaptureEnergyx = minCaptureEnergy   end
+    if  isnothing(maxCaptureEnergy)   maxCaptureEnergyx = set.maxCaptureEnergy  else  maxCaptureEnergyx = maxCaptureEnergy   end
+    if  isnothing(maxKappa)           maxKappax         = set.maxKappa          else  maxKappax         = maxKappa           end
+    if  isnothing(operator)           operatorx         = set.operator          else  operatorx         = operator           end
+    if  isnothing(calcAlignment)      calcAlignmentx    = set.calcAlignment     else  calcAlignmentx    = calcAlignment      end
+    if  isnothing(beamType)           beamTypex         = set.beamType          else  beamTypex         = beamType           end
+    if  isnothing(impactVectors)      impactVectorsx    = set.impactVectors     else  impactVectorsx    = impactVectors      end
+    if  isnothing(continuumExchange)  continuumExchangex = set.continuumExchange else continuumExchangex = continuumExchange end
 
     Settings( printBeforex, lineSelectionx, minCaptureEnergyx, maxCaptureEnergyx, maxKappax, operatorx, calcAlignmentx,
-              beamTypex, impactVectorsx)
+              beamTypex, impactVectorsx, continuumExchangex)
 end
 
 
 # `Base.show(io::IO, settings::ElectronCapture.Settings)`  ... prepares a proper printout of the variable settings::ElectronCapture.Settings.
-function Base.show(io::IO, settings::ElectronCapture.Settings) 
+function Base.show(io::IO, settings::ElectronCapture.Settings)
     println(io, "printBefore:                   $(settings.printBefore)  ")
     println(io, "lineSelection:                 $(settings.lineSelection)  ")
     println(io, "minCaptureEnergy:              $(settings.minCaptureEnergy)  ")
@@ -90,6 +97,7 @@ function Base.show(io::IO, settings::ElectronCapture.Settings)
     println(io, "calcAlignment:                 $(settings.calcAlignment)  ")
     println(io, "beamType:                      $(settings.beamType)  ")
     println(io, "impactVectors:                 $(settings.impactVectors)  ")
+    println(io, "continuumExchange:             $(settings.continuumExchange)  ")
 end
 
 
@@ -197,7 +205,8 @@ function computeAmplitudesProperties(line::ElectronCapture.Line, nm::Nuclear.Mod
               "The amplitude computed here is the on-axis, plane-wave capture amplitude; it cannot be relabelled as a " *
               "twisted-beam result. Use Beam.PlaneWave() meanwhile.")
     end
-    newChannels = ElectronCapture.Channel[];   contSettings = Continuum.Settings(false, nrContinuum);   rate = 0.
+    newChannels = ElectronCapture.Channel[]
+    contSettings = Continuum.Settings(isnothing(settings.continuumExchange) ? false : settings.continuumExchange, nrContinuum);   rate = 0.
     nucPot      = isnothing(nuclearPot) ? Nuclear.nuclearPotential(nm, grid) : nuclearPot
     ## BOTH levels must be expressed in ONE ordered subshell list before anything is contracted; taking the final
     ## level's own list, as this function did until 02-Sep-2026, leaves the initial ion's 1s appended at the end and

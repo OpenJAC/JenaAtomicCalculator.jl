@@ -39,10 +39,29 @@ using  ..Basics, ..Bsplines, ..Defaults, ..ManyElectron, ..Radial, ..Nuclear
     `pot::Radial.Potential` with no `level` at all, so it has no bound orbitals to exchange with, Galerkin or not. All 27
     EXISTING construction sites pass `false` and are completely unaffected; the field remains the way a caller OPTS IN.
 """
-struct Settings 
-    includeExchange           ::Bool  
-    mtp                       ::Int64  
-end 
+struct Settings
+    includeExchange           ::Bool
+    mtp                       ::Int64
+end
+
+
+"""
+`Continuum.resolveExchangeDefault(explicit::Union{Nothing,Bool}, scField::Basics.AbstractScField)`
+    ... decides whether a continuum orbital built for THIS computation should carry exchange with the bound electrons:
+        `explicit`, whenever it is given, always wins; otherwise the decision is made FROM THE SCF FIELD alone, so that the
+        question never has to be put to a user who never asked it. `true` for `ALField` and `EOLField` -- the two fields
+        whose bound orbitals come from a genuine nonlocal Fock SCF, so the continuum orbital built in `Continuum`'s own
+        LOCAL potential is otherwise missing exactly the interaction its own bound orbitals were built with -- and `false`
+        for every other `scField`: a local potential (`DFSField`, `HSField`, `KSField`, `CHField`, `ThomasFermiField`,
+        `AaDFSField`, `AaHSField`) has no exchange of its own to match, and `NuclearField` has no bound electrons at all.
+        A `value::Bool` is returned. Item 99, route 1; this is the one function every process module's `continuumExchange`
+        field is resolved through, via `Basics.perform`.
+"""
+function resolveExchangeDefault(explicit::Union{Nothing,Bool}, scField::Basics.AbstractScField)
+    !isnothing(explicit)   &&   return( explicit )
+
+    return( scField isa Basics.ALField  ||  scField isa Basics.EOLField )
+end
 
 
 """

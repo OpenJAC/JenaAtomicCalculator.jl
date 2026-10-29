@@ -101,8 +101,8 @@ function determineSteps(scheme::Cascade.RadiativeRecombinationScheme, comp::Casc
                 if  initialBlock.NoElectrons + 1 != capturedBlock.NoElectrons   error("stop a")     end
                 # Check that at least one energy supports radiative stabilization
                 maxKappa = maximum(scheme.lValues) + 1
-                settings = PhotoRecombination.Settings(scheme.multipoles, [UseCoulomb, UseBabushkin], enGrid.t, 
-                                                        Float64[], false, false, false, false, true, maxKappa, LineSelection())
+                settings = PhotoRecombination.Settings(scheme.multipoles, [UseCoulomb, UseBabushkin], enGrid.t,
+                                                        Float64[], false, false, false, false, true, maxKappa, LineSelection(), nothing)
                 push!( stepList, Cascade.Step(Basics.Rec(), settings, initialBlock.confs,     capturedBlock.confs,     
                                                                         initialBlock.multiplet, capturedBlock.multiplet ) )
             end

@@ -154,75 +154,81 @@ using Printf, ..AngularMomentum, ..Basics, ..Bsplines, ..Continuum, ..Defaults, 
     + lineSelection           ::LineSelection           ... Specifies the selected levels, if any.
     + eeInteraction           ::AbstractEeInteraction   ... Type of the electron-electron interaction in the second-order treatment.
     + gMultiplet              ::Multiplet               ... Mean-field multiplet of intermediate levels in the computations.
+    + continuumExchange       ::Union{Nothing,Bool}     ... True/false to force exchange between the two ejected electrons
+        and the bound electrons on or off; `nothing` -- the default -- lets `Basics.perform` decide automatically from the
+        final-ion `AsfSettings.scField` (`Continuum.resolveExchangeDefault`, item 99).
 """
-struct Settings  <:  AbstractProcessSettings 
+struct Settings  <:  AbstractProcessSettings
     multipoles                ::Array{EmMultipole}
     gauges                    ::Array{UseGauge}
-    photonEnergies            ::Array{Float64,1} 
-    electronEnergyShift       ::Float64 
-    NoEnergySharings          ::Int64         
-    NoIntermediateEnergies    ::Int64         
+    photonEnergies            ::Array{Float64,1}
+    electronEnergyShift       ::Float64
+    NoEnergySharings          ::Int64
+    NoIntermediateEnergies    ::Int64
     intermediateEnergyFactor  ::Float64
-    maxKappa                  ::Int64 
-    calcDifferentialCs        ::Bool 
+    maxKappa                  ::Int64
+    calcDifferentialCs        ::Bool
     printBefore               ::Bool
     lineSelection             ::LineSelection
     eeInteraction             ::AbstractEeInteraction
     gMultiplet                ::Multiplet
-end 
+    continuumExchange         ::Union{Nothing,Bool}
+end
 
 
 """
 `PhotoDoubleIonization.Settings()`  ... constructor for the default values of PhotoDoubleIonization line computations
 """
 function Settings()
-    Settings(Basics.EmMultipole[E1], Basics.UseGauge[Basics.UseCoulomb, Basics.UseBabushkin], Float64[], 0., 0, 0, 3., 0, false, false, 
-                LineSelection(), CoulombInteraction(), Multiplet())
+    Settings(Basics.EmMultipole[E1], Basics.UseGauge[Basics.UseCoulomb, Basics.UseBabushkin], Float64[], 0., 0, 0, 3., 0, false, false,
+                LineSelection(), CoulombInteraction(), Multiplet(), nothing)
 end
 
 
 """
 `PhotoDoubleIonization.Settings(set::PhotoDoubleIonization.Settings;`
 
-        multipoles=..,          gauges=..,                  photonEnergies=..,          
+        multipoles=..,          gauges=..,                  photonEnergies=..,
         electronEnergyShift=.., NoEnergySharings=..,     NoIntermediateEnergies=..,   intermediateEnergyFactor=..,
-        maxKappa=..,            calcDifferentialCs..,       printBefore=..,             lineSelection=..,       
-        eeInteraction=..,       gMultiplet=..)
-                    
+        maxKappa=..,            calcDifferentialCs..,       printBefore=..,             lineSelection=..,
+        eeInteraction=..,       gMultiplet=..,              continuumExchange=..)
+
     ... constructor for modifying the given PhotoDoubleIonization.Settings by 'overwriting' the previously selected parameters.
 """
-function Settings(set::PhotoDoubleIonization.Settings;    
-    multipoles::Union{Nothing,Array{EmMultipole,1}}=nothing,                gauges::Union{Nothing,Array{UseGauge,1}}=nothing,  
+function Settings(set::PhotoDoubleIonization.Settings;
+    multipoles::Union{Nothing,Array{EmMultipole,1}}=nothing,                gauges::Union{Nothing,Array{UseGauge,1}}=nothing,
     photonEnergies::Union{Nothing,Array{Float64,1}}=nothing,                electronEnergyShift::Union{Nothing,Float64}=nothing,
     NoEnergySharings::Union{Nothing,Int64}=nothing,                         NoIntermediateEnergies::Union{Nothing,Int64}=nothing,
     intermediateEnergyFactor::Union{Nothing,Float64}=nothing,
-    maxKappa::Union{Nothing,Int64}=nothing,                                 calcDifferentialCs::Union{Nothing,Bool}=nothing,      
-    printBefore::Union{Nothing,Bool}=nothing,                               lineSelection::Union{Nothing,LineSelection}=nothing, 
-    eeInteraction::Union{Nothing,AbstractEeInteraction}=nothing,            gMultiplet::Union{Nothing,Multiplet}=nothing)  
-    
-    if  isnothing(multipoles)           multipolesx         = set.multipoles         else  multipolesx         = multipoles          end 
-    if  isnothing(gauges)               gaugesx             = set.gauges             else  gaugesx             = gauges              end 
-    if  isnothing(photonEnergies)       photonEnergiesx     = set.photonEnergies     else  photonEnergiesx     = photonEnergies      end 
-    if  isnothing(electronEnergyShift)  electronEnergyShiftx= set.electronEnergyShift else electronEnergyShiftx= electronEnergyShift end 
-    if  isnothing(NoEnergySharings)     NoEnergySharingsx   = set.NoEnergySharings   else  NoEnergySharingsx   = NoEnergySharings    end 
-    if  isnothing(NoIntermediateEnergies)  NoIntermediateEnergiesx = set.NoIntermediateEnergies  else  NoIntermediateEnergiesx = NoIntermediateEnergies  end 
-    if  isnothing(intermediateEnergyFactor)  intermediateEnergyFactorx = set.intermediateEnergyFactor  else  intermediateEnergyFactorx = intermediateEnergyFactor  end 
-    if  isnothing(maxKappa)             maxKappax           = set.maxKappa           else  maxKappax           = maxKappa            end 
-    if  isnothing(calcDifferentialCs)   calcDifferentialCsx = set.calcDifferentialCs else  calcDifferentialCsx = calcDifferentialCs  end 
-    if  isnothing(printBefore)          printBeforex        = set.printBefore        else  printBeforex        = printBefore         end 
-    if  isnothing(lineSelection)        lineSelectionx      = set.lineSelection      else  lineSelectionx      = lineSelection       end 
-    if  isnothing(eeInteraction)        eeInteractionx      = set.eeInteraction      else  eeInteractionx      = eeInteraction       end 
-    if  isnothing(gMultiplet)           gMultipletx         = set.gMultiplet         else  gMultipletx         = gMultiplet          end 
+    maxKappa::Union{Nothing,Int64}=nothing,                                 calcDifferentialCs::Union{Nothing,Bool}=nothing,
+    printBefore::Union{Nothing,Bool}=nothing,                               lineSelection::Union{Nothing,LineSelection}=nothing,
+    eeInteraction::Union{Nothing,AbstractEeInteraction}=nothing,            gMultiplet::Union{Nothing,Multiplet}=nothing,
+    continuumExchange::Union{Nothing,Bool}=nothing)
+
+    if  isnothing(multipoles)           multipolesx         = set.multipoles         else  multipolesx         = multipoles          end
+    if  isnothing(gauges)               gaugesx             = set.gauges             else  gaugesx             = gauges              end
+    if  isnothing(photonEnergies)       photonEnergiesx     = set.photonEnergies     else  photonEnergiesx     = photonEnergies      end
+    if  isnothing(electronEnergyShift)  electronEnergyShiftx= set.electronEnergyShift else electronEnergyShiftx= electronEnergyShift end
+    if  isnothing(NoEnergySharings)     NoEnergySharingsx   = set.NoEnergySharings   else  NoEnergySharingsx   = NoEnergySharings    end
+    if  isnothing(NoIntermediateEnergies)  NoIntermediateEnergiesx = set.NoIntermediateEnergies  else  NoIntermediateEnergiesx = NoIntermediateEnergies  end
+    if  isnothing(intermediateEnergyFactor)  intermediateEnergyFactorx = set.intermediateEnergyFactor  else  intermediateEnergyFactorx = intermediateEnergyFactor  end
+    if  isnothing(maxKappa)             maxKappax           = set.maxKappa           else  maxKappax           = maxKappa            end
+    if  isnothing(calcDifferentialCs)   calcDifferentialCsx = set.calcDifferentialCs else  calcDifferentialCsx = calcDifferentialCs  end
+    if  isnothing(printBefore)          printBeforex        = set.printBefore        else  printBeforex        = printBefore         end
+    if  isnothing(lineSelection)        lineSelectionx      = set.lineSelection      else  lineSelectionx      = lineSelection       end
+    if  isnothing(eeInteraction)        eeInteractionx      = set.eeInteraction      else  eeInteractionx      = eeInteraction       end
+    if  isnothing(gMultiplet)           gMultipletx         = set.gMultiplet         else  gMultipletx         = gMultiplet          end
+    if  isnothing(continuumExchange)    continuumExchangex  = set.continuumExchange  else  continuumExchangex  = continuumExchange   end
 
     Settings( multipolesx, gaugesx, photonEnergiesx, electronEnergyShiftx, NoEnergySharingsx, NoIntermediateEnergiesx,
                 intermediateEnergyFactorx, maxKappax,
-                calcDifferentialCsx, printBeforex, lineSelectionx, eeInteractionx, gMultipletx)
+                calcDifferentialCsx, printBeforex, lineSelectionx, eeInteractionx, gMultipletx, continuumExchangex)
 end
 
 
-# `Base.show(io::IO, settings::PhotoDoubleIonization.Settings)`  
+# `Base.show(io::IO, settings::PhotoDoubleIonization.Settings)`
 #   ... prepares a proper printout of the variable settings::PhotoDoubleIonization.Settings.
-function Base.show(io::IO, settings::PhotoDoubleIonization.Settings) 
+function Base.show(io::IO, settings::PhotoDoubleIonization.Settings)
     println(io, "multipoles:               $(settings.multipoles)  ")
     println(io, "gauges:                   $(settings.gauges)  ")
     println(io, "electronEnergyShift:      $(settings.electronEnergyShift)  ")
@@ -236,6 +242,7 @@ function Base.show(io::IO, settings::PhotoDoubleIonization.Settings)
     println(io, "lineSelection:            $(settings.lineSelection)  ")
     println(io, "eeInteraction:            $(settings.eeInteraction)  ")
     println(io, "gMultiplet:               $(settings.gMultiplet)  ")
+    println(io, "continuumExchange:        $(settings.continuumExchange)  ")
 end
 
 
@@ -710,7 +717,7 @@ function  computeAmplitudesProperties(line::PhotoDoubleIonization.Line, nm::Nucl
                                             nuclearPot::Union{Nothing,Radial.Potential}=nothing,
                                             primitives::Union{Nothing,Bsplines.Primitives}=nothing, printout::Bool=false)
     newSharings  = PhotoDoubleIonization.Sharing[]
-    contSettings = Continuum.Settings(false, nrContinuum)
+    contSettings = Continuum.Settings(isnothing(settings.continuumExchange) ? false : settings.continuumExchange, nrContinuum)
     symi         = LevelSymmetry(line.initialLevel.J, line.initialLevel.parity)
     # The sum over intermediate states is an integral over the intermediate electron energy, because those states
     # are normalized per energy interval.  ITS NUMBER OF POINTS IS ITS OWN SETTING -- until 30-Sep-2026 it was taken
