@@ -75,6 +75,48 @@ end
 
 
 """
+`Empirical.checkCrossingRadius(Rj::Float64; RjRefuse::Float64=4.5, RjWarn::Float64=10.0, label::String="")`
+    ... to decide whether the ionic-covalent crossing at R_j (Empirical.nonadiabaticRadius) lies in the LONG-RANGE region
+        the Belyaev-Yakovleva model is built for.  The model assumes a single, isolated, diabatic crossing in the asymptotic
+        region where the two partners' charge clouds do not yet interpenetrate, and the Olson-Smith-Bauer coupling of
+        Eq. (12) is a long-range asymptotic formula;  nothing in the arithmetic itself says so, so a deeply bound final state
+        is answered for as confidently as a Rydberg one and returns a large, wholly spurious rate.  Three tiers are returned
+        as a Symbol: `:ok` above RjWarn, `:marginal` between RjWarn and RjRefuse (computed, with a warning -- these are the
+        small rates the paper's own Sec. 2.4 says the model does not target), and `:refuse` below RjRefuse, where the caller
+        should return a zero rather than a number.  A verdict::Symbol is returned.
+
+        THE TWO DEFAULTS ARE MEASURED, NOT CHOSEN, and the measurement is `tools/probeInelasticHCollisionGate.jl`:
+
+          +  FROM BELOW.  For O+ + H^- the three deeply bound terms O(2p^4 ^3P, ^1D, ^1S) sit at R_j = 2.12, 2.50 and
+             3.13 a_0, and BOTH published quantum treatments -- Barklem, A&A 610, A57 (2018), asymptotic LCAO plus
+             multichannel Landau-Zener, and Belyaev et al., MNRAS 487, 5097 (2019), MRCI plus quantum probability current --
+             give EXACTLY ZERO there, while this model gives 4.3e-10, 2.3e-10 and 8.7e-11 cm^3/s.
+          +  FROM ABOVE.  The deepest channel of Belyaev & Yakovleva's OWN Table 1, Ba^+(6s) at -10.0080 eV with Z = 1,
+             sits at R_j = 5.88 a_0 and is tabulated by the paper itself, so no gate may refuse it.
+
+        RjRefuse = 4.5 a_0 is the midpoint of the resulting window (3.13, 5.88), clear of both ends;  it is also about twice
+        the mean radius of H^-, i.e. the separation at which the two charge clouds begin to overlap.  RjWarn = 10.0 a_0 marks
+        where the paper's own small-rate channels begin (Ba^+(6s), (5d), (6p) at 5.88, 6.34, 8.24 a_0).
+"""
+function checkCrossingRadius(Rj::Float64; RjRefuse::Float64=4.5, RjWarn::Float64=10.0, label::String="")
+    sa = label == ""  ?  ""  :  " for $label"
+    if      Rj < RjRefuse
+        @warn "Empirical: the ionic-covalent crossing$sa lies at R_j = $(round(Rj, digits=2)) a_0, inside the " *
+              "short-range region where the Belyaev-Yakovleva model has no validity (both published quantum " *
+              "treatments of O + H give exactly zero below $(RjRefuse) a_0); a zero rate is returned instead of a number."
+        return( :refuse )
+    elseif  Rj < RjWarn
+        @warn "Empirical: the ionic-covalent crossing$sa lies at R_j = $(round(Rj, digits=2)) a_0, in the marginal " *
+              "region $(RjRefuse)-$(RjWarn) a_0 where the simplified model still runs but targets only the dominant, " *
+              "large rates (Belyaev & Yakovleva 2017, Sec. 2.4); treat the result as an order of magnitude."
+        return( :marginal )
+    end
+
+    return( :ok )
+end
+
+
+"""
 `Empirical.ionicCovalentCoupling(Ej::Float64, EHminus::Float64, Rj::Float64)`
     ... to compute the (diabatic) ionic-covalent coupling matrix element H_ionic,j(R_j) by the semiempirical
         one-electron-transition formula of Olson, Smith & Bauer [Appl. Opt. 10, 1848 (1971)],
@@ -178,7 +220,13 @@ end
         gives 7.588e-8 cm^3/s here vs. the paper's quoted 7.59e-8 cm^3/s -- agreement to 3 significant figures.
 """
 function neutralizationReducedRate(T::Float64, Ef::Float64, EHminus::Float64, Z::Float64, mu::Float64;
-                                   printout::Bool=false, zerosGL::Int64=64)
+                                   printout::Bool=false, zerosGL::Int64=64, checkRadius::Bool=true)
+    # The gate is applied once per channel here, not inside the Maxwell fold below, which calls the cross section
+    # some zerosGL times for the same crossing
+    if  checkRadius  &&  Empirical.checkCrossingRadius(Empirical.nonadiabaticRadius(Ef, EHminus, Z);
+                                                       label="Ef = $Ef a.u.") == :refuse
+        return( 0.0 )
+    end
     gridGL = Radial.GridGL(Radial.GridGaussLegendreFinite(), 0., 30*T, zerosGL; printout=false)
     s = 0.0
     for  n = 1:gridGL.nt
@@ -287,7 +335,13 @@ end
             Empirical.detailedBalanceRate for the inverse (excitation) process.
 """
 function deExcitationReducedRate(T::Float64, Ei::Float64, Ef::Float64, EHminus::Float64, Z::Float64, mu::Float64;
-                                 printout::Bool=false, zerosGL::Int64=64)
+                                 printout::Bool=false, zerosGL::Int64=64, checkRadius::Bool=true)
+    # De-excitation proceeds through TWO crossings, so either one falling in the short-range region invalidates the path
+    if  checkRadius
+        vi = Empirical.checkCrossingRadius(Empirical.nonadiabaticRadius(Ei, EHminus, Z); label="Ei = $Ei a.u.")
+        vf = Empirical.checkCrossingRadius(Empirical.nonadiabaticRadius(Ef, EHminus, Z); label="Ef = $Ef a.u.")
+        if  vi == :refuse  ||  vf == :refuse   return( 0.0 )   end
+    end
     gridGL = Radial.GridGL(Radial.GridGaussLegendreFinite(), 0., 30*T, zerosGL; printout=false)
     s = 0.0
     for  n = 1:gridGL.nt
@@ -326,6 +380,13 @@ end
 """
 function detailedBalanceRate(Kjk::Float64, pstatJ::Float64, pstatK::Float64, deltaEjk::Float64, T::Float64)
     if  deltaEjk < 0.   error("deltaEjk = $deltaEjk must be positive (Ej - Ek for the exothermic j -> k process).")   end
+    # pstatJ is the DIVISOR, and a state of zero statistical weight cannot be the initial state of the direct process
+    # at all;  returning 0 * (pstatK/0) = NaN here silently poisoned whole rate matrices, so it is refused instead
+    if  pstatJ <= 0.
+        error("pstatJ = $pstatJ must be positive: state j carries no statistical weight in this molecular symmetry, " *
+              "so there is no direct j -> k process to invert.  Its rate, and that of the inverse, are both zero; " *
+              "the caller should set them to zero rather than ask for a detailed-balance ratio.")
+    end
     return( Kjk * (pstatK / pstatJ) * exp(-deltaEjk / T) )
 end
 
@@ -450,9 +511,28 @@ function inelasticHCollisionRateMatrix(T::Float64, channels::Array{Empirical.Ine
     EHminus = Empirical.hydrogenAnionEnergy()
     nch     = length(channels)
 
+    # Each channel is admitted ONCE here, on two independent grounds, and the per-pair calls below are then told not to
+    # re-check:  a channel of ZERO statistical weight does not correlate to the entrance symmetry at all, so no molecular
+    # state connects it and both of its legs are identically zero;  and a channel whose crossing lies in the short-range
+    # region is outside the model (Empirical.checkCrossingRadius).  Admitting everything gave a non-correlating channel
+    # the FULL flux while detailed balance returned exactly zero for its inverse -- the two halves of one matrix
+    # disagreeing -- and the channel-to-channel loops then divided by that zero weight and returned NaN throughout
+    isOpen = trues(nch);   nNoSymmetry = 0;   nShortRange = 0;   marginal = String[]
+    for  j = 1:nch
+        if  channels[j].pstat <= 0.
+            isOpen[j] = false;   nNoSymmetry = nNoSymmetry + 1;   continue
+        end
+        verdict = Empirical.checkCrossingRadius(Empirical.nonadiabaticRadius(channels[j].E, EHminus, Z);
+                                                label=channels[j].name)
+        if      verdict == :refuse     isOpen[j] = false;   nShortRange = nShortRange + 1
+        elseif  verdict == :marginal   push!(marginal, channels[j].name)
+        end
+    end
+
     ionicToChannel = zeros(Float64, nch);   channelToIonic = zeros(Float64, nch)
     for  j = 1:nch
-        Nj = Empirical.neutralizationReducedRate(T, channels[j].E, EHminus, Z, mu; zerosGL=zerosGL)
+        if  !isOpen[j]   continue   end
+        Nj = Empirical.neutralizationReducedRate(T, channels[j].E, EHminus, Z, mu; zerosGL=zerosGL, checkRadius=false)
         ionicToChannel[j] = pstatIonic * Nj
         deltaE = EHminus - channels[j].E                          # ionic (j="ionic" in Eq. 3) -> channel[j] is exothermic
         channelToIonic[j] = Empirical.detailedBalanceRate(ionicToChannel[j], pstatIonic, channels[j].pstat, deltaE, T)
@@ -460,13 +540,15 @@ function inelasticHCollisionRateMatrix(T::Float64, channels::Array{Empirical.Ine
 
     channelToChannel = zeros(Float64, nch, nch)
     for  i = 1:nch,  k = 1:nch
-        if  i == k   continue   end
+        if  i == k  ||  !isOpen[i]  ||  !isOpen[k]   continue   end
         if  channels[i].E > channels[k].E                                # i less deeply bound -> genuine de-excitation i -> k
-            Dik = Empirical.deExcitationReducedRate(T, channels[i].E, channels[k].E, EHminus, Z, mu; zerosGL=zerosGL)
+            Dik = Empirical.deExcitationReducedRate(T, channels[i].E, channels[k].E, EHminus, Z, mu;
+                                                    zerosGL=zerosGL, checkRadius=false)
             channelToChannel[i,k] = channels[i].pstat * Dik
         end
     end
     for  i = 1:nch,  k = 1:nch
+        if  i == k  ||  !isOpen[i]  ||  !isOpen[k]   continue   end
         if  channels[i].E < channels[k].E                                # fill the endothermic (excitation) half by detailed balance
             deltaE = channels[k].E - channels[i].E
             channelToChannel[i,k] = Empirical.detailedBalanceRate(channelToChannel[k,i], channels[k].pstat, channels[i].pstat, deltaE, T)
@@ -488,6 +570,14 @@ function inelasticHCollisionRateMatrix(T::Float64, channels::Array{Empirical.Ine
                 "between two of the covalent channels themselves (i more weakly bound than k), with the reverse " *
                 "(excitation) entry filled in by detailed balance; 0.0 on the diagonal and where i is NOT more " *
                 "weakly bound than k (that direction is filled by its own detailed-balance partner instead). " *
+                "\n    + CHANNELS ADMITTED: $(sum(isOpen)) of $nch. " *
+                ( nNoSymmetry == 0  ?  ""  :  "$nNoSymmetry closed as p_stat = 0, i.e. not correlating to the " *
+                  "entrance symmetry at all, so no molecular state connects them. " ) *
+                ( nShortRange == 0  ?  ""  :  "$nShortRange closed because their ionic-covalent crossing lies in the " *
+                  "short-range region where this long-range model has no validity (Empirical.checkCrossingRadius); " *
+                  "every rate of a closed channel is 0.0 by decision, not by computation. " ) *
+                ( isempty(marginal) ?  ""  :  "MARGINAL, computed but only order-of-magnitude: " *
+                  "$(join(marginal, ", ")). " ) *
                 "\n    + KNOWN OPEN ISSUE: unlike ionic->j/j->ionic, the channel[i]->channel[k] (de-)excitation " *
                 "block is only order-of-magnitude/qualitative-trend reliable -- checked against Belyaev & Yakovleva " *
                 "(2017) Table 2, this module's values are a factor ~1.9-2.6 too small (root cause diagnosed, not yet " *
