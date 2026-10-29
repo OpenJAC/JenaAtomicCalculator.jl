@@ -146,17 +146,34 @@ end
 
 """
 `TwoElectronOnePhoton.amplitude(::Emission, Mp::EmMultipole, gauge::EmGauge, omega::Float64, finalLevel::Level, initialLevel::Level,
-                                gMultiplet::Multiplet, grid::Radial.Grid; display::Bool=false, printout::Bool=false)`
+                                gMultiplet::Multiplet, kind::AbstractEeInteraction, grid::Radial.Grid,
+                                nuclearPotential::Radial.Potential; display::Bool=false, printout::Bool=false)`
     ... to compute the TEOP emission amplitude
 
-                <alpha_f J_f || O^(Mp, emission) || alpha_n J_i> <alpha_n J_i || V^(e-e) || alpha_i J_i>
-            +   <alpha_f J_f || V^(e-e) || alpha_n J_f> <alpha_n J_f || O^(Mp, emission) || alpha_i J_i>
+                <alpha_f J_f || O^(Mp, emission) || alpha_n J_i> <alpha_n J_i || H - E || alpha_i J_i>
+            +   <alpha_f J_f || H - E || alpha_n J_f> <alpha_n J_f || O^(Mp, emission) || alpha_i J_i>
 
         emission amplitude for the interaction with the photon field of multipolarity Mp and for the given transition energy
         and gauge. A value::ComplexF64 is returned. The amplitude value is printed to screen if display=true.
+
+        THE ELECTRON-ELECTRON FACTOR CARRIES `H - E` AND NOT `V^(e-e)` ALONE, and in this process that is not a refinement
+        but the difference between a mean field counted once and counted twice.  Each of the two paths above is a product of
+        a ONE-BODY photon operator and ONE electron-electron factor, while the initial and final states differ in TWO
+        orbitals;  the photon operator moves one of them, so the electron-electron factor is ALWAYS a ONE-orbital
+        transition a -> b.  Exactly there `V^(e-e)` returns the whole spectator mean field `<b|U_HF|a>`, which the one-body
+        part of `H - E` cancels (Brillouin) down to the residual `<b|(U_HF - U)|a>`.  A FIRST-order amplitude is exempt,
+        because it connects states differing in two orbitals where a one-body operator cannot contribute -- which is why
+        this never surfaced in the validated PhotoEmission and Auger paths.  See ManyElectron.matrixElement_HminusE, whose
+        docstring carries the measurement, and `tools/probeTeaJunctionOperator.jl`.
+
+        `kind` MUST BE THE ELECTRON-ELECTRON INTERACTION OF THE HAMILTONIAN THAT PRODUCED THE LEVELS, since the
+        cancellation is referenced to their energy;  it is `settings.eeInteraction`, which until 29-Oct-2026 this function
+        ignored in favour of a hard-wired `CoulombInteraction()`.  `nuclearPotential` must be the nuclear potential on
+        `grid` and enters the one-body integral of the electron-electron factor.
 """
 function amplitude(::Emission, Mp::EmMultipole, gauge::EmGauge, omega::Float64, finalLevel::Level, initialLevel::Level,
-                    gMultiplet::Multiplet, grid::Radial.Grid; display::Bool=false, printout::Bool=false)
+                    gMultiplet::Multiplet, kind::AbstractEeInteraction, grid::Radial.Grid,
+                    nuclearPotential::Radial.Potential; display::Bool=false, printout::Bool=false)
     #
     # Always ensure the same subshell list for all initial, intermediate and final levels. The gMultiplet must take
     # part in this merge: a physically-motivated Green-function space generally introduces orbitals that occur in
@@ -190,26 +207,30 @@ function amplitude(::Emission, Mp::EmMultipole, gauge::EmGauge, omega::Float64, 
             for  nLevel in nMultiplet.levels
                 symn = LevelSymmetry(nLevel.J, nLevel.parity);    enn = nLevel.energy
                 #
-                #   Compute <alpha_f J_f || O^(Mp, kind) || alpha_n J_i> <alpha_n J_i || V^(e-e) || alpha_i J_i>
+                #   Compute <alpha_f J_f || O^(Mp, kind) || alpha_n J_i> <alpha_n J_i || H - E || alpha_i J_i>
                 #   The intermediate Green-function level is, in general, multi-configurational; the two matrix
                 #   elements therefore run over two INDEPENDENT CSF indices t, tp of that same level.
+                #   The electron-electron factor carries H - E, not V^(e-e) alone: it is a ONE-orbital transition
+                #   here, which is the one case where the two differ by the whole spectator mean field.
                 if  symn == symi  &&  abs(enn - eni) > selfTolerance
                     for  t = 1:nn
                         if  nLevel.mc[t] == 0.  continue    end
                         OMp = ManyElectron.matrixElement_Mab(Mp, gauge, omega, fLevel.basis, r, nLevel.basis, t, grid)
                         for  tp = 1:nn
                             if  nLevel.mc[tp] == 0.  continue    end
-                            Vee       = ManyElectron.matrixElement_Vee(CoulombInteraction(), nLevel.basis, tp, iLevel.basis, s, grid)
+                            Vee       = ManyElectron.matrixElement_HminusE(Basics.HminusE(kind), nLevel.basis, tp,
+                                                                           iLevel.basis, s, grid, nuclearPotential)
                             amplitude = amplitude + fLevel.mc[r] * OMp * nLevel.mc[t] * nLevel.mc[tp] * Vee * iLevel.mc[s] / (eni - enn)
                         end
                     end
                 end
                 #
-                #   Compute <alpha_f J_f || V^(e-e) || alpha_n J_f> <alpha_n J_f || O^(Mp, kind) || alpha_i J_i>
+                #   Compute <alpha_f J_f || H - E || alpha_n J_f> <alpha_n J_f || O^(Mp, kind) || alpha_i J_i>
                 if  symn == symf  &&  abs(enn - efinal) > selfTolerance
                     for  t = 1:nn
                         if  nLevel.mc[t] == 0.  continue    end
-                        Vee = ManyElectron.matrixElement_Vee(CoulombInteraction(), fLevel.basis, r, nLevel.basis, t, grid)
+                        Vee = ManyElectron.matrixElement_HminusE(Basics.HminusE(kind), fLevel.basis, r,
+                                                                 nLevel.basis, t, grid, nuclearPotential)
                         for  tp = 1:nn
                             if  nLevel.mc[tp] == 0.  continue    end
                             OMp       = ManyElectron.matrixElement_Mab(Mp, gauge, omega, nLevel.basis, tp, iLevel.basis, s, grid)
@@ -233,18 +254,25 @@ end
         
 
 """
-`TwoElectronOnePhoton.computeAmplitudesProperties(line::TwoElectronOnePhoton.Line, grid::Radial.Grid, 
-                                                    settings::TwoElectronOnePhoton.Settings; printout::Bool=true)`  
+`TwoElectronOnePhoton.computeAmplitudesProperties(line::TwoElectronOnePhoton.Line, nm::Nuclear.Model, grid::Radial.Grid,
+                                                    settings::TwoElectronOnePhoton.Settings; printout::Bool=true,
+                                                    nuclearPot::Union{Nothing,Radial.Potential}=nothing)`
     ... to compute all amplitudes and properties of the given line; a line::TwoElectronOnePhoton.Line is returned for which the 
-        amplitudes and properties are now evaluated.
+        amplitudes and properties are now evaluated.  `nm` is needed because the electron-electron factor of the second-order
+        amplitude carries `H - E`, whose one-body part is the bare Dirac operator in the nuclear potential;  `nuclearPot` lets
+        a caller that builds that potential once for a whole computation pass it in, and omitting it reproduces the same
+        potential from `nm` here.
 """
-function  computeAmplitudesProperties(line::TwoElectronOnePhoton.Line, grid::Radial.Grid, settings::TwoElectronOnePhoton.Settings; 
-                                        printout::Bool=true)
+function  computeAmplitudesProperties(line::TwoElectronOnePhoton.Line, nm::Nuclear.Model, grid::Radial.Grid,
+                                        settings::TwoElectronOnePhoton.Settings; printout::Bool=true,
+                                        nuclearPot::Union{Nothing,Radial.Potential}=nothing)
+    nucPot = isnothing(nuclearPot) ? Nuclear.nuclearPotential(nm, grid) : nuclearPot
     newChannels = TwoElectronOnePhoton.Channel[];    rateC = 0.;    rateB = 0.
     for channel in line.channels
         #
         amplitude = TwoElectronOnePhoton.amplitude(Emission(), channel.multipole, channel.gauge, line.omega,
-                                                    line.finalLevel, line.initialLevel, settings.gMultiplet, grid, printout=printout)
+                                                    line.finalLevel, line.initialLevel, settings.gMultiplet,
+                                                    settings.eeInteraction, grid, nucPot, printout=printout)
         #
         push!( newChannels, TwoElectronOnePhoton.Channel( channel.multipole, channel.gauge, amplitude) )
         #
@@ -281,10 +309,13 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
     lines = TwoElectronOnePhoton.determineLines(finalMultiplet, initialMultiplet, settings)
     # Display all selected lines before the computations start
     if  settings.printBefore    TwoElectronOnePhoton.displayLines(lines)    end
+    # The nuclear potential is a constant of the whole computation -- it enters the one-body part of the H - E
+    # electron-electron factor -- so it is built once here rather than per line
+    nuclearPot = Nuclear.nuclearPotential(nm, grid)
     # Calculate all amplitudes and requested properties
     newLines = TwoElectronOnePhoton.Line[]
     for  line in lines
-        newLine = TwoElectronOnePhoton.computeAmplitudesProperties(line, grid, settings) 
+        newLine = TwoElectronOnePhoton.computeAmplitudesProperties(line, nm, grid, settings; nuclearPot=nuclearPot)
         push!( newLines, newLine)
     end
     # Print all results to screen
