@@ -17,20 +17,34 @@
 #  MEASURED 29-Oct-2026, Ne, E = 2.0 Ha, normalized overlap:
 #
 #      slater   nonlocal   <2p_1/2|eps p_1/2>
-#        1.0     false       -1.46e-08      ... the CONSISTENT pair: this level's bound orbitals ARE DFS orbitals
-#        1.0     true        -2.52e-02      ... DFS Slater + nonlocal Fock: orthogonality lost by six orders
-#        0.0     true        +1.08e-03      ... pure direct + nonlocal Fock: 23x better, so the double counting
-#                                               IS real and removing the Slater term is most of the repair
+#        0.0     false       -8.15e-02      ... NO exchange at all, and the worst of the four
+#        0.0     true        +1.08e-03      ... pure direct + nonlocal Fock: 76x BETTER than no exchange, so the
+#                                               nonlocal operator is doing real and correct work
+#        1.0     true        -2.52e-02      ... the Slater term ON TOP of it gives back most of that gain: this is
+#                                               the DOUBLE-COUNTING signature, and it is visible from both sides
+#        1.0     false       -1.46e-08      ... the CONSISTENT pair: this level's bound orbitals ARE DFS orbitals,
+#                                               so a DFS continuum orbital is orthogonal to them to round-off
+#
+#  SO THE FINDING IS NOT "exchange is wrong" BUT "exchange is right and the Slater term must come off with it".
+#  Read rows 1 and 2 for the operator (76x), rows 2 and 3 for the double counting (23x).
 #
 #  WHAT THE RESIDUAL 1.08e-03 MEANS, and it is NOT a defect: it cannot go to zero here, because the bound
 #  orbitals of this level are DFS orbitals and no Dirac-Fock continuum operator can be orthogonal to those.
 #  CONCLUSION: a nonlocal exchange term is only meaningful when (a) the local part is PURE DIRECT, i.e.
 #  DFSField(0.0), and (b) the level's own bound orbitals came from a Dirac-Fock field.  THE DECISIVE FOLLOW-UP
-#  is to repeat row 3 with bound orbitals from an actual Fock field and check the overlap falls to ~1e-8.
+#  is to repeat row 2 with bound orbitals from an actual Fock field and check the overlap falls to ~1e-8.
 #
 #  RUN:  julia --project=. tools/probeContinuumExchangeConsistency.jl
 #
+using JenaAtomicCalculator, Printf
 const JAC = JenaAtomicCalculator
+
+##  THIS PROBE NEEDS A CAPABILITY THAT NEED NOT BE IN THIS VERSION.  The nonlocal-exchange rows call
+##  Continuum.generateOrbitalGalerkin with `coreOrbitals`/`occupations` keywords;  where those do not exist, say so
+##  and run the local-only reference row alone, rather than dying on a MethodError that reads like a defect.
+const hasExchangeKeywords = any(m -> :coreOrbitals in Base.kwarg_decl(m),
+                                methods(Continuum.generateOrbitalGalerkin))
+
 grid = Radial.Grid(Radial.Grid(false), rnt = 1.0e-6, h = 5.0e-2, hp = 2.0e-2, rbox = 20.0)
 nm   = Nuclear.Model(10.)
 wa   = perform(Atomic.Computation(Atomic.Computation(), name="Ne", nuclearModel=nm, grid=grid,
@@ -43,7 +57,12 @@ prim  = Bsplines.generatePrimitives(grid)
 nucP  = Nuclear.nuclearPotential(nm, grid)
 coreO = lev.basis.orbitals;   occs = Basics.extractMeanOccupation(lev.basis)
 println("\n   slater   nonlocal   <2p_1/2|eps p_1/2>      interpretation")
-for  (slater, nonlocal)  in  [(1.0, false), (1.0, true), (0.0, true), (0.0, false)]
+rows = hasExchangeKeywords ? [(1.0, false), (1.0, true), (0.0, true), (0.0, false)] : [(1.0, false), (0.0, false)]
+if  !hasExchangeKeywords
+    println("   (no `coreOrbitals` keyword in this version -- the nonlocal rows are skipped; the table in this")
+    println("    file's header is the record of what they showed when they could be run.)")
+end
+for  (slater, nonlocal)  in  rows
     pot = Basics.add(nucP, Basics.computePotential(Basics.DFSField(slater), grid, lev))
     co  = nonlocal ?
           Continuum.generateOrbitalGalerkin(E, sh, pot, Continuum.Settings(true, mtp); primitives=prim,
