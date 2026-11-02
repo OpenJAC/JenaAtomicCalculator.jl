@@ -510,6 +510,122 @@ end
 
 
 """
+`struct  ImpactExcitation.ContinuumCache`
+    ... memoises, for ONE run of computeLines() or computeLinesCascade(), what the continuum orbitals of all lines have in common: the orbitals themselves, since all lines from one
+        level at one energy need the same incoming waves, and the B-spline matrices of each kappa, which depend on the grid alone. An entry is the task that builds it, so that
+        threads asking for the same one wait for that single build.
+
+    + orbitals  ::Dict{Tuple,Task}   ... the build of each (subshell, level index, energy), which returns a tuple (orbital, phase).
+    + storages  ::Dict{Int64,Task}   ... the build of the matrix store of each kappa, which is only read afterwards.
+    + lock      ::ReentrantLock      ... guards orbitals and storages.
+"""
+struct  ContinuumCache
+    orbitals    ::Dict{Tuple,Task}
+    storages    ::Dict{Int64,Task}
+    lock        ::ReentrantLock
+end
+
+
+"""
+`ImpactExcitation.ContinuumCache()`  ... constructor for an empty cache; a cache::ImpactExcitation.ContinuumCache is returned.
+"""
+ContinuumCache() = ContinuumCache( Dict{Tuple,Task}(), Dict{Int64,Task}(), ReentrantLock() )
+
+
+"""
+`ImpactExcitation.continuumStorage(cache::ImpactExcitation.ContinuumCache, kappa::Int64, primitives::Bsplines.Primitives)`
+    ... returns the store of the B-spline matrices of the given kappa, complete on return, so that orbitals of this kappa can read it from several threads. The overlap
+        matrices depend on the grid alone and are shared between the stores, under the entry for kappa = 0. A storage::Dict{String,Array{Float64,2}} is returned.
+"""
+function continuumStorage(cache::ImpactExcitation.ContinuumCache, kappa::Int64, primitives::Bsplines.Primitives)
+    function build()
+        if  kappa == 0
+            storage = Dict{String,Array{Float64,2}}()
+            nsL = primitives.grid.nsL;    nsS = primitives.grid.nsS
+            wb  = zeros(nsL+nsS, nsL+nsS)
+            wb[1:nsL,1:nsL]                 = Bsplines.generateTTpMatrix!("LL-overlap", 0, primitives, storage)
+            wb[nsL+1:nsL+nsS,nsL+1:nsL+nsS] = Bsplines.generateTTpMatrix!("SS-overlap", 0, primitives, storage)
+            storage["full-overlap"]         = wb
+            return( storage )
+        end
+        storage = copy(ImpactExcitation.continuumStorage(cache, 0, primitives))
+        Bsplines.generateTTpMatrix!("LS-D_kappa^-", kappa, primitives, storage)
+        Bsplines.generateTTpMatrix!("SL-D_kappa^+", kappa, primitives, storage)
+        return( storage )
+    end
+    task = lock(cache.lock) do
+        get!(cache.storages, kappa) do;   Threads.@spawn build()   end
+    end
+
+    return( fetch(task)::Dict{String,Array{Float64,2}} )
+end
+
+
+"""
+`ImpactExcitation.shellChannels(kappa::Int64, inCoulombBethe::Bool, symi::LevelSymmetry, symf::LevelSymmetry)`
+    ... returns the channels of the given kappa shell, i.e. those whose larger partial wave has |kappa|; in the Coulomb-Bethe region only the long-range (dipole-like) channels,
+        |l_in - l_out| <= 1. A list channels::Array{ImpactExcitation.Channel,1} is returned.
+"""
+function shellChannels(kappa::Int64, inCoulombBethe::Bool, symi::LevelSymmetry, symf::LevelSymmetry)
+    channels = ImpactExcitation.Channel[]
+    for  inKappa = -kappa:kappa
+        if  inKappa == 0    continue    end
+        insymtList = AngularMomentum.allowedTotalSymmetries(symi, inKappa)
+        for  outKappa = -(kappa):kappa
+            if  outKappa == 0  || ( abs(inKappa) < kappa && abs(outKappa) < kappa )  continue    end
+            if  inCoulombBethe  &&  abs(Basics.subshell_l(Subshell(101, inKappa)) - Basics.subshell_l(Subshell(102, outKappa))) > 1
+                continue
+            end
+            outsymtList = AngularMomentum.allowedTotalSymmetries(symf, outKappa)
+            for  symt in insymtList
+                if  symt in outsymtList    push!(channels, ImpactExcitation.Channel(inKappa, outKappa, symt, 0., 0., Complex(0.)))    end
+            end
+        end
+    end
+
+    return( channels )
+end
+
+
+"""
+`ImpactExcitation.addContinuumOrbitals!(orbitals::Dict{Subshell,Orbital}, phases::Dict{Subshell,Float64}, subshells::Vector{Subshell}, energy::Float64, level::Level, Zion::Float64,
+                                        nm::Nuclear.Model, grid::Radial.Grid, contSettings::Continuum.Settings, settings::ImpactExcitation.Settings,
+                                        nuclearPot::Union{Nothing,Radial.Potential}, primitives::Union{Nothing,Bsplines.Primitives}, storage::Dict{String,Array{Float64,2}},
+                                        exchangeCache::Union{Nothing,Continuum.ExchangeKernelCache}, continuumCache::Union{Nothing,ImpactExcitation.ContinuumCache})`
+    ... adds the continuum orbitals of the given subshells to the two dictionaries, unless present; with a continuumCache they are computed once per run and in parallel, without one
+        in turn from the given storage. Nothing is returned.
+"""
+function addContinuumOrbitals!(orbitals::Dict{Subshell,Orbital}, phases::Dict{Subshell,Float64}, subshells::Vector{Subshell}, energy::Float64, level::Level, Zion::Float64,
+                               nm::Nuclear.Model, grid::Radial.Grid, contSettings::Continuum.Settings, settings::ImpactExcitation.Settings,
+                               nuclearPot::Union{Nothing,Radial.Potential}, primitives::Union{Nothing,Bsplines.Primitives}, storage::Dict{String,Array{Float64,2}},
+                               exchangeCache::Union{Nothing,Continuum.ExchangeKernelCache}, continuumCache::Union{Nothing,ImpactExcitation.ContinuumCache})
+    function build(sh::Subshell, store::Union{Nothing,Dict{String,Array{Float64,2}}})
+        abs(sh.kappa) > settings.maxKappa   &&
+            return( ImpactExcitation.coulombContinuumOrbital(energy, sh, grid, Zion, contSettings.mtp) )
+
+        return( Continuum.generateOrbitalForLevel(energy, sh, level, nm, grid, contSettings; nuclearPot=nuclearPot, primitives=primitives, storage=store,
+                                                  orthogonalize=settings.orthogonalizeContinuum, exchange=ImpactExcitation.continuumExchangeModel(settings),
+                                                  exchangeMatrix=ImpactExcitation.nonlocalExchangeMatrix(exchangeCache, sh, level, primitives, settings)) )
+    end
+    missing = [ sh  for sh in subshells  if  !haskey(orbitals, sh) ]
+    if  isnothing(continuumCache)  ||  isnothing(primitives)
+        for  sh in missing    orbitals[sh], phases[sh] = build(sh, storage)    end
+    else
+        tasks = map(missing) do sh
+            lock(continuumCache.lock) do
+                get!(continuumCache.orbitals, (sh, level.index, energy)) do
+                    Threads.@spawn build(sh, ImpactExcitation.continuumStorage(continuumCache, sh.kappa, primitives))
+                end
+            end
+        end
+        for  (sh, task)  in  zip(missing, tasks)    orbitals[sh], phases[sh] = fetch(task)    end
+    end
+
+    return( nothing )
+end
+
+
+"""
 `ImpactExcitation.computeAngularCoefficientTable(fLevel::Level, iLevel::Level)`
     ... computes the spin-angular coefficients of the scalar two-particle operator for every (final CSF, initial CSF) pair of
         the two (continuum) levels; the entry is `nothing` for an initial CSF whose symmetry differs from the level's. The call
@@ -934,6 +1050,58 @@ end
 
 
 """
+`struct  ImpactExcitation.PartialWaveCache`
+    ... what the amplitudes of one outgoing partial wave of one line keep. Every screened potential of these amplitudes holds that partial wave, so one task per partial wave
+        loses none of the reuse, and needs no lock.
+
+    + radial    ::Union{Nothing,InteractionStrength.XLCache}   ... the radial integrals.
+    + tail      ::Union{Nothing,ImpactExcitation.TailCache}    ... the integrals beyond the box.
+    + sixj      ::Dict{NTuple{6,Int64},Float64}                ... the 6-j symbols.
+"""
+struct  PartialWaveCache
+    radial      ::Union{Nothing,InteractionStrength.XLCache}
+    tail        ::Union{Nothing,ImpactExcitation.TailCache}
+    sixj        ::Dict{NTuple{6,Int64},Float64}
+end
+
+
+"""
+`ImpactExcitation.computeShellAmplitudes(channels::Vector{ImpactExcitation.Channel}, density::ImpactExcitation.TargetDensity, fLevel::Level, iLevel::Level,
+                                         cfOrbitals::Dict{Subshell,Orbital}, ciOrbitals::Dict{Subshell,Orbital}, cfPhases::Dict{Subshell,Float64}, ciPhases::Dict{Subshell,Float64},
+                                         waveCaches::Dict{Int64,ImpactExcitation.PartialWaveCache}, grid::Radial.Grid, settings::ImpactExcitation.Settings, Zion::Float64)`
+    ... computes the amplitudes of the given channels from the target density, one task per outgoing partial wave. A list amplitudes::Vector{ComplexF64} is returned, in the order of channels.
+"""
+function computeShellAmplitudes(channels::Vector{ImpactExcitation.Channel}, density::ImpactExcitation.TargetDensity, fLevel::Level, iLevel::Level,
+                                cfOrbitals::Dict{Subshell,Orbital}, ciOrbitals::Dict{Subshell,Orbital}, cfPhases::Dict{Subshell,Float64}, ciPhases::Dict{Subshell,Float64},
+                                waveCaches::Dict{Int64,ImpactExcitation.PartialWaveCache}, grid::Radial.Grid, settings::ImpactExcitation.Settings, Zion::Float64)
+    amplitudes = Vector{ComplexF64}(undef, length(channels))
+    groups     = Dict{Int64,Vector{Int64}}()
+    for  (n, channel)  in  enumerate(channels)    push!(get!(groups, channel.finalKappa, Int64[]), n)    end
+    tasks      = Task[]
+    for  (outKappa, members)  in  groups
+        cache = get!(waveCaches, outKappa) do
+            ImpactExcitation.PartialWaveCache(settings.cacheRadialIntegrals ? InteractionStrength.XLCache(screenedPotentials=true) : nothing,
+                                              (settings.asymptoticTail || settings.coulombBetheKappa > settings.maxKappa) ? ImpactExcitation.TailCache(Zion) : nothing,
+                                              Dict{NTuple{6,Int64},Float64}())
+        end
+        push!(tasks, Threads.@spawn begin
+            for  n in members
+                channel = channels[n]
+                iSh = Subshell(101, channel.initialKappa);    fSh = Subshell(102, channel.finalKappa)
+                amplitudes[n] = ImpactExcitation.amplitudeFromDensity(settings.operator,
+                                    ImpactExcitation.Channel(channel.initialKappa, channel.finalKappa, channel.symmetry, ciPhases[iSh], cfPhases[fSh], 0.),
+                                    density, fLevel.basis.orbitals, iLevel.basis.orbitals, cfOrbitals[fSh], ciOrbitals[iSh], grid;
+                                    radialCache=cache.radial, tailCache=cache.tail, sixjCache=cache.sixj, exchangeMaxL=settings.exchangeMaxL)
+            end
+        end)
+    end
+    foreach(wait, tasks)
+
+    return( amplitudes )
+end
+
+
+"""
 `ImpactExcitation.checkLowEnergyGrid(minEnergy::Float64, grid::Radial.Grid)`
     ... warns when the SLOWEST continuum electron of a run has a de Broglie wavelength too long to complete an oscillation
         inside the radial box, so that its normalization and phase cannot be read off the asymptotic region. Nothing is
@@ -1119,7 +1287,8 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
                                         primitives::Union{Nothing,Bsplines.Primitives}=nothing,
                                         angularCache::Union{Nothing,ImpactExcitation.AngularCoefficientCache}=nothing,
                                         exchangeCache::Union{Nothing,Continuum.ExchangeKernelCache}=nothing,
-                                        densityCache::Union{Nothing,ImpactExcitation.DensityCoefficientCache}=nothing)
+                                        densityCache::Union{Nothing,ImpactExcitation.DensityCoefficientCache}=nothing,
+                                        continuumCache::Union{Nothing,ImpactExcitation.ContinuumCache}=nothing)
     newChannels = ImpactExcitation.Channel[];
     contSettings = Continuum.Settings(settings.continuumExchange === true, nrContinuum)
     cross = 0.;   coll = 0.; convergence = 1.
@@ -1144,7 +1313,7 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
     ampFLevel  = useDensity ? redFLevel : ImpactExcitation.levelWithLeadingCsfs(redFLevel, settings.csfWeightCutoff)
     density    = useDensity ? ImpactExcitation.targetDensity(ampFLevel, ampILevel, isnothing(densityCache) ? ImpactExcitation.DensityCoefficientCache() : densityCache,
                                                              settings.csfWeightCutoff) : nothing
-    sixjCache  = Dict{NTuple{6,Int64},Float64}()
+    waveCaches = Dict{Int64,ImpactExcitation.PartialWaveCache}()
 
     # The radial integrals depend on the continuum orbitals and hence on the energy: one cache per line, owned by one thread.
     radialCache = settings.cacheRadialIntegrals ? InteractionStrength.XLCache(screenedPotentials=true) : nothing
@@ -1168,99 +1337,41 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
     kappa = 1;   shellColl = Float64[];   collBefore = 0.;   converged = false
     kappaEnd = max(settings.maxKappa, settings.coulombBetheKappa)
     while kappa <= kappaEnd
-        inCB = kappa > settings.maxKappa
-        for  inKappa = -kappa:kappa
-            if  inKappa == 0    continue    end
-            insymtList = AngularMomentum.allowedTotalSymmetries(symi, inKappa)
-            for  outKappa = -(kappa):kappa
-                if  outKappa == 0  || ( abs(inKappa) < kappa && abs(outKappa) < kappa )  continue    end
-                # Coulomb-Bethe region: only the long-range (dipole-like) channels, |l_in - l_out| <= 1
-                if  inCB  &&  abs(Basics.subshell_l(Subshell(101, inKappa)) - Basics.subshell_l(Subshell(102, outKappa))) > 1
-                    continue
-                end
-                outsymtList = AngularMomentum.allowedTotalSymmetries(symf, outKappa)
-                for  symt in insymtList
-                    if symt in outsymtList
-                        channel = ImpactExcitation.Channel( inKappa, outKappa, symt, 0., 0.,Complex(0.))
-                        # Generate the continuum orbitals if they were not yet generated before
-                        iSubshell  = Subshell(101, channel.initialKappa)
-                        if  !haskey(ciOrbitals, iSubshell)  &&  abs(channel.initialKappa) > settings.maxKappa
-                            ciOrbitals[iSubshell], ciPhases[iSubshell] =
-                                ImpactExcitation.coulombContinuumOrbital(line.initialElectronEnergy, iSubshell, grid, Float64(Zion), contSettings.mtp)
-                        elseif  !haskey(ciOrbitals, iSubshell)
-                            ciOrbital, iPhase     = Continuum.generateOrbitalForLevel(line.initialElectronEnergy, iSubshell,
-                                                                                            redILevel, nm, grid, contSettings;
-                                                                                            nuclearPot=nuclearPot,
-                                                                                            primitives=primitives, storage=storage,
-                                                                                            orthogonalize=settings.orthogonalizeContinuum,
-                                                                                            exchange=ImpactExcitation.continuumExchangeModel(settings),
-                                  exchangeMatrix=ImpactExcitation.nonlocalExchangeMatrix(exchangeCache, iSubshell, redILevel, primitives, settings))
-                            ciOrbitals[iSubshell] = ciOrbital;      ciPhases[iSubshell] = iPhase
-                            println("\n Initial channel")
-                        end
-
-                        fSubshell  = Subshell(102, channel.finalKappa)
-                        if  !haskey(cfOrbitals, fSubshell)  &&  abs(channel.finalKappa) > settings.maxKappa
-                            cfOrbitals[fSubshell], cfPhases[fSubshell] =
-                                ImpactExcitation.coulombContinuumOrbital(line.finalElectronEnergy, fSubshell, grid, Float64(Zion), contSettings.mtp)
-                        elseif  !haskey(cfOrbitals, fSubshell)
-                            cfOrbital, fPhase     = Continuum.generateOrbitalForLevel(line.finalElectronEnergy,   fSubshell,
-                                                                                            redFLevel, nm, grid, contSettings;
-                                                                                            nuclearPot=nuclearPot,
-                                                                                            primitives=primitives, storage=storage,
-                                                                                            orthogonalize=settings.orthogonalizeContinuum,
-                                                                                            exchange=ImpactExcitation.continuumExchangeModel(settings),
-                                  exchangeMatrix=ImpactExcitation.nonlocalExchangeMatrix(exchangeCache, fSubshell, redFLevel, primitives, settings))
-                            cfOrbitals[fSubshell] = cfOrbital;      cfPhases[fSubshell] = fPhase
-                            println("\n Final channel")
-                        end
-                    #end
-                    
-                    #for channel in line.channels
-                        ## The two symmetry-reduced levels depend on the line but on neither partial wave nor
-                        ## total symmetry, so they are formed ONCE above rather than in this innermost loop,
-                        ## which runs O(maxKappa^3) times.  The four calls below rebind newiLevel/newfLevel to
-                        ## fresh Levels (generateLevelWithExtraElectron/-Subshell copy their argument), so
-                        ## redILevel and redFLevel are never modified.
-                        iSubshell  = Subshell(101, channel.initialKappa)
-                        fSubshell  = Subshell(102, channel.finalKappa)
-                        ciOrbital  = ciOrbitals[iSubshell];     iPhase = ciPhases[iSubshell]
-                        cfOrbital  = cfOrbitals[fSubshell];     fPhase = cfPhases[fSubshell]
-                        newChannel = ImpactExcitation.Channel(channel.initialKappa, channel.finalKappa, channel.symmetry, 
-                                                                                                            iPhase, fPhase, 0.)
-                        #
-                        if  useDensity
-                            amplitude = ImpactExcitation.amplitudeFromDensity(settings.operator, newChannel, density, ampFLevel.basis.orbitals, ampILevel.basis.orbitals,
-                                                                              cfOrbital, ciOrbital, grid; radialCache=radialCache, tailCache=tailCache,
-                                                                              sixjCache=sixjCache, exchangeMaxL=settings.exchangeMaxL)
-                        else
-                            newiLevel = Basics.generateLevelWithExtraElectron(ciOrbital, channel.symmetry, ampILevel)
-                            newiLevel = Basics.generateLevelWithExtraSubshell(fSubshell,   newiLevel)
-                            newfLevel = Basics.generateLevelWithExtraSubshell(iSubshell, ampFLevel)
-                            newfLevel = Basics.generateLevelWithExtraElectron(cfOrbital, channel.symmetry, newfLevel)
-                            amplitude = ImpactExcitation.amplitude(settings.operator, newChannel, newfLevel, newiLevel, grid;
-                                                                   printout=printout, radialCache=radialCache, angularCache=angularCache,
-                                                                   tailCache=tailCache, exchangeMaxL=settings.exchangeMaxL)
-                        end
-
-                        coll       = coll + AngularMomentum.bracket([channel.symmetry.J]) * ( conj(amplitude) * amplitude ).re
-
-                        conv += (conj(amplitude) * amplitude).re
-
-                        chan = ImpactExcitation.Channel(newChannel.initialKappa, newChannel.finalKappa,
-                                                        newChannel.symmetry, iPhase, fPhase, amplitude)
-                        push!(newChannels, chan)
-                        # The Coulomb-Bethe channels enter the DCS too: their phase and sign join those of the distorted waves
-                        # continuously (Mg+ 50 eV: phase difference 2e-5, wave difference 1.5e-5 at |kappa| = 40), and they
-                        # are what builds the small-angle peak of a dipole line.
-                        if settings.calcDCS
-                            ImpactExcitation.accumulateChannelDCS!(fAmpDCS, line, chan, angles, dcsYlmCache)
-                        end
-                    end
-                end
+        channels = ImpactExcitation.shellChannels(kappa, kappa > settings.maxKappa, symi, symf)
+        ImpactExcitation.addContinuumOrbitals!(ciOrbitals, ciPhases, unique([Subshell(101, channel.initialKappa)  for channel in channels]), line.initialElectronEnergy, redILevel,
+                                               Float64(Zion), nm, grid, contSettings, settings, nuclearPot, primitives, storage, exchangeCache, continuumCache)
+        ImpactExcitation.addContinuumOrbitals!(cfOrbitals, cfPhases, unique([Subshell(102, channel.finalKappa)    for channel in channels]), line.finalElectronEnergy, redFLevel,
+                                               Float64(Zion), nm, grid, contSettings, settings, nuclearPot, primitives, storage, exchangeCache, continuumCache)
+        amplitudes = useDensity ? ImpactExcitation.computeShellAmplitudes(channels, density, ampFLevel, ampILevel, cfOrbitals, ciOrbitals, cfPhases, ciPhases, waveCaches, grid,
+                                                                          settings, Float64(Zion)) : ComplexF64[]
+        for  (n, channel)  in  enumerate(channels)
+            iSubshell  = Subshell(101, channel.initialKappa);    fSubshell  = Subshell(102, channel.finalKappa)
+            ciOrbital  = ciOrbitals[iSubshell];     iPhase = ciPhases[iSubshell]
+            cfOrbital  = cfOrbitals[fSubshell];     fPhase = cfPhases[fSubshell]
+            newChannel = ImpactExcitation.Channel(channel.initialKappa, channel.finalKappa, channel.symmetry, iPhase, fPhase, 0.)
+            if  useDensity
+                amplitude = amplitudes[n]
+            else
+                newiLevel = Basics.generateLevelWithExtraElectron(ciOrbital, channel.symmetry, ampILevel)
+                newiLevel = Basics.generateLevelWithExtraSubshell(fSubshell,   newiLevel)
+                newfLevel = Basics.generateLevelWithExtraSubshell(iSubshell, ampFLevel)
+                newfLevel = Basics.generateLevelWithExtraElectron(cfOrbital, channel.symmetry, newfLevel)
+                amplitude = ImpactExcitation.amplitude(settings.operator, newChannel, newfLevel, newiLevel, grid;
+                                                       printout=printout, radialCache=radialCache, angularCache=angularCache,
+                                                       tailCache=tailCache, exchangeMaxL=settings.exchangeMaxL)
+            end
+            coll = coll + AngularMomentum.bracket([channel.symmetry.J]) * ( conj(amplitude) * amplitude ).re
+            conv += (conj(amplitude) * amplitude).re
+            chan = ImpactExcitation.Channel(newChannel.initialKappa, newChannel.finalKappa, newChannel.symmetry, iPhase, fPhase, amplitude)
+            push!(newChannels, chan)
+            # The Coulomb-Bethe channels enter the DCS too: their phase and sign join those of the distorted waves
+            # continuously (Mg+ 50 eV: phase difference 2e-5, wave difference 1.5e-5 at |kappa| = 40), and they
+            # are what builds the small-angle peak of a dipole line.
+            if settings.calcDCS
+                ImpactExcitation.accumulateChannelDCS!(fAmpDCS, line, chan, angles, dcsYlmCache)
             end
         end
-        
+
         push!(shellColl, coll - collBefore);   collBefore = coll
         # Checking convergence
         convergence = abs(conv - conv0)/conv
@@ -1315,6 +1426,7 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
     angularCache  = settings.cacheAngularCoefficients ? ImpactExcitation.AngularCoefficientCache() : nothing
     exchangeCache = settings.continuumExchange == :nonlocal ? Continuum.ExchangeKernelCache() : nothing
     densityCache  = ImpactExcitation.DensityCoefficientCache()
+    continuumCache = ImpactExcitation.ContinuumCache()
     # Display all selected lines before the computations start
     if  settings.printBefore    ImpactExcitation.displayLines(lines)    end
     ## Determine the maximum (continuum) electron energy and check the grid for consistency with it. This module used to
@@ -1353,7 +1465,7 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
         Threads.@threads for l in eachindex(lines)
             newLines[l] = ImpactExcitation.computeAmplitudesProperties(lines[l], nm, grid, nrContinuum, settings;
                                                                        nuclearPot=nuclearPot, primitives=primitives,
-                                                                       angularCache=angularCache, exchangeCache=exchangeCache, densityCache=densityCache)
+                                                                       angularCache=angularCache, exchangeCache=exchangeCache, densityCache=densityCache, continuumCache=continuumCache)
         end
     end
     # Print all results to screen
@@ -1414,6 +1526,7 @@ function  computeLinesCascade(finalMultiplet::Multiplet, initialMultiplet::Multi
     angularCache  = settings.cacheAngularCoefficients ? ImpactExcitation.AngularCoefficientCache() : nothing
     exchangeCache = settings.continuumExchange == :nonlocal ? Continuum.ExchangeKernelCache() : nothing
     densityCache  = ImpactExcitation.DensityCoefficientCache()
+    continuumCache = ImpactExcitation.ContinuumCache()
     if  length(lines) == 0    return( ImpactExcitation.Line[] )    end
     ## The grid must be able to carry the fastest continuum orbital that occurs; see the note in computeLines().
     maxEnergy   = 0.;   minEnergy = Inf
@@ -1444,7 +1557,7 @@ function  computeLinesCascade(finalMultiplet::Multiplet, initialMultiplet::Multi
     Threads.@threads for  i  in  eachindex(lines)
         newLine = ImpactExcitation.computeAmplitudesProperties(lines[i], nm, grid, nrContinuum, settings; printout=doPrint,
                                                                nuclearPot=nuclearPot, primitives=primitives, angularCache=angularCache,
-                                                               exchangeCache=exchangeCache, densityCache=densityCache)
+                                                               exchangeCache=exchangeCache, densityCache=densityCache, continuumCache=continuumCache)
         if  length(newLine.channels) > 0    tmpLines[i] = newLine    end
     end
     newLines = ImpactExcitation.Line[ l  for l in tmpLines  if l !== nothing ]
