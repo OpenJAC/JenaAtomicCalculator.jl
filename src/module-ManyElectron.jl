@@ -512,14 +512,15 @@ end
 """
 function parseA(x::AbstractString)
     y = strip(x)
-    if length(y) == 0 
-        return nothing
-    elseif length(y) <= 2
-        return parse(Int64, y)
-    elseif length(y) == 3
-        a = parse(Int64, y[1]); b = parse(Int64, y[3])
-        return :( $a//$b )
+    if      y == ""    return( nothing )
+    elseif  occursin(r"^\d+$", y)
+        return( parse(Int64, y) )
+    elseif  occursin(r"^\d+/\d+$", y)
+        num, den = split(y, "/")
+        return( Expr(:call, ://, parse(Int64, num), parse(Int64, den)) )
     end
+
+    return( nothing )
 end
 
 
