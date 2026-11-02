@@ -956,7 +956,7 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
     redFLevel = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel,   subshellList)
 
     # The radial integrals depend on the continuum orbitals and hence on the energy: one cache per line, owned by one thread.
-    radialCache = settings.cacheRadialIntegrals ? InteractionStrength.XLCache() : nothing
+    radialCache = settings.cacheRadialIntegrals ? InteractionStrength.XLCache(screenedPotentials=true) : nothing
     # The free electron sees the target ion's charge beyond the bound orbitals; the tail is continued in that Coulomb field.
     Zion        = nm.Z - sum(line.initialLevel.basis.csfs[1].occupation)
     tailCache   = (settings.asymptoticTail || settings.coulombBetheKappa > settings.maxKappa) ? ImpactExcitation.TailCache(Float64(Zion)) : nothing

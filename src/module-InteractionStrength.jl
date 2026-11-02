@@ -74,17 +74,24 @@ const XLKey = Tuple{Symbol, Int64, Subshell, Subshell, Subshell, Subshell, Float
         memo out of sight.
 
     + values    ::Dict{XLKey, Float64}   ... the memoised strengths.
+    + vk        ::Union{Nothing,Dict{Tuple{Int64,Subshell,Subshell,Int64},Vector{Float64}}}
+                                         ... the memoised screened potentials V_k[b,d] of `RadialIntegrals.SlaterRkKinkAware`, if they are to be
+                                             kept at all. They cost memory that a CI matrix has no use for, but in a scattering amplitude they
+                                             are most of the run time, since one (k,b,d) serves many (a,c): see `XLCache(; screenedPotentials)`.
 """
 struct  XLCache
     values      ::Dict{XLKey, Float64}
+    vk          ::Union{Nothing,Dict{Tuple{Int64,Subshell,Subshell,Int64},Vector{Float64}}}
 end
 
 
 """
-`InteractionStrength.XLCache()`
-    ... constructor for an empty cache of interaction strengths; a cache::InteractionStrength.XLCache is returned.
+`InteractionStrength.XLCache(; screenedPotentials::Bool=false)`
+    ... constructor for an empty cache of interaction strengths, which also keeps the screened potentials if screenedPotentials = true; a
+        cache::InteractionStrength.XLCache is returned.
 """
-XLCache() = XLCache( Dict{XLKey, Float64}() )
+XLCache(; screenedPotentials::Bool=false) =
+    XLCache( Dict{XLKey, Float64}(), screenedPotentials ? Dict{Tuple{Int64,Subshell,Subshell,Int64},Vector{Float64}}() : nothing )
 
 
 """
@@ -1468,17 +1475,18 @@ end
 function XL_Coulomb(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid, cache::XLCache)
     key = (:Coulomb, L, a.subshell, b.subshell, c.subshell, d.subshell, 0., :direct)
     haskey(cache.values, key)   &&   return( cache.values[key] )
-    value = InteractionStrength.XL_Coulomb(L, a, b, c, d, grid)
+    value = InteractionStrength.XL_Coulomb(L, a, b, c, d, grid; vkCache=cache.vk)
     cache.values[key] = value
     return( value )
 end
 
 
 """
-`InteractionStrength.XL_Coulomb(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid)`
+`InteractionStrength.XL_Coulomb(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid;
+                                vkCache::Union{Nothing,Dict{Tuple{Int64,Subshell,Subshell,Int64},Vector{Float64}}}=nothing)`
     ... computes the effective Coulomb interaction strength X^L_Coulomb (abcd) for given rank L and orbital functions a, b, c and d at the
         given grid. A value::Float64 is returned. To memoise the result, use the method that additionally takes an
-        InteractionStrength.XLCache.
+        InteractionStrength.XLCache. A vkCache memoises the screened potential inside the integral and leaves its value bit-identical.
 
         DO NOT BUILD ONE TRIANGLE OF AN SCF OR CI MATRIX FROM THIS FAMILY AND MIRROR IT WITHOUT VERIFYING FIRST. That optimisation was
         applied to Basics.compute(::CImatrixWithSymmetryJP,...) and to Hamiltonian.setupMatrix, where it was checked empirically and is
@@ -1492,7 +1500,8 @@ end
         CrystalField.computeInteractionMatrix Hermitizes with the ADJOINT as a guard against residual floating-point asymmetry, since its
         two triangles are summed independently rather than mirrored.
 """
-function XL_Coulomb(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid)
+function XL_Coulomb(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid;
+                    vkCache::Union{Nothing,Dict{Tuple{Int64,Subshell,Subshell,Int64},Vector{Float64}}}=nothing)
     # Test for the triangular-delta conditions and calculate the reduced matrix elements of the C^L tensors
     la = Basics.subshell_l(a.subshell);    ja2 = Basics.subshell_2j(a.subshell)
     lb = Basics.subshell_l(b.subshell);    jb2 = Basics.subshell_2j(b.subshell)
@@ -1516,7 +1525,8 @@ function XL_Coulomb(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, gr
     # themselves carry; it reaches the percent level only in small splittings between close-lying levels,
     # where a difference of two large numbers inherits the whole absolute change. Such a splitting is then
     # not converged in either form, which is a statement about grid and basis rather than about quadrature.
-    XL_Coulomb = xc * RadialIntegrals.SlaterRkKinkAware(L, a, b, c, d, grid)
+    XL_Coulomb = xc * (isnothing(vkCache) ? RadialIntegrals.SlaterRkKinkAware(L, a, b, c, d, grid) :
+                                            RadialIntegrals.SlaterRkKinkAware(L, a, b, c, d, grid, vkCache))
 
 
     return( XL_Coulomb )
