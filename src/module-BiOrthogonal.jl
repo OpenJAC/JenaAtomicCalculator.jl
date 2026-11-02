@@ -268,7 +268,8 @@ end
         (different last tabulated grid point) can occur for the same kappa, each is zero-padded up to the
         longest orbital of its own side before the linear combination is formed. A tuple
         tpl(newLeftOrbitals::Dict{Subshell,Orbital}, newRightOrbitals::Dict{Subshell,Orbital}) is returned,
-        with the SAME subshell keys as the original bases -- only the radial functions have changed.
+        with the SAME subshell keys as the original bases -- only the radial functions have changed. An orbital
+        whose kappa occurs on one side only has no partner to be made biorthogonal to, and is returned unchanged.
 """
 function  generateBiorthogonalShellMatrices(leftBasis::Basis, rightBasis::Basis, grid::Radial.Grid)
     transformation = BiOrthogonal.computeTransformationMatrices(leftBasis, rightBasis, grid)
@@ -306,6 +307,9 @@ function  generateBiorthogonalShellMatrices(leftBasis::Basis, rightBasis::Basis,
                                                     rOrbs[i].energy, newP, newQ, newPp, newQp, grid)
         end
     end
+
+    for  sh in leftBasis.subshells    if  !haskey(newLeft,  sh)    newLeft[sh]  = leftBasis.orbitals[sh]     end   end
+    for  sh in rightBasis.subshells   if  !haskey(newRight, sh)    newRight[sh] = rightBasis.orbitals[sh]    end   end
 
     return( (newLeft, newRight) )
 end
