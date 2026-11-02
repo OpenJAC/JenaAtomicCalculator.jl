@@ -336,6 +336,13 @@ function exchangeMatrix(sh::Subshell, level::Level, primitives::Bsplines.Primiti
 
     K = zeros(nL + nS, nL + nS);    r = grid.r;    wr = grid.wr
     Vk = zeros(grid.NoPoints)
+    # The ratios of radii in the two recursions below depend on the rank alone, and a power per grid point, B-spline and term was the whole cost.
+    ratioIn  = Dict{Int64,Vector{Float64}}();    ratioOut = Dict{Int64,Vector{Float64}}()
+    for  (_, k, _, _, _) in terms
+        haskey(ratioIn, k)   &&   continue
+        ratioIn[k]  = [ i > 2 ? (r[i-1]/r[i])^(k+1) : 0.    for i = 1:grid.NoPoints ]
+        ratioOut[k] = [ i < grid.NoPoints ? (r[i]/r[i+1])^k : 0.    for i = 1:grid.NoPoints ]
+    end
     for  nu = 1:nL+nS
         bsp   = nu <= nL ? primitives.bsplinesL[nu] : primitives.bsplinesS[nu-nL]
         large = nu <= nL
@@ -345,16 +352,17 @@ function exchangeMatrix(sh::Subshell, level::Level, primitives::Bsplines.Primiti
             # that lives on lo:up. Written as two recursions over RATIOS of radii, so that no power r^-(k+1) of a point near
             # the origin is ever formed -- the direct form overflows for high k.
             fill!(Vk, 0.)
+            rIn = ratioIn[k];    rOut = ratioOut[k]
             I = 0.
             for  i = 2:mb
                 rho = (lo <= i <= up) ? (large ? Pb[i] : Qb[i]) * bsp.bs[i-lo+1] * wr[i] : 0.
-                I   = (i > 2 ? (r[i-1]/r[i])^(k+1) * I : 0.) + rho / r[i]
+                I   = rIn[i] * I + rho / r[i]
                 Vk[i] = I
             end
             O = 0.
             for  i = mb-1:-1:2
                 rho = (lo <= i+1 <= up) ? (large ? Pb[i+1] : Qb[i+1]) * bsp.bs[i+1-lo+1] * wr[i+1] : 0.
-                O   = (r[i]/r[i+1])^k * (O + rho / r[i+1])
+                O   = rOut[i] * (O + rho / r[i+1])
                 Vk[i] = Vk[i] + O
             end
             # project -G V^k (P_b, Q_b) onto every B-spline that overlaps the bound orbital
