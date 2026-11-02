@@ -357,45 +357,16 @@ const SPIN_ANGULAR_LOCK = ReentrantLock()
 
 
 """
-`struct  ImpactExcitation.ExchangeMatrixCache`
-    ... memoises, for ONE run, the matrix of the non-local exchange operator (Continuum.exchangeMatrix) for each target level
-        and continuum kappa. It depends on the bound orbitals and on kappa but not on the electron energy, so without this it
-        was rebuilt for every partial wave at every energy. The lock makes it safe to share between the threads of one run.
-
-    + matrices  ::Dict{Tuple, Array{Float64,2}}   ... the memoised matrices, keyed by level identity and kappa.
-    + lock      ::ReentrantLock                   ... guards reads and writes of matrices.
+`ImpactExcitation.nonlocalExchangeMatrix(cache::Union{Nothing,Continuum.ExchangeKernelCache}, sh::Subshell, level::Level, primitives::Bsplines.Primitives,
+                                         settings::ImpactExcitation.Settings)`
+    ... returns the non-local exchange matrix of the given partial wave and level if settings.continuumExchange asks for it, and nothing otherwise. It is a sum of few
+        kernels of the run, cheap against the solution it enters, and so is not stored. A matrix::Union{Nothing,Array{Float64,2}} is returned.
 """
-struct  ExchangeMatrixCache
-    matrices    ::Dict{Tuple, Array{Float64,2}}
-    lock        ::ReentrantLock
-end
+function nonlocalExchangeMatrix(cache::Union{Nothing,Continuum.ExchangeKernelCache}, sh::Subshell, level::Level, primitives::Bsplines.Primitives,
+                                settings::ImpactExcitation.Settings)
+    settings.continuumExchange == :nonlocal  &&  !isnothing(primitives)  &&  !isnothing(cache)    ||    return( nothing )
 
-
-"""
-`ImpactExcitation.ExchangeMatrixCache()`
-    ... constructor for an empty cache; a cache::ImpactExcitation.ExchangeMatrixCache is returned.
-"""
-ExchangeMatrixCache() = ExchangeMatrixCache( Dict{Tuple, Array{Float64,2}}(), ReentrantLock() )
-
-
-"""
-`ImpactExcitation.cachedExchangeMatrix(cache::Union{Nothing,ImpactExcitation.ExchangeMatrixCache}, sh::Subshell, level::Level,
-                                        primitives::Union{Nothing,Bsplines.Primitives}, settings::ImpactExcitation.Settings)`
-    ... returns the exchange matrix for the continuum subshell sh and the (symmetry-reduced) target level when the settings ask
-        for non-local exchange and a cache and primitives are available, and nothing otherwise, in which case Continuum builds
-        it itself. A matrix::Union{Nothing,Array{Float64,2}} is returned.
-"""
-function cachedExchangeMatrix(cache::Union{Nothing,ImpactExcitation.ExchangeMatrixCache}, sh::Subshell, level::Level,
-                              primitives::Union{Nothing,Bsplines.Primitives}, settings::ImpactExcitation.Settings)
-    if  settings.continuumExchange != :nonlocal  ||  isnothing(cache)  ||  isnothing(primitives)    return( nothing )    end
-    key = (level.index, level.energy, level.J.num, level.J.den, string(level.parity), length(level.basis.csfs),
-           Tuple(level.basis.subshells), sh.kappa)
-    K   = lock(cache.lock) do;   get(cache.matrices, key, nothing)   end
-    isnothing(K)  ||  return( K )
-    K   = Continuum.exchangeMatrix(sh, level, primitives)
-    lock(cache.lock) do;   cache.matrices[key] = K   end
-
-    return( K )
+    return( Continuum.exchangeMatrix(sh, level, primitives; kernelCache=cache) )
 end
 
 
@@ -1135,7 +1106,7 @@ end
                                                 nuclearPot::Union{Nothing,Radial.Potential}=nothing,
                                                 primitives::Union{Nothing,Bsplines.Primitives}=nothing,
                                                 angularCache::Union{Nothing,ImpactExcitation.AngularCoefficientCache}=nothing,
-                                                exchangeCache::Union{Nothing,ImpactExcitation.ExchangeMatrixCache}=nothing)`
+                                                exchangeCache::Union{Nothing,Continuum.ExchangeKernelCache}=nothing)`
     ... to compute all amplitudes and properties of the given line; a line::ImpactExcitation.Line is returned for which
     the amplitudes and properties are now evaluated. The two keywords carry quantities that are CONSTANT for a whole
     computation and are otherwise rebuilt for every line and every partial wave: the nuclear potential depends only on
@@ -1147,7 +1118,7 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
                                         nuclearPot::Union{Nothing,Radial.Potential}=nothing,
                                         primitives::Union{Nothing,Bsplines.Primitives}=nothing,
                                         angularCache::Union{Nothing,ImpactExcitation.AngularCoefficientCache}=nothing,
-                                        exchangeCache::Union{Nothing,ImpactExcitation.ExchangeMatrixCache}=nothing,
+                                        exchangeCache::Union{Nothing,Continuum.ExchangeKernelCache}=nothing,
                                         densityCache::Union{Nothing,ImpactExcitation.DensityCoefficientCache}=nothing)
     newChannels = ImpactExcitation.Channel[];
     contSettings = Continuum.Settings(settings.continuumExchange === true, nrContinuum)
@@ -1223,7 +1194,7 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
                                                                                             primitives=primitives, storage=storage,
                                                                                             orthogonalize=settings.orthogonalizeContinuum,
                                                                                             exchange=ImpactExcitation.continuumExchangeModel(settings),
-                                  exchangeMatrix=ImpactExcitation.cachedExchangeMatrix(exchangeCache, iSubshell, redILevel, primitives, settings))
+                                  exchangeMatrix=ImpactExcitation.nonlocalExchangeMatrix(exchangeCache, iSubshell, redILevel, primitives, settings))
                             ciOrbitals[iSubshell] = ciOrbital;      ciPhases[iSubshell] = iPhase
                             println("\n Initial channel")
                         end
@@ -1239,7 +1210,7 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
                                                                                             primitives=primitives, storage=storage,
                                                                                             orthogonalize=settings.orthogonalizeContinuum,
                                                                                             exchange=ImpactExcitation.continuumExchangeModel(settings),
-                                  exchangeMatrix=ImpactExcitation.cachedExchangeMatrix(exchangeCache, fSubshell, redFLevel, primitives, settings))
+                                  exchangeMatrix=ImpactExcitation.nonlocalExchangeMatrix(exchangeCache, fSubshell, redFLevel, primitives, settings))
                             cfOrbitals[fSubshell] = cfOrbital;      cfPhases[fSubshell] = fPhase
                             println("\n Final channel")
                         end
@@ -1342,7 +1313,7 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
     #
     lines = ImpactExcitation.determineLines(finalMultiplet, initialMultiplet, settings)
     angularCache  = settings.cacheAngularCoefficients ? ImpactExcitation.AngularCoefficientCache() : nothing
-    exchangeCache = settings.continuumExchange == :nonlocal ? ImpactExcitation.ExchangeMatrixCache() : nothing
+    exchangeCache = settings.continuumExchange == :nonlocal ? Continuum.ExchangeKernelCache() : nothing
     densityCache  = ImpactExcitation.DensityCoefficientCache()
     # Display all selected lines before the computations start
     if  settings.printBefore    ImpactExcitation.displayLines(lines)    end
@@ -1441,7 +1412,7 @@ function  computeLinesCascade(finalMultiplet::Multiplet, initialMultiplet::Multi
                               output::Bool=true, printout::Bool=true)
     lines = ImpactExcitation.determineLines(finalMultiplet, initialMultiplet, settings)
     angularCache  = settings.cacheAngularCoefficients ? ImpactExcitation.AngularCoefficientCache() : nothing
-    exchangeCache = settings.continuumExchange == :nonlocal ? ImpactExcitation.ExchangeMatrixCache() : nothing
+    exchangeCache = settings.continuumExchange == :nonlocal ? Continuum.ExchangeKernelCache() : nothing
     densityCache  = ImpactExcitation.DensityCoefficientCache()
     if  length(lines) == 0    return( ImpactExcitation.Line[] )    end
     ## The grid must be able to carry the fastest continuum orbital that occurs; see the note in computeLines().

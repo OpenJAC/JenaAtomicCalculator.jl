@@ -295,7 +295,101 @@ end
 
 
 """
-`Continuum.exchangeMatrix(sh::Subshell, level::Level, primitives::Bsplines.Primitives)`
+`struct  Continuum.ExchangeKernel`
+    ... the part of the non-local exchange matrix that belongs to one bound orbital and one rank k, which holds neither the kappa of the continuum nor the occupation:
+        M[mu,nu] = int B_mu X_mu V^k[b, B_nu] dr, with X the component of b that goes with B_mu. Only B-splines that overlap the bound orbital are kept.
+
+    + active    ::Vector{Int64}     ... the B-splines that overlap the orbital, as indices into the (nL+nS) x (nL+nS) matrix.
+    + M         ::Matrix{Float64}   ... the kernel on these B-splines.
+"""
+struct  ExchangeKernel
+    active      ::Vector{Int64}
+    M           ::Matrix{Float64}
+end
+
+
+"""
+`struct  Continuum.ExchangeKernelCache`
+    ... memoises exchange kernels for ONE computation with fixed orbitals and primitives. An entry is the task that builds the kernel, so that threads asking for the same one
+        wait for that single build. The key holds the identity of the orbital's array, so that two orbital sets with the same subshell labels keep separate kernels.
+
+    + tasks     ::Dict{Tuple{UInt64,Int64},Task}   ... the build of each (orbital, k).
+    + lock      ::ReentrantLock                    ... guards tasks.
+"""
+struct  ExchangeKernelCache
+    tasks       ::Dict{Tuple{UInt64,Int64},Task}
+    lock        ::ReentrantLock
+end
+
+
+"""
+`Continuum.ExchangeKernelCache()`  ... constructor for an empty cache; a cache::Continuum.ExchangeKernelCache is returned.
+"""
+ExchangeKernelCache() = ExchangeKernelCache( Dict{Tuple{UInt64,Int64},Task}(), ReentrantLock() )
+
+
+"""
+`Continuum.cachedExchangeKernel(cache::Continuum.ExchangeKernelCache, orbital::Orbital, k::Int64, primitives::Bsplines.Primitives)`
+    ... returns the exchange kernel of the orbital and rank, building it once. A kernel::Continuum.ExchangeKernel is returned.
+"""
+function cachedExchangeKernel(cache::Continuum.ExchangeKernelCache, orbital::Orbital, k::Int64, primitives::Bsplines.Primitives)
+    task = lock(cache.lock) do
+        get!(cache.tasks, (objectid(orbital.P), k)) do
+            Threads.@spawn Continuum.exchangeKernel(orbital, k, primitives)
+        end
+    end
+
+    return( fetch(task)::Continuum.ExchangeKernel )
+end
+
+
+"""
+`Continuum.exchangeKernel(orbital::Orbital, k::Int64, primitives::Bsplines.Primitives)`
+    ... computes the exchange kernel of the orbital and rank; see Continuum.ExchangeKernel. V^k[b, B_nu](r_i) = sum_i' rho_i' r<^k / r>^(k+1) on 2:mb, for the density P_b B_nu (large)
+        or Q_b B_nu (small) that lives on the support of B_nu, is written as two recursions over RATIOS of radii, so that no power r^-(k+1) of a point near the origin is ever formed;
+        the direct form overflows for high k. A kernel::Continuum.ExchangeKernel is returned.
+"""
+function exchangeKernel(orbital::Orbital, k::Int64, primitives::Bsplines.Primitives)
+    grid = primitives.grid;    nL = length(primitives.bsplinesL);    nS = length(primitives.bsplinesS)
+    Pb   = orbital.P;    Qb = orbital.Q;    mb = min(length(Pb), grid.NoPoints);    r = grid.r;    wr = grid.wr
+    bspline(nu::Int64) = nu <= nL ? primitives.bsplinesL[nu] : primitives.bsplinesS[nu-nL]
+    active = [ nu  for nu = 1:nL+nS  if  max(bspline(nu).lower, 2) <= min(bspline(nu).upper, mb) ]
+    M      = zeros(length(active), length(active))
+    # The ratios of radii in the recursions depend on the rank alone, and a power per grid point and B-spline would be the whole cost.
+    rIn    = [ i > 2 ? (r[i-1]/r[i])^(k+1) : 0.    for i = 1:grid.NoPoints ]
+    rOut   = [ i < grid.NoPoints ? (r[i]/r[i+1])^k : 0.    for i = 1:grid.NoPoints ]
+    Vk     = zeros(grid.NoPoints);    wP = zeros(grid.NoPoints);    wQ = zeros(grid.NoPoints)
+    for  (jnu, nu)  in  enumerate(active)
+        bsp = bspline(nu);    Xb = nu <= nL ? Pb : Qb
+        lo  = bsp.lower;      up = min(bsp.upper, mb);    bs = bsp.bs
+        fill!(Vk, 0.)
+        # Outside the support of B_nu the source vanishes and each sum only carries on by its ratio.
+        I = 0.
+        @inbounds for  i = max(lo, 2):mb
+            I = i <= up ? rIn[i] * I + Xb[i] * bs[i-lo+1] * wr[i] / r[i] : rIn[i] * I
+            Vk[i] = I
+        end
+        O = 0.
+        @inbounds for  i = min(mb-1, up-1):-1:2
+            O = lo <= i+1 ? rOut[i] * (O + Xb[i+1] * bs[i+1-lo+1] * wr[i+1] / r[i+1]) : rOut[i] * O
+            Vk[i] = Vk[i] + O
+        end
+        @inbounds for  i = 2:mb    wP[i] = Vk[i] * Pb[i] * wr[i];    wQ[i] = Vk[i] * Qb[i] * wr[i]    end
+        @inbounds for  (jmu, mu)  in  enumerate(active)
+            bm = bspline(mu);    wX = mu <= nL ? wP : wQ;    bb = bm.bs;    lower = bm.lower
+            wa = 0.
+            for  i = max(lower, 2):min(bm.upper, mb)    wa = wa + bb[i-lower+1] * wX[i]    end
+            M[jmu,jnu] = wa
+        end
+    end
+
+    return( Continuum.ExchangeKernel(active, M) )
+end
+
+
+"""
+`Continuum.exchangeMatrix(sh::Subshell, level::Level, primitives::Bsplines.Primitives;
+                          kernelCache::Union{Nothing,Continuum.ExchangeKernelCache}=nothing)`
     ... the matrix  K_mu,nu = <B_mu| X |B_nu>  of the NON-LOCAL exchange operator of a free electron in subshell symmetry sh
         with the bound electrons of the level, in the B-spline basis of the Galerkin method (large components first, then
         small). The operator is that of the Dirac-Fock equation,
@@ -317,11 +411,11 @@ end
         target and on kappa but not on the energy.
         A matrix::Array{Float64,2} is returned.
 """
-function exchangeMatrix(sh::Subshell, level::Level, primitives::Bsplines.Primitives)
-    grid = primitives.grid;    nL = length(primitives.bsplinesL);    nS = length(primitives.bsplinesS)
-    ja   = Basics.subshell_j(sh);    la = Basics.subshell_l(sh)
-    # (Gamma, k, P_b, Q_b, extent) for every exchange term
-    terms = Tuple{Float64,Int64,Vector{Float64},Vector{Float64},Int64}[]
+function exchangeMatrix(sh::Subshell, level::Level, primitives::Bsplines.Primitives;
+                        kernelCache::Union{Nothing,Continuum.ExchangeKernelCache}=nothing)
+    nL = length(primitives.bsplinesL);    nS = length(primitives.bsplinesS)
+    ja = Basics.subshell_j(sh);    la = Basics.subshell_l(sh)
+    K  = zeros(nL + nS, nL + nS)
     for  b in level.basis.subshells
         orb = level.basis.orbitals[b];    orb.isBound   ||   continue
         q   = Basics.computeMeanSubshellOccupation(b, [level]);    q > 0.   ||   continue
@@ -330,50 +424,9 @@ function exchangeMatrix(sh::Subshell, level::Level, primitives::Bsplines.Primiti
             isodd(la + lb + k)   &&   continue
             w3j = AngularMomentum.Wigner_3j(ja, AngularJ64(k), jb, AngularM64(1//2), AngularM64(0), AngularM64(-1//2))
             G   = q * w3j^2;    abs(G) < 1.0e-14   &&   continue
-            push!(terms, (G, k, orb.P, orb.Q, min(length(orb.P), grid.NoPoints)))
-        end
-    end
-
-    K = zeros(nL + nS, nL + nS);    r = grid.r;    wr = grid.wr
-    Vk = zeros(grid.NoPoints)
-    # The ratios of radii in the two recursions below depend on the rank alone, and a power per grid point, B-spline and term was the whole cost.
-    ratioIn  = Dict{Int64,Vector{Float64}}();    ratioOut = Dict{Int64,Vector{Float64}}()
-    for  (_, k, _, _, _) in terms
-        haskey(ratioIn, k)   &&   continue
-        ratioIn[k]  = [ i > 2 ? (r[i-1]/r[i])^(k+1) : 0.    for i = 1:grid.NoPoints ]
-        ratioOut[k] = [ i < grid.NoPoints ? (r[i]/r[i+1])^k : 0.    for i = 1:grid.NoPoints ]
-    end
-    for  nu = 1:nL+nS
-        bsp   = nu <= nL ? primitives.bsplinesL[nu] : primitives.bsplinesS[nu-nL]
-        large = nu <= nL
-        for  (G, k, Pb, Qb, mb) in terms
-            lo = bsp.lower;   up = min(bsp.upper, mb);   up < max(lo, 2)   &&   continue
-            # V^k[b, B_nu](r_i) = sum_i' rho_i' r<^k / r>^(k+1) on 2:mb, for the density P_b B_nu (large) or Q_b B_nu (small)
-            # that lives on lo:up. Written as two recursions over RATIOS of radii, so that no power r^-(k+1) of a point near
-            # the origin is ever formed -- the direct form overflows for high k.
-            fill!(Vk, 0.)
-            rIn = ratioIn[k];    rOut = ratioOut[k]
-            I = 0.
-            for  i = 2:mb
-                rho = (lo <= i <= up) ? (large ? Pb[i] : Qb[i]) * bsp.bs[i-lo+1] * wr[i] : 0.
-                I   = rIn[i] * I + rho / r[i]
-                Vk[i] = I
-            end
-            O = 0.
-            for  i = mb-1:-1:2
-                rho = (lo <= i+1 <= up) ? (large ? Pb[i+1] : Qb[i+1]) * bsp.bs[i+1-lo+1] * wr[i+1] : 0.
-                O   = rOut[i] * (O + rho / r[i+1])
-                Vk[i] = Vk[i] + O
-            end
-            # project -G V^k (P_b, Q_b) onto every B-spline that overlaps the bound orbital
-            for  mu = 1:nL+nS
-                bm = mu <= nL ? primitives.bsplinesL[mu] : primitives.bsplinesS[mu-nL]
-                Xc = mu <= nL ? Pb : Qb
-                a  = max(bm.lower, 2);   z = min(bm.upper, mb);   a > z   &&   continue
-                wa = 0.
-                for  i = a:z    wa = wa + bm.bs[i-bm.lower+1] * Vk[i] * Xc[i] * wr[i]    end
-                K[mu,nu] = K[mu,nu] - G * wa
-            end
+            kernel = isnothing(kernelCache) ? Continuum.exchangeKernel(orb, k, primitives) : Continuum.cachedExchangeKernel(kernelCache, orb, k, primitives)
+            active = kernel.active;    M = kernel.M
+            @inbounds for  j in eachindex(active),  i in eachindex(active)    K[active[i],active[j]] = K[active[i],active[j]] - G * M[i,j]    end
         end
     end
 
