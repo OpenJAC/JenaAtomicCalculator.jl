@@ -341,7 +341,8 @@ end
 
 
 """
-`InteractionStrength.MabEmission(mp::EmMultipole, gauge::EmGauge, omega::Float64, a::Orbital, b::Orbital, grid::Radial.Grid)`
+`InteractionStrength.MabEmission(mp::EmMultipole, gauge::EmGauge, omega::Float64, a::Orbital, b::Orbital, grid::Radial.Grid;
+                                 orientation::Union{Nothing,Float64}=nothing)`
     ... computes the single-electron reduced matrix element <a || O^(Mp, emission) || b> of the electron-photon multipole interaction, for
         the multipole mp of the radiation field at photon energy omega and in the given gauge. A value::Float64 is returned.
 
@@ -415,6 +416,16 @@ end
         never swap which argument plays which role; it is the right choice where a caller can guarantee that, and it
         is not a general-purpose replacement for this function.
 
+        **A CALLER WHOSE ORBITALS HAVE FIXED ROLES PASSES `orientation`, and then the orbital energies are not read.** The length operator
+        is symmetric in its two orbitals, so one many-electron amplitude must use ONE form for all its subshell pairs, while the energy test
+        flips the GrantJL term for every pair in which an initial-state orbital is the more strongly bound one. Measured on Be 2s^2 1S_0 -
+        2s2p 1P_1 in a CI on one common orbital set, against f(exp) = 1.37: DFS {2s^2,2p^2} 2.93 by the energy test and 1.40 with one form;
+        DFS n=3 2.01 and 1.46; AL n=3 2.07 and 1.36. On an EOL or RAS basis the test is worse still, since `energy` then holds no orbital
+        energy: O I 2p^4 3P_2 - 2p^3 3s 5S_2 came out 3.3e-4 against 1.0e-6 with one form and 1.16e-6 from NIST. `PhotoEmission`, whose
+        `a` is always the initial-state orbital, passes `orientation = -1.0`, the value the energy test gives its leading pair. With it, both
+        gauges reproduce GRASP2018 `rtransition` to 1.0000 on the 15 strong lines between one set of O I wave functions (2558 CSFs), where the
+        energy test gave Babushkin 0.94 to 1.22, and f(Babushkin) no longer changes under a rotation of the orbitals of a complete active space.
+
         THE COULOMB GAUGE IS STRUCTURALLY ZERO FOR A DIAGONAL ELECTRIC MULTIPOLE, i.e. whenever the two orbitals belong to the SAME subshell
         and hence kapa == kapb. The Coulomb branch below is built only from I^+ and I^-, and there both die at once: the prefactor
         (kapa-kapb) vanishes, and I^-(a,a) = int j_L (P_a Q_a - Q_a P_a) dr is identically zero. The Babushkin branch keeps J_L = int j_L
@@ -425,7 +436,8 @@ end
         it carries (kapa+kapb) = 2*kappa and I^+(a,a) != 0; that is why M1 fine-structure rates inside a term come out right to a few parts
         in 1000.
 """
-function MabEmission(mp::EmMultipole, gauge::EmGauge, omega::Float64, a::Orbital, b::Orbital, grid::Radial.Grid)
+function MabEmission(mp::EmMultipole, gauge::EmGauge, omega::Float64, a::Orbital, b::Orbital, grid::Radial.Grid;
+                     orientation::Union{Nothing,Float64}=nothing)
     kapa = a.subshell.kappa;   kapb = b.subshell.kappa;    q = omega / Defaults.getDefaults("speed of light: c")
 
     # THE FORMULA FAMILY IS SET BY THE MULTIPOLE, NOT BY THE GAUGE -- corrected 29-Oct-2026.  Until then this
@@ -455,7 +467,7 @@ function MabEmission(mp::EmMultipole, gauge::EmGauge, omega::Float64, a::Orbital
         # the GrantJL term negated, the other two flips cancelling against the required overall sign. Call
         # sites disagreed about the order, so the orientation is settled here from the orbital energies
         # instead of being left to the caller. For a == b both orders coincide and eps = +1 is the right one.
-        eps    = a.energy <= b.energy   ?   1.0   :   -1.0
+        eps    = !isnothing(orientation)   ?   orientation   :   ( a.energy <= b.energy   ?   1.0   :   -1.0 )
         wr     = eps * RadialIntegrals.GrantJL(mp.L, q, a, b, grid::Radial.Grid)
         wr     = wr +  (kapa-kapb)/(mp.L+1) * RadialIntegrals.GrantILplus(mp.L+1, q, a, b, grid::Radial.Grid)
         wr     = wr +  RadialIntegrals.GrantILminus(mp.L+1, q, a, b, grid::Radial.Grid)
