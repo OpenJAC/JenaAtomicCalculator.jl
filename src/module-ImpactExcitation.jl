@@ -84,6 +84,9 @@ end
                                                         dipole-like channels |l_in - l_out| <= 1, integrals to infinity (the tail is
                                                         switched on); these channels also enter the DCS. 0 = off. See
                                                         ImpactExcitation.coulombContinuumOrbital.
+    + csfWeightCutoff          ::Float64            ... CSFs with c^2 below this value in a level are left out of the amplitudes, and of their spin-angular
+                                                        tables, whose size is the product of the two CSF counts. The continuum potential keeps the whole level.
+                                                        0 keeps every CSF.
 """
 struct Settings  <:  AbstractProcessSettings
     lineSelection             ::LineSelection
@@ -106,6 +109,7 @@ struct Settings  <:  AbstractProcessSettings
     topUp                     ::Bool
     exchangeMaxL              ::Int64
     coulombBetheKappa         ::Int64
+    csfWeightCutoff           ::Float64
 end
 
 
@@ -115,7 +119,7 @@ end
 function Settings()
     Settings( LineSelection(), Float64[], 0., 300, false, 30.0, 6,
               [5e4, 1e5, 2e5, 3e5, 5e5, 7e5, 1e6], false, CoulombInteraction(), nothing,
-              false, Float64[], true, true, false, false, false, 40, 0)
+              false, Float64[], true, true, false, false, false, 40, 0, 0.)
 end
 
 
@@ -136,7 +140,7 @@ end
     calcRateCoefficient..., maxEnergyMultiplier..., numElectronEnergies..., temperatures...,
     printBefore..., operator..., continuumExchange..., calcDCS..., angles..., cacheAngularCoefficients..., cacheRadialIntegrals...,
     orthogonalizeContinuum..., asymptoticTail..., topUp..., exchangeMaxL...,
-    coulombBetheKappa...)
+    coulombBetheKappa..., csfWeightCutoff...)
 
     ... constructor for modifying the given ImpactExcitation.Settings by 'overwriting' the previously selected parameters.
 """
@@ -160,7 +164,8 @@ function Settings(set::ImpactExcitation.Settings;
     asymptoticTail::Union{Nothing, Bool} = nothing,
     topUp::Union{Nothing, Bool} = nothing,
     exchangeMaxL::Union{Nothing, Int64} = nothing,
-    coulombBetheKappa::Union{Nothing, Int64} = nothing )
+    coulombBetheKappa::Union{Nothing, Int64} = nothing,
+    csfWeightCutoff::Union{Nothing, Float64} = nothing )
 
     if  isnothing(lineSelection)            lineSelectionx            = set.lineSelection            else  lineSelectionx            = lineSelection            end
     if  isnothing(electronEnergies)         electronEnergiesx         = set.electronEnergies         else  electronEnergiesx         = electronEnergies         end
@@ -182,11 +187,12 @@ function Settings(set::ImpactExcitation.Settings;
     if  isnothing(topUp)                    topUpx                    = set.topUp                    else  topUpx                    = topUp                    end
     if  isnothing(exchangeMaxL)             exchangeMaxLx             = set.exchangeMaxL             else  exchangeMaxLx             = exchangeMaxL             end
     if  isnothing(coulombBetheKappa)        coulombBetheKappax        = set.coulombBetheKappa        else  coulombBetheKappax        = coulombBetheKappa        end
+    if  isnothing(csfWeightCutoff)          csfWeightCutoffx          = set.csfWeightCutoff          else  csfWeightCutoffx          = csfWeightCutoff          end
 
     Settings( lineSelectionx, electronEnergiesx, energyShiftx, maxKappax, calcRateCoefficientx, maxEnergyMultiplierx,
               numElectronEnergiesx, temperaturesx, printBeforex, operatorx, continuumExchangex, calcDCSx, anglesx,
               cacheAngularCoefficientsx, cacheRadialIntegralsx, orthogonalizeContinuumx, asymptoticTailx,
-              topUpx, exchangeMaxLx, coulombBetheKappax )
+              topUpx, exchangeMaxLx, coulombBetheKappax, csfWeightCutoffx )
 
 end
 
@@ -213,6 +219,7 @@ function Base.show(io::IO, settings::ImpactExcitation.Settings)
     println(io, "topUp:                      $(settings.topUp)  ")
     println(io, "exchangeMaxL:               $(settings.exchangeMaxL)  ")
     println(io, "coulombBetheKappa:          $(settings.coulombBetheKappa)  ")
+    println(io, "csfWeightCutoff:            $(settings.csfWeightCutoff)  ")
 end
 
 
@@ -392,6 +399,21 @@ function angularCoefficientKey(channel::ImpactExcitation.Channel, fLevel::Level,
     Jt = channel.symmetry.J
     return( (iLevel.index, fLevel.index, channel.initialKappa, channel.finalKappa, Jt.num, Jt.den, string(channel.symmetry.parity),
              length(iLevel.basis.csfs), length(fLevel.basis.csfs), Tuple(fLevel.basis.subshells)) )
+end
+
+
+"""
+`ImpactExcitation.levelWithLeadingCsfs(level::Level, cutoff::Float64)`
+    ... returns the level without its CSFs of squared mixing coefficient below cutoff, not renormalized, so that what is left out is exactly what
+        the amplitude loses; with cutoff = 0 the level itself is returned. A level::Level is returned.
+"""
+function levelWithLeadingCsfs(level::Level, cutoff::Float64)
+    cutoff > 0.   ||   return( level )
+    keep  = findall(c -> c^2 >= cutoff, level.mc)
+    b     = level.basis
+    basis = Basis(b.isDefined, b.NoElectrons, b.subshells, b.csfs[keep], b.coreSubshells, b.orbitals)
+
+    return( Level(level.J, level.M, level.parity, level.index, level.energy, level.relativeOcc, level.hasStateRep, basis, level.mc[keep]) )
 end
 
 
@@ -954,6 +976,8 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
     ## Both symmetry-reduced levels are properties of the line alone; see the note in the innermost loop.
     redILevel = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, subshellList)
     redFLevel = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel,   subshellList)
+    ampILevel = ImpactExcitation.levelWithLeadingCsfs(redILevel, settings.csfWeightCutoff)
+    ampFLevel = ImpactExcitation.levelWithLeadingCsfs(redFLevel, settings.csfWeightCutoff)
 
     # The radial integrals depend on the continuum orbitals and hence on the energy: one cache per line, owned by one thread.
     radialCache = settings.cacheRadialIntegrals ? InteractionStrength.XLCache(screenedPotentials=true) : nothing
@@ -1031,8 +1055,8 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
                         ## which runs O(maxKappa^3) times.  The four calls below rebind newiLevel/newfLevel to
                         ## fresh Levels (generateLevelWithExtraElectron/-Subshell copy their argument), so
                         ## redILevel and redFLevel are never modified.
-                        newiLevel  = redILevel
-                        newfLevel  = redFLevel
+                        newiLevel  = ampILevel
+                        newfLevel  = ampFLevel
                         iSubshell  = Subshell(101, channel.initialKappa)
                         fSubshell  = Subshell(102, channel.finalKappa)
                         ciOrbital  = ciOrbitals[iSubshell];     iPhase = ciPhases[iSubshell]
