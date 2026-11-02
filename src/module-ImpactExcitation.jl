@@ -87,6 +87,10 @@ end
     + csfWeightCutoff          ::Float64            ... CSFs with c^2 below this value in a level are left out of the amplitudes, and of their spin-angular
                                                         tables, whose size is the product of the two CSF counts. The continuum potential keeps the whole level.
                                                         0 keeps every CSF.
+    + amplitudeMethod          ::Symbol             ... How the target enters the amplitudes.  ### :density, :csfTable
+                                                        :density contracts the CSFs once, into the one-body transition density of the two target levels
+                                                        (ImpactExcitation.amplitudeFromDensity); :csfTable uses the two-body spin-angular table of each channel.
+                                                        They agree to rounding; :csfTable costs (number of CSFs)^2 per channel and is kept as the reference.
 """
 struct Settings  <:  AbstractProcessSettings
     lineSelection             ::LineSelection
@@ -110,6 +114,7 @@ struct Settings  <:  AbstractProcessSettings
     exchangeMaxL              ::Int64
     coulombBetheKappa         ::Int64
     csfWeightCutoff           ::Float64
+    amplitudeMethod           ::Symbol
 end
 
 
@@ -119,7 +124,7 @@ end
 function Settings()
     Settings( LineSelection(), Float64[], 0., 300, false, 30.0, 6,
               [5e4, 1e5, 2e5, 3e5, 5e5, 7e5, 1e6], false, CoulombInteraction(), nothing,
-              false, Float64[], true, true, false, false, false, 40, 0, 0.)
+              false, Float64[], true, true, false, false, false, 40, 0, 0., :density)
 end
 
 
@@ -165,7 +170,8 @@ function Settings(set::ImpactExcitation.Settings;
     topUp::Union{Nothing, Bool} = nothing,
     exchangeMaxL::Union{Nothing, Int64} = nothing,
     coulombBetheKappa::Union{Nothing, Int64} = nothing,
-    csfWeightCutoff::Union{Nothing, Float64} = nothing )
+    csfWeightCutoff::Union{Nothing, Float64} = nothing,
+    amplitudeMethod::Union{Nothing, Symbol} = nothing )
 
     if  isnothing(lineSelection)            lineSelectionx            = set.lineSelection            else  lineSelectionx            = lineSelection            end
     if  isnothing(electronEnergies)         electronEnergiesx         = set.electronEnergies         else  electronEnergiesx         = electronEnergies         end
@@ -188,11 +194,13 @@ function Settings(set::ImpactExcitation.Settings;
     if  isnothing(exchangeMaxL)             exchangeMaxLx             = set.exchangeMaxL             else  exchangeMaxLx             = exchangeMaxL             end
     if  isnothing(coulombBetheKappa)        coulombBetheKappax        = set.coulombBetheKappa        else  coulombBetheKappax        = coulombBetheKappa        end
     if  isnothing(csfWeightCutoff)          csfWeightCutoffx          = set.csfWeightCutoff          else  csfWeightCutoffx          = csfWeightCutoff          end
+    if  isnothing(amplitudeMethod)          amplitudeMethodx          = set.amplitudeMethod          else  amplitudeMethodx          = amplitudeMethod          end
+    amplitudeMethodx in [:density, :csfTable]   ||   error("ImpactExcitation.Settings: amplitudeMethod must be :density or :csfTable.")
 
     Settings( lineSelectionx, electronEnergiesx, energyShiftx, maxKappax, calcRateCoefficientx, maxEnergyMultiplierx,
               numElectronEnergiesx, temperaturesx, printBeforex, operatorx, continuumExchangex, calcDCSx, anglesx,
               cacheAngularCoefficientsx, cacheRadialIntegralsx, orthogonalizeContinuumx, asymptoticTailx,
-              topUpx, exchangeMaxLx, coulombBetheKappax, csfWeightCutoffx )
+              topUpx, exchangeMaxLx, coulombBetheKappax, csfWeightCutoffx, amplitudeMethodx )
 
 end
 
@@ -220,6 +228,7 @@ function Base.show(io::IO, settings::ImpactExcitation.Settings)
     println(io, "exchangeMaxL:               $(settings.exchangeMaxL)  ")
     println(io, "coulombBetheKappa:          $(settings.coulombBetheKappa)  ")
     println(io, "csfWeightCutoff:            $(settings.csfWeightCutoff)  ")
+    println(io, "amplitudeMethod:            $(settings.amplitudeMethod)  ")
 end
 
 
@@ -414,6 +423,118 @@ function levelWithLeadingCsfs(level::Level, cutoff::Float64)
     basis = Basis(b.isDefined, b.NoElectrons, b.subshells, b.csfs[keep], b.coreSubshells, b.orbitals)
 
     return( Level(level.J, level.M, level.parity, level.index, level.energy, level.relativeOcc, level.hasStateRep, basis, level.mc[keep]) )
+end
+
+
+"""
+`struct  ImpactExcitation.DensityCoefficientCache`
+    ... memoises, for ONE run of computeLines() or computeLinesCascade(), the coefficients <final CSF || [b^+ c]^(k) || initial CSF> of every pair of target
+        symmetries, from which the transition density of any two of their levels follows by a contraction. They depend on the CSF lists alone, so they serve all
+        levels and all energies of the run. The lock makes the cache safe to share between threads.
+
+    + tables    ::Dict{Tuple, Dict{Tuple{Subshell,Subshell}, Vector{Tuple{Int32,Int32,Float64}}}}   ... (final CSF, initial CSF, coefficient) of each (b,c) and rank.
+    + lock      ::ReentrantLock                                                                     ... guards reads and writes of tables.
+"""
+struct  DensityCoefficientCache
+    tables      ::Dict{Tuple, Dict{Tuple{Subshell,Subshell}, Vector{Tuple{Int32,Int32,Float64}}}}
+    lock        ::ReentrantLock
+end
+
+
+"""
+`ImpactExcitation.DensityCoefficientCache()`  ... constructor for an empty cache; a cache::ImpactExcitation.DensityCoefficientCache is returned.
+"""
+DensityCoefficientCache() = DensityCoefficientCache( Dict{Tuple, Dict{Tuple{Subshell,Subshell}, Vector{Tuple{Int32,Int32,Float64}}}}(), ReentrantLock() )
+
+
+"""
+`struct  ImpactExcitation.TargetDensity`
+    ... the one-body transition density D^k_bc = <final level || [b^+ c]^(k) || initial level> of two target levels, in the convention of
+        SpinAngular.OneParticleOperator, in which the coefficient carries sqrt(2j_b+1).
+
+    + Jf2       ::Int64                                   ... twice the total angular momentum of the final level.
+    + Ji2       ::Int64                                   ... twice the total angular momentum of the initial level.
+    + pairs     ::Vector{Tuple{Subshell,Subshell,Vector{Tuple{Int64,Float64}}}}   ... (b, c, [(k, D^k_bc)]) of every pair of target subshells.
+"""
+struct  TargetDensity
+    Jf2         ::Int64
+    Ji2         ::Int64
+    pairs       ::Vector{Tuple{Subshell,Subshell,Vector{Tuple{Int64,Float64}}}}
+end
+
+
+"""
+`ImpactExcitation.computeDensityCoefficients(fLevel::Level, iLevel::Level, k::Int64)`
+    ... computes the coefficients <final CSF || [b^+ c]^(k) || initial CSF> over the CSF lists of the two symmetry-reduced levels, which share one subshell list. CSFs
+        are grouped by occupation first, since a one-body operator connects only groups that differ by one electron at most. The SpinAngular calls are serialized through
+        SPIN_ANGULAR_LOCK. A table::Dict{Tuple{Subshell,Subshell}, Vector{Tuple{Int32,Int32,Float64}}} is returned.
+"""
+function computeDensityCoefficients(fLevel::Level, iLevel::Level, k::Int64)
+    subshells = fLevel.basis.subshells
+    subshells == iLevel.basis.subshells   ||   error("ImpactExcitation.computeDensityCoefficients: the two levels must share one subshell list.")
+    function occupationGroups(csfs)
+        groups = Dict{Vector{Int64},Vector{Int64}}()
+        for  (i, csf)  in  enumerate(csfs)    push!(get!(groups, Int64.(csf.occupation), Int64[]), i)    end
+        return( groups )
+    end
+    fGroups = occupationGroups(fLevel.basis.csfs);    iGroups = occupationGroups(iLevel.basis.csfs)
+    op      = SpinAngular.OneParticleOperator(k, fLevel.parity == iLevel.parity ? Basics.plus : Basics.minus)
+    table   = Dict{Tuple{Subshell,Subshell}, Vector{Tuple{Int32,Int32,Float64}}}()
+    lock(SPIN_ANGULAR_LOCK) do
+        for  (fOcc, fCsfs)  in  fGroups,  (iOcc, iCsfs)  in  iGroups
+            distance = 0
+            for  n in eachindex(fOcc)    distance = distance + abs(fOcc[n] - iOcc[n])    end
+            distance <= 2   ||   continue
+            for  r in fCsfs,  s in iCsfs
+                for  coeff in SpinAngular.computeCoefficients(op, fLevel.basis.csfs[r], iLevel.basis.csfs[s], subshells)
+                    push!(get!(table, (coeff.a, coeff.b), Tuple{Int32,Int32,Float64}[]), (Int32(r), Int32(s), coeff.T))
+                end
+            end
+        end
+    end
+
+    return( table )
+end
+
+
+"""
+`ImpactExcitation.targetDensity(fLevel::Level, iLevel::Level, cache::ImpactExcitation.DensityCoefficientCache, csfWeightCutoff::Float64)`
+    ... contracts the coefficients of the given (symmetry-reduced) levels with their mixing coefficients; CSFs of squared mixing coefficient below csfWeightCutoff are left out.
+        A density::ImpactExcitation.TargetDensity is returned.
+"""
+function targetDensity(fLevel::Level, iLevel::Level, cache::ImpactExcitation.DensityCoefficientCache, csfWeightCutoff::Float64)
+    Jf2 = Basics.twice(fLevel.J);    Ji2 = Basics.twice(iLevel.J)
+    fMc = [ c^2 >= csfWeightCutoff ? c : 0.    for c in fLevel.mc ]
+    iMc = [ c^2 >= csfWeightCutoff ? c : 0.    for c in iLevel.mc ]
+    byPair = Dict{Tuple{Subshell,Subshell},Vector{Tuple{Int64,Float64}}}()
+    for  k = abs(Jf2 - Ji2) ÷ 2 : (Jf2 + Ji2) ÷ 2
+        key    = (Jf2, string(fLevel.parity), Ji2, string(iLevel.parity), k, length(fMc), length(iMc))
+        cached = lock(cache.lock) do;   get(cache.tables, key, nothing)   end
+        if  isnothing(cached)
+            # Two threads may both miss and both compute the same table; they produce identical tables, so the second write is harmless.
+            cached = ImpactExcitation.computeDensityCoefficients(fLevel, iLevel, k)
+            lock(cache.lock) do;   cache.tables[key] = cached   end
+        end
+        for  (pair, entries)  in  cached
+            D = 0.
+            for  (r, s, T)  in  entries    D = D + fMc[r] * iMc[s] * T    end
+            push!(get!(byPair, pair, Tuple{Int64,Float64}[]), (k, D))
+        end
+    end
+    pairs = [ (pair[1], pair[2], byPair[pair])    for pair in sort(collect(keys(byPair)), by = x -> (string(x[1]), string(x[2]))) ]
+
+    return( ImpactExcitation.TargetDensity(Jf2, Ji2, pairs) )
+end
+
+
+"""
+`ImpactExcitation.cachedWigner6j(cache::Dict{NTuple{6,Int64},Float64}, a2::Int64, b2::Int64, c2::Int64, d2::Int64, e2::Int64, f2::Int64)`
+    ... returns the 6-j symbol of the given doubled angular momenta from the cache, computing and storing it when missing. A value::Float64 is returned.
+"""
+function cachedWigner6j(cache::Dict{NTuple{6,Int64},Float64}, a2::Int64, b2::Int64, c2::Int64, d2::Int64, e2::Int64, f2::Int64)
+    get!(cache, (a2, b2, c2, d2, e2, f2)) do
+        AngularMomentum.Wigner_6j(AngularJ64(a2//2), AngularJ64(b2//2), AngularJ64(c2//2), AngularJ64(d2//2), AngularJ64(e2//2), AngularJ64(f2//2))
+    end
 end
 
 
@@ -772,6 +893,76 @@ end
 
 
 """
+`ImpactExcitation.amplitudeFromDensity(kind::AbstractEeInteraction, channel::ImpactExcitation.Channel, density::ImpactExcitation.TargetDensity,
+                                       fOrbitals::Dict{Subshell,Orbital}, iOrbitals::Dict{Subshell,Orbital}, cfOrbital::Orbital, ciOrbital::Orbital, grid::Radial.Grid;
+                                       radialCache::Union{Nothing,InteractionStrength.XLCache}=nothing, tailCache::Union{Nothing,ImpactExcitation.TailCache}=nothing,
+                                       sixjCache::Dict{NTuple{6,Int64},Float64}=Dict{NTuple{6,Int64},Float64}(), exchangeMaxL::Int64=40)`
+    ... computes the same amplitude as ImpactExcitation.amplitude(), from the transition density of the target. Only one electron goes from the initial into the final
+        partial wave, so all that is left of the (N+1)-electron matrix element is a one-body operator on the target, and with s = (-1)^(J_i + j_f + J), f = sqrt((2J_f+1)/(2j_b+1))
+
+            direct     V^nu(b F c I) = s f (-1)^nu {J_f j_f J; j_i J_i nu} D^nu_bc
+            exchange   V^nu(b F I c) = s f sum_k (2k+1) (-1)^k {J_f j_f J; j_i J_i k} {j_f j_i k; j_b j_c nu} D^k_bc
+
+        The number of terms is set by the target subshells and not by the CSFs. A value::ComplexF64 is returned.
+"""
+function amplitudeFromDensity(kind::AbstractEeInteraction, channel::ImpactExcitation.Channel, density::ImpactExcitation.TargetDensity,
+                              fOrbitals::Dict{Subshell,Orbital}, iOrbitals::Dict{Subshell,Orbital}, cfOrbital::Orbital, ciOrbital::Orbital, grid::Radial.Grid;
+                              radialCache::Union{Nothing,InteractionStrength.XLCache}=nothing, tailCache::Union{Nothing,ImpactExcitation.TailCache}=nothing,
+                              sixjCache::Dict{NTuple{6,Int64},Float64}=Dict{NTuple{6,Int64},Float64}(), exchangeMaxL::Int64=40)
+    isCoulomb = kind isa Union{CoulombInteraction, CoulombBreit}
+    isBreit   = kind isa Union{BreitInteraction, CoulombBreit}
+    isCoulomb  ||  isBreit   ||   error("ImpactExcitation.amplitudeFromDensity: unsupported interaction $kind.")
+    fSh = cfOrbital.subshell;    iSh = ciOrbital.subshell
+    jf2 = Basics.subshell_2j(fSh);    ji2 = Basics.subshell_2j(iSh);    J2 = Basics.twice(channel.symmetry.J)
+    lf  = Basics.subshell_l(fSh);     li  = Basics.subshell_l(iSh)
+    Jf2 = density.Jf2;    Ji2 = density.Ji2
+    s0  = iseven((Ji2 + jf2 + J2) ÷ 2) ? 1. : -1.
+    keepExchange = max(li, lf) <= exchangeMaxL
+    gRank(k::Int64) = ImpactExcitation.cachedWigner6j(sixjCache, Jf2, jf2, J2, ji2, Ji2, 2k)
+
+    function radial(nu::Int64, oa::Orbital, ob::Orbital, oc::Orbital, od::Orbital, withTail::Bool)
+        wa = 0.
+        if  isCoulomb
+            wa = wa + ( isnothing(radialCache) ? InteractionStrength.XL_Coulomb(nu, oa, ob, oc, od, grid) :
+                                                 InteractionStrength.XL_Coulomb(nu, oa, ob, oc, od, grid, radialCache) )
+            if  withTail  &&  !isnothing(tailCache)    wa = wa + ImpactExcitation.tailCorrection(nu, oa, ob, oc, od, grid, tailCache)    end
+        end
+        if  isBreit
+            wa = wa + ( isnothing(radialCache) ? InteractionStrength.XL_Breit(nu, oa, ob, oc, od, grid, CoulombBreit(1.0)) :
+                                                 InteractionStrength.XL_Breit(nu, oa, ob, oc, od, grid, CoulombBreit(1.0), radialCache) )
+        end
+        return( wa )
+    end
+
+    me = 0.
+    for  (b, c, ranks)  in  density.pairs
+        ob  = fOrbitals[b];    oc = iOrbitals[c]
+        jb2 = Basics.subshell_2j(b);    jc2 = Basics.subshell_2j(c)
+        lb  = Basics.subshell_l(b);     lc  = Basics.subshell_l(c)
+        f   = s0 * sqrt((Jf2 + 1) / (jb2 + 1))
+        for  (k, D)  in  ranks
+            g = gRank(k);    g == 0.   &&   continue
+            me = me + (isodd(k) ? -1. : 1.) * f * g * D * radial(k, ob, cfOrbital, oc, ciOrbital, true)
+        end
+        keepExchange   ||   continue
+        for  nu = max(abs(jf2 - jc2), abs(jb2 - ji2)) ÷ 2 : min(jf2 + jc2, jb2 + ji2) ÷ 2
+            if  !isBreit  &&  (isodd(lb + li + nu)  ||  isodd(lf + lc + nu))    continue    end
+            w = 0.
+            for  (k, D)  in  ranks
+                g = gRank(k);    g == 0.   &&   continue
+                w = w + (2k + 1) * (isodd(k) ? -1. : 1.) * g * D * ImpactExcitation.cachedWigner6j(sixjCache, jf2, ji2, 2k, jb2, jc2, 2nu)
+            end
+            w == 0.   &&   continue
+            me = me + f * w * radial(nu, ob, cfOrbital, ciOrbital, oc, true)
+        end
+    end
+    amplitude = im^( -1.0 * lf ) * exp( im*channel.finalPhase ) * im^li * exp( im*channel.initialPhase ) * me
+
+    return( amplitude )
+end
+
+
+"""
 `ImpactExcitation.checkLowEnergyGrid(minEnergy::Float64, grid::Radial.Grid)`
     ... warns when the SLOWEST continuum electron of a run has a de Broglie wavelength too long to complete an oscillation
         inside the radial box, so that its normalization and phase cannot be read off the asymptotic region. Nothing is
@@ -956,7 +1147,8 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
                                         nuclearPot::Union{Nothing,Radial.Potential}=nothing,
                                         primitives::Union{Nothing,Bsplines.Primitives}=nothing,
                                         angularCache::Union{Nothing,ImpactExcitation.AngularCoefficientCache}=nothing,
-                                        exchangeCache::Union{Nothing,ImpactExcitation.ExchangeMatrixCache}=nothing)
+                                        exchangeCache::Union{Nothing,ImpactExcitation.ExchangeMatrixCache}=nothing,
+                                        densityCache::Union{Nothing,ImpactExcitation.DensityCoefficientCache}=nothing)
     newChannels = ImpactExcitation.Channel[];
     contSettings = Continuum.Settings(settings.continuumExchange === true, nrContinuum)
     cross = 0.;   coll = 0.; convergence = 1.
@@ -976,8 +1168,12 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
     ## Both symmetry-reduced levels are properties of the line alone; see the note in the innermost loop.
     redILevel = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, subshellList)
     redFLevel = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel,   subshellList)
-    ampILevel = ImpactExcitation.levelWithLeadingCsfs(redILevel, settings.csfWeightCutoff)
-    ampFLevel = ImpactExcitation.levelWithLeadingCsfs(redFLevel, settings.csfWeightCutoff)
+    useDensity = settings.amplitudeMethod == :density
+    ampILevel  = useDensity ? redILevel : ImpactExcitation.levelWithLeadingCsfs(redILevel, settings.csfWeightCutoff)
+    ampFLevel  = useDensity ? redFLevel : ImpactExcitation.levelWithLeadingCsfs(redFLevel, settings.csfWeightCutoff)
+    density    = useDensity ? ImpactExcitation.targetDensity(ampFLevel, ampILevel, isnothing(densityCache) ? ImpactExcitation.DensityCoefficientCache() : densityCache,
+                                                             settings.csfWeightCutoff) : nothing
+    sixjCache  = Dict{NTuple{6,Int64},Float64}()
 
     # The radial integrals depend on the continuum orbitals and hence on the energy: one cache per line, owned by one thread.
     radialCache = settings.cacheRadialIntegrals ? InteractionStrength.XLCache(screenedPotentials=true) : nothing
@@ -1055,22 +1251,26 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
                         ## which runs O(maxKappa^3) times.  The four calls below rebind newiLevel/newfLevel to
                         ## fresh Levels (generateLevelWithExtraElectron/-Subshell copy their argument), so
                         ## redILevel and redFLevel are never modified.
-                        newiLevel  = ampILevel
-                        newfLevel  = ampFLevel
                         iSubshell  = Subshell(101, channel.initialKappa)
                         fSubshell  = Subshell(102, channel.finalKappa)
                         ciOrbital  = ciOrbitals[iSubshell];     iPhase = ciPhases[iSubshell]
                         cfOrbital  = cfOrbitals[fSubshell];     fPhase = cfPhases[fSubshell]
-                        newiLevel = Basics.generateLevelWithExtraElectron(ciOrbital, channel.symmetry, newiLevel)
-                        newiLevel = Basics.generateLevelWithExtraSubshell(fSubshell,   newiLevel)
-                        newfLevel = Basics.generateLevelWithExtraSubshell(iSubshell, newfLevel)
-                        newfLevel = Basics.generateLevelWithExtraElectron(cfOrbital, channel.symmetry, newfLevel)
                         newChannel = ImpactExcitation.Channel(channel.initialKappa, channel.finalKappa, channel.symmetry, 
                                                                                                             iPhase, fPhase, 0.)
                         #
-                        amplitude  = ImpactExcitation.amplitude(settings.operator, newChannel, newfLevel, newiLevel, grid;
-                                                               printout=printout, radialCache=radialCache, angularCache=angularCache,
-                                                               tailCache=tailCache, exchangeMaxL=settings.exchangeMaxL)
+                        if  useDensity
+                            amplitude = ImpactExcitation.amplitudeFromDensity(settings.operator, newChannel, density, ampFLevel.basis.orbitals, ampILevel.basis.orbitals,
+                                                                              cfOrbital, ciOrbital, grid; radialCache=radialCache, tailCache=tailCache,
+                                                                              sixjCache=sixjCache, exchangeMaxL=settings.exchangeMaxL)
+                        else
+                            newiLevel = Basics.generateLevelWithExtraElectron(ciOrbital, channel.symmetry, ampILevel)
+                            newiLevel = Basics.generateLevelWithExtraSubshell(fSubshell,   newiLevel)
+                            newfLevel = Basics.generateLevelWithExtraSubshell(iSubshell, ampFLevel)
+                            newfLevel = Basics.generateLevelWithExtraElectron(cfOrbital, channel.symmetry, newfLevel)
+                            amplitude = ImpactExcitation.amplitude(settings.operator, newChannel, newfLevel, newiLevel, grid;
+                                                                   printout=printout, radialCache=radialCache, angularCache=angularCache,
+                                                                   tailCache=tailCache, exchangeMaxL=settings.exchangeMaxL)
+                        end
 
                         coll       = coll + AngularMomentum.bracket([channel.symmetry.J]) * ( conj(amplitude) * amplitude ).re
 
@@ -1143,6 +1343,7 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
     lines = ImpactExcitation.determineLines(finalMultiplet, initialMultiplet, settings)
     angularCache  = settings.cacheAngularCoefficients ? ImpactExcitation.AngularCoefficientCache() : nothing
     exchangeCache = settings.continuumExchange == :nonlocal ? ImpactExcitation.ExchangeMatrixCache() : nothing
+    densityCache  = ImpactExcitation.DensityCoefficientCache()
     # Display all selected lines before the computations start
     if  settings.printBefore    ImpactExcitation.displayLines(lines)    end
     ## Determine the maximum (continuum) electron energy and check the grid for consistency with it. This module used to
@@ -1181,7 +1382,7 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
         Threads.@threads for l in eachindex(lines)
             newLines[l] = ImpactExcitation.computeAmplitudesProperties(lines[l], nm, grid, nrContinuum, settings;
                                                                        nuclearPot=nuclearPot, primitives=primitives,
-                                                                       angularCache=angularCache, exchangeCache=exchangeCache)
+                                                                       angularCache=angularCache, exchangeCache=exchangeCache, densityCache=densityCache)
         end
     end
     # Print all results to screen
@@ -1241,6 +1442,7 @@ function  computeLinesCascade(finalMultiplet::Multiplet, initialMultiplet::Multi
     lines = ImpactExcitation.determineLines(finalMultiplet, initialMultiplet, settings)
     angularCache  = settings.cacheAngularCoefficients ? ImpactExcitation.AngularCoefficientCache() : nothing
     exchangeCache = settings.continuumExchange == :nonlocal ? ImpactExcitation.ExchangeMatrixCache() : nothing
+    densityCache  = ImpactExcitation.DensityCoefficientCache()
     if  length(lines) == 0    return( ImpactExcitation.Line[] )    end
     ## The grid must be able to carry the fastest continuum orbital that occurs; see the note in computeLines().
     maxEnergy   = 0.;   minEnergy = Inf
@@ -1271,7 +1473,7 @@ function  computeLinesCascade(finalMultiplet::Multiplet, initialMultiplet::Multi
     Threads.@threads for  i  in  eachindex(lines)
         newLine = ImpactExcitation.computeAmplitudesProperties(lines[i], nm, grid, nrContinuum, settings; printout=doPrint,
                                                                nuclearPot=nuclearPot, primitives=primitives, angularCache=angularCache,
-                                                               exchangeCache=exchangeCache)
+                                                               exchangeCache=exchangeCache, densityCache=densityCache)
         if  length(newLine.channels) > 0    tmpLines[i] = newLine    end
     end
     newLines = ImpactExcitation.Line[ l  for l in tmpLines  if l !== nothing ]
