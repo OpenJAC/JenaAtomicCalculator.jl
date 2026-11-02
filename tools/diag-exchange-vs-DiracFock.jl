@@ -16,7 +16,7 @@ function check(Z, config, subshells; rbox=15.0)
     set  = AsfSettings(AsfSettings(); scField = Basics.ALField(), eeInteraction = CoulombInteraction())
     lev  = redirect_stdout(devnull) do
         perform(Atomic.Computation(Atomic.Computation(), name="DF", grid=grid, nuclearModel=nm, configs=[Configuration(config)],
-                                   asfSettings=set), output=true)["multiplet:"].levels[1]
+                                   asfSettings=set), output=true)[JAC.ResultKeys.Multiplet].levels[1]
     end
     prim = Bsplines.generatePrimitives(grid);   np = Nuclear.nuclearPotential(nm, grid)
     pot  = Continuum.continuumPotential(0.0, lev, np, grid, :none)
