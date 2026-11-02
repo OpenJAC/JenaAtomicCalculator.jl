@@ -113,7 +113,9 @@ function generateOrbitalForLevel(energy::Float64, sh::Subshell, level::Level, nm
     ## wp3 = compute("radial potential: Kohn-Sham", grid, wLevel)
     ## wp4 = compute("radial potential: Dirac-Fock-Slater", grid, wLevel)
     ## wp  = Basics.computePotential(Basics.DFSField(0.42), grid, level)   
-    pot = Continuum.continuumPotential(energy, level, nuclearPotential, grid, exchange == :nonlocal ? :none : exchange)
+    # The exact exchange replaces the local one and must not come on top of it, whichever way it was asked for.  Measured on Ne, where the
+    # Dirac-Fock orbital energies must be eigenvalues: static + K gives 2p_1/2 at -0.852807 against -0.852836, DFSField(1.0) + K at +0.0415.
+    pot = Continuum.continuumPotential(energy, level, nuclearPotential, grid, (exchange == :nonlocal || settings.includeExchange) ? :none : exchange)
     if  exchange == :nonlocal
         Defaults.GBL_CONT_SOLUTION == BsplineGalerkin()   ||
             error("Continuum: exchange = :nonlocal requires the B-spline Galerkin method (setDefaults(\"method: continuum, Galerkin\")).")
