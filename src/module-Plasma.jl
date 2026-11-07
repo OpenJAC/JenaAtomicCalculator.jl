@@ -1616,14 +1616,12 @@ include("module-Plasma-inc-superconfiguration-mixture.jl")
 
 
 """
-`Basics.perform(comp::Plasma.Computation)`  
-    ... to set-up and perform a plasma computation that starts from a given set of reference configurations and 
-        support both, an atomic-average SCF procedure and the computation of various plasma properties and processe.
-        The results of all individual steps are printed to screen but nothing is returned otherwise.
-
-`Basics.perform(comp::Plasma.Computation; output::Bool=true)`   
-    ... to perform the same but to return the complete output in a dictionary;  the particular output depends on the type 
-        and specifications of the plasma computation but can easily accessed by the keys of this dictionary.
+`Basics.perform(comp::Plasma.Computation; output::Bool=false)`
+    ... to set-up and perform a plasma computation that starts from a given set of reference configurations and supports both an
+        atomic-average SCF procedure and the computation of various plasma properties and processes. The method only dispatches on
+        comp.scheme and hands the work to Plasma.perform(comp.scheme, comp; output=output), so what it returns is what that scheme's
+        method returns: with output = false nothing, and with output = true a results::Dict{String,Any} whose keys give access to the
+        individual steps. The results of all individual steps are printed to screen.
 """
 function Basics.perform(comp::Plasma.Computation; output::Bool=false)
     Plasma.perform(comp.scheme, comp::Plasma.Computation, output=output)

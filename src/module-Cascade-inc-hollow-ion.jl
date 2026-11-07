@@ -271,18 +271,18 @@ end
 
 
 """
-`Cascade.perform(scheme::HollowIonScheme, comp::Cascade.Computation)`  
-    ... to set-up and perform a dielectronic-recombination (DR) plasma rate coefficient computation that combines the electron capture
-        and the subsequent radiative stabilization steps. Such a computation starts from a given set of initial configurations xor 
-        initial multiplets and (1) generates all doubly-excited configurations due to the capture of an electron with a given maximum
-        electron energy; (2) selects all electron capture (inverse Auger) and re-autoionization (Auger) steps and (3) selects
-        all steps for radiative stabilization due to given parameters of the scheme::HollowIonScheme. The results of 
-        these DR plasma rate computation are comprised into (output) data::ExcitationData, while these data are only printed during 
-        the generation and nothing is returned.
-
-`Cascade.perform(scheme::HollowIonScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true)`   
-    ... to perform the same but to return the complete output in a dictionary that is written to disk and can be used in subsequent
-        cascade simulation. The particular output depends on the specifications of the cascade.
+`Cascade.perform(scheme::HollowIonScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true,
+                    outputDirectory::String="")`
+    ... to set-up and perform a hollow-ion cascade computation, i.e. the decay of an ion whose inner shells are empty. It starts
+        from the initial configurations of comp and generates the configurations that the capture into scheme.intoShells and the
+        subsequent decay within scheme.decayShells give rise to; it then groups them into cascade blocks and computes the radiative
+        and the autoionization lines of every step.
+        With output = false, nothing is returned. With output = true, a results::Basics.PerformResults is returned -- an
+        AbstractDict{String,Any} -- that carries the initial and the generated multiplets, the individual line lists, and
+        under the key "cascade data:" the Cascade.Data of PhotoEmission.Line and AutoIonization.Line that a subsequent Cascade.Simulation reads. With
+        outputToFile = true the same data is written to a zzz-cascade-hollow-ion-computations-<date>.jld file, into outputDirectory when one is
+        named and into the working directory otherwise.
+        The same data is additionally stored under the key "hollow-ion line data:".
 """
 function perform(scheme::HollowIonScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true, outputDirectory::String="")
     if  output    results = Dict{String, Any}()    else    results = nothing    end
@@ -330,7 +330,8 @@ function perform(scheme::HollowIonScheme, comp::Cascade.Computation; output::Boo
         results = Base.merge( results, Dict("cascade data:"         => data) )
 
         #  Write out the result to file to later continue with simulations on the cascade data
-        filename = "zzz-cascade-hollow-ion-computations-" * string(Dates.now())[1:13] * ".jld"
+        if  outputDirectory != ""    mkpath(outputDirectory)    end
+        filename = joinpath(outputDirectory, "zzz-cascade-hollow-ion-computations-" * string(Dates.now())[1:13] * ".jld")
         println("\n* Write all results to disk; use:\n   JLD2.save(''$filename'', results) \n   using JLD2 " *
                 "\n   results = JLD2.load(''$filename'')    ... to load the results back from file.")
         if  printSummary   println(iostream, "\n* Write all results to disk; use:\n   JLD2.save(''$filename'', results) \n   using JLD2 " *

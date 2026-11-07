@@ -160,15 +160,16 @@ end
 
 
 """
-`Cascade.perform(scheme::ImpactExcitationScheme, comp::Cascade.Computation)`  
-    ... to set-up and perform a electron-impact excitation computation that starts from a given set of initial configurations 
-        xor initial multiplets and comprises the impact-excitation of different fromShells to the toShells. All configurations 
-        are constructed with regard to the initial configurations. The results of these impact-excitation computations 
-        are comprised into (output) data::??? but nothing is returned as default.
-
-`Cascade.perform(scheme::ImpactExcitationScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true)`   
-    ... to perform the same but to return the complete output in a dictionary that is written to disk and can be used in subsequent
-        cascade simulation. The particular output depends on the specifications of the cascade.
+`Cascade.perform(scheme::ImpactExcitationScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true,
+                    outputDirectory::String="")`
+    ... to set-up and perform an electron-impact excitation computation that starts from a given set of initial configurations xor
+        initial multiplets and comprises the impact excitation from the scheme's fromShells into its toShells. All configurations
+        are constructed with regard to the initial configurations.
+        With output = false, nothing is returned. With output = true, a results::Basics.PerformResults is returned -- an
+        AbstractDict{String,Any} -- that carries the initial and the generated multiplets, the individual line lists, and
+        under the key "cascade data:" the Cascade.Data{ImpactExcitation.Line} that a subsequent Cascade.Simulation reads. With
+        outputToFile = true the same data is written to a zzz-cascade-impact-excitation-computations-<date>.jld file, into outputDirectory when one is
+        named and into the working directory otherwise.
 """
 function perform(scheme::ImpactExcitationScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true, outputDirectory::String="")
     if  output    results = Dict{String, Any}()    else    results = nothing    end
@@ -217,7 +218,8 @@ function perform(scheme::ImpactExcitationScheme, comp::Cascade.Computation; outp
         if  outputToFile
             # Was "zzz-cascade-photoexcitation-computations-...", a copy-paste artefact: this scheme writes
             # impact-excitation lines, not photo-excitation ones.
-            filename = "zzz-cascade-impact-excitation-computations-" * string(Dates.now())[1:13] * ".jld"
+            if  outputDirectory != ""    mkpath(outputDirectory)    end
+            filename = joinpath(outputDirectory, "zzz-cascade-impact-excitation-computations-" * string(Dates.now())[1:13] * ".jld")
             println("\n* Write all results to disk; use:\n   JLD2.save(''$filename'', results) \n   using JLD2 " *
                     "\n   results = JLD2.load(''$filename'')    ... to load the results back from file.")
             if  printSummary   println(iostream, "\n* Write all results to disk; use:\n   JLD2.save(''$filename'', results) \n   using JLD2 " *

@@ -457,13 +457,11 @@ end
 
 
 """
-`Basics.perform(computation::Atomic.Computation)`  
-    ... to perform the computation as prescribed by comp. All relevant intermediate and final results are printed to screen (stdout). 
-        Nothing is returned.
-
-`Basics.perform(computation::Atomic.Computation; output::Bool=false)`  
-    ... to perform the same but to return the complete output in a dictionary; the particular output depends on the type and 
-        specifications of the computations but can easily accessed by the keys of this dictionary.
+`Basics.perform(computation::Atomic.Computation; output::Bool=false)`
+    ... to perform the computation as prescribed by computation, i.e. the SCF and CI steps followed by whichever properties and
+        processes its settings request; all relevant intermediate and final results are printed to screen (stdout). With
+        output = false, nothing is returned. With output = true, a results::Basics.PerformResults is returned, an
+        AbstractDict{String,Any} whose keys depend on the type and the specifications of the computation.
 """
 function Basics.perform(computation::Atomic.Computation; output::Bool=false)
     if  output    results = Dict{String, Any}()    else    results = nothing    end

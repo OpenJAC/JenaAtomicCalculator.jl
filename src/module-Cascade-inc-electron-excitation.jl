@@ -89,7 +89,8 @@ function perform(scheme::ElectronExcitationScheme, comp::Cascade.Computation; ou
 
     #  Write out the result to file to later continue with simulations on the cascade data
     if  outputToFile
-        filename = "zzz-cascade-photoabsorption-computations-" * string(Dates.now())[1:13] * ".jld"
+        if  outputDirectory != ""    mkpath(outputDirectory)    end
+        filename = joinpath(outputDirectory, "zzz-cascade-electron-excitation-computations-" * string(Dates.now())[1:13] * ".jld")
         println("\n* Write all results to disk; use:\n   JLD2.save(''$filename'', results) \n   using JLD2 " *
                 "\n   results = JLD2.load(''$filename'')    ... to load the results back from file.")
         if  printSummary   println(iostream, "\n* Write all results to disk; use:\n   JLD2.save(''$filename'', results) \n   using JLD2 " *

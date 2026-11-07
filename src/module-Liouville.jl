@@ -287,15 +287,12 @@ include("module-Liouville-inc-stimulated-raman.jl")
 
 
 """
-`Basics.perform(comp::Liouville.Computation)`  
-    ... to set-up and perform a Liouville evolution computation that starts from a given set of reference configurations 
-        and supports the evolution of a (time-dependent) density matrix due to the interaction with one or several 
-        pulses. The results of all individual steps of the computations are printed to screen but nothing is returned 
-        otherwise.
-
-`Basics.perform(comp::Liouville.Computation; output::Bool=true)`   
-    ... to perform the same but to return the complete output in a dictionary;  the particular output depends on the type 
-        and specifications of the Liouville evolution computation but can easily accessed by the keys of this dictionary.
+`Basics.perform(comp::Liouville.Computation; output::Bool=false)`
+    ... to set-up and perform a Liouville evolution computation that starts from a given set of reference configurations and
+        supports the evolution of a (time-dependent) density matrix due to the interaction with one or several pulses. The method
+        only dispatches on comp.scheme and hands the work to Liouville.perform(comp.scheme, comp; output=output), so that what it
+        returns is what that scheme's method returns: with output = false nothing, and with output = true a
+        results::Dict{String,Any} whose keys give access to the individual steps. The results are printed to screen.
 """
 function Basics.perform(comp::Liouville.Computation; output::Bool=false)
     Liouville.perform(comp.scheme, comp::Liouville.Computation, output=output)

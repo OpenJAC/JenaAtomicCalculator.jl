@@ -378,13 +378,11 @@ end
 
 
 """
-`Basics.perform(computation::Empirical.Computation)`  
-    ... to set-up and perform an empirical computation that starts from a given nuclear model and set of configurations,
-        and which is mainly controlled by its settings. The results are printed to screen but nothing is returned otherwise.
-
-`Basics.perform(computation::Empirical.Computation; output::Bool=false)`  
-    ... to perform the same but to return the complete output in a dictionary;  the particular output depends on the kind
-        and specifications of the empirical computation but can easily accessed by the keys of this dictionary.
+`Basics.perform(computation::Empirical.Computation; output::Bool=false)`
+    ... to set-up and perform an empirical computation that starts from a given nuclear model and set of configurations, and which
+        is mainly controlled by its settings. The results are printed to screen. With output = false, nothing is returned. With
+        output = true, a results::Basics.PerformResults is returned, an AbstractDict{String,Any} whose keys depend on the kind and
+        the specifications of the empirical computation.
 """
 function Basics.perform(computation::Empirical.Computation; output::Bool=false)
     if  output    results = Dict{String, Any}()    else    results = nothing    end

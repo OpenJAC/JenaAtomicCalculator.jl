@@ -117,13 +117,12 @@ end
 #######################################################################################################################################
 
 """
-`Basics.run(applic::DeepLearning.Application)`  
-    ... to set-up and run a deep-learning application that is based on a particular atomic model and some given request.
-        The results of all individual steps are printed to screen but nothing is returned otherwise.
-
-`Basics.run(applic::DeepLearning.Application; output::Bool=true)`   
-    ... to run the same but to return the complete output in a dictionary;  the particular output depends on the type 
-        and specifications of the deep-learning application but can easily accessed by the keys of this dictionary.
+`Basics.run(applic::DeepLearning.Application; output::Bool=true)`
+    ... to set-up and run a deep-learning application that is based on a particular atomic model and some given request. The method
+        only dispatches on applic.request and hands the work to DeepLearning.run(applic.request, applic; output=output), so that
+        what it returns is what that method returns: with output = false nothing, and with output = true a
+        results::Dict{String,Any} whose keys depend on the type and the specifications of the application. The results of all
+        individual steps are printed to screen.
 """
 function Basics.run(applic::DeepLearning.Application; output::Bool=true)
     DeepLearning.run(applic.request, applic::DeepLearning.Application, output=output)

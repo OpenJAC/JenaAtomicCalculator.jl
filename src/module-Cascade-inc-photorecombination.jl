@@ -219,17 +219,17 @@ end
 
 
 """
-`Cascade.perform(scheme::RadiativeRecombinationScheme, comp::Cascade.Computation)`  
-    ... to set-up and perform a radiative-recombination (RR) plasma rate coefficient computation basedm on all selected electron 
-        capture steps. Such a computation starts from a given set of initial configurations xor initial multiplets and 
-        (1) generates all singly-excited configurations due to the capture of an electron with a given maximum electron energy; 
-        (2) selects all steps for radiative recombination due to given parameters of the scheme::RadiativeRecombinationScheme. 
-        The results of these RR plasma rate computation are comprised into (output) data::DecayData, while these data are only 
-        printed during the generation and nothing is returned.
-
-`Cascade.perform(scheme::RadiativeRecombinationScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true)`   
-    ... to perform the same but to return the complete output in a dictionary that is written to disk and can be used in subsequent
-        cascade simulation. The particular output depends on the specifications of the cascade.
+`Cascade.perform(scheme::RadiativeRecombinationScheme, comp::Cascade.Computation; output::Bool=false,
+                    outputToFile::Bool=true, outputDirectory::String="")`
+    ... to set-up and perform a radiative-recombination (RR) plasma rate coefficient computation, based on all selected electron
+        capture steps. It starts from a given set of initial configurations xor initial multiplets and (1) generates all
+        singly-excited configurations due to the capture of an electron with a given maximum electron energy and (2) selects all
+        steps for radiative recombination due to the given parameters of the scheme::RadiativeRecombinationScheme.
+        With output = false, nothing is returned. With output = true, a results::Basics.PerformResults is returned -- an
+        AbstractDict{String,Any} -- that carries the initial and the generated multiplets, the individual line lists, and
+        under the key "cascade data:" the Cascade.Data{PhotoRecombination.Line} that a subsequent Cascade.Simulation reads. With
+        outputToFile = true the same data is written to a zzz-cascade-rr-rate-computations-<date>.jld file, into outputDirectory when one is
+        named and into the working directory otherwise.
 """
 function perform(scheme::RadiativeRecombinationScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true, outputDirectory::String="")
     if  output    results = Dict{String, Any}()    else    results = nothing    end
@@ -294,7 +294,8 @@ function perform(scheme::RadiativeRecombinationScheme, comp::Cascade.Computation
         results["photo-recombination line data:"]    = data
 
         #  Write out the result to file to later continue with simulations on the cascade data
-        filename = "zzz-cascade-rr-rate-computations-" * string(Dates.now())[1:13] * ".jld"
+        if  outputDirectory != ""    mkpath(outputDirectory)    end
+        filename = joinpath(outputDirectory, "zzz-cascade-rr-rate-computations-" * string(Dates.now())[1:13] * ".jld")
         println("\n* Write all results to disk; use:\n   JLD2.save(''$filename'', results) \n   using JLD2 " *
                 "\n   results = JLD2.load(''$filename'')    ... to load the results back from file.")
         if  printSummary   println(iostream, "\n* Write all results to disk; use:\n   JLD2.save(''$filename'', results) \n   using JLD2 " *

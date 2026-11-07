@@ -246,15 +246,16 @@ end
 
 
 """
-`Cascade.perform(scheme::StepwiseDecayScheme, comp::Cascade.Computation)`  
-    ... to set-up and perform a cascade computation that starts from a given set of initial configurations and proceeds via 
-        various steps until a given number of electrons has been removed or the decay stops at some stable levels with regard 
-        to the given atomic processes. The results of all individual steps are printed to screen but nothing is returned 
-        otherwise.
-
-`Cascade.perform(scheme::StepwiseDecayScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true, outputDirectory::String="")`   
-    ... to perform the same but to return the complete output in a dictionary;  the particular output depends on the type 
-        and specifications of the cascade but can easily accessed by the keys of this dictionary.
+`Cascade.perform(scheme::StepwiseDecayScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true,
+                    outputDirectory::String="")`
+    ... to set-up and perform a stepwise-decay cascade computation that starts from a given set of initial configurations and
+        proceeds via the radiative and non-radiative steps of the scheme until a given number of electrons has been removed or the
+        decay stops at some stable levels.
+        With output = false, nothing is returned. With output = true, a results::Basics.PerformResults is returned -- an
+        AbstractDict{String,Any} -- that carries the initial and the generated multiplets, the individual line lists, and
+        under the key "cascade data:" the Cascade.Data of PhotoEmission.Line and AutoIonization.Line that a subsequent Cascade.Simulation reads. With
+        outputToFile = true the same data is written to a zzz-cascade-decay-computations-<date>.jld file, into outputDirectory when one is
+        named and into the working directory otherwise.
 """
 function perform(scheme::StepwiseDecayScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true, outputDirectory::String="")
     if  output    results = Dict{String, Any}()    else    results = nothing    end

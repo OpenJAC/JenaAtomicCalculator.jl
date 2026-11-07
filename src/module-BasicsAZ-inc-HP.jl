@@ -357,15 +357,10 @@ end
 
 
 """
-`Basics.plot(::RadialOrbitalsLarge, orbitals::Array{Radial.Orbital,1}, grid::Radial.Grid; N::Int64 = 0)`
-    ... to plot the large component of one or more radial orbitals, where N::Int64 is the number of grid points.
-        call:  using Plots; pyplot()    ... to access this method by plot(...)
-
-`Basics.plot(::RadialOrbitalsSmall, orbitals::Array{Radial.Orbital,1}, grid::Radial.Grid; N::Int64 = 0)`
-    ... to plot the small component of one or more radial orbitals.
-
 `Basics.plot(::RadialOrbitalsLarge, orbitals::Array{Radial.Orbital,1}, grid::Radial.Grid; N = 0)`
-    ... to plot both the large and small component of one or more radial orbitals.
+    ... plots the LARGE components of the given orbitals, where N is the number of grid points to be shown. It RAISES rather
+        than plotting: the method is a placeholder that tells the caller to load Plots first, since JAC does not depend on a
+        plotting backend. Call `using Plots; pyplot()` and then plot(...). Nothing is returned.
 """
 function Basics.plot(::RadialOrbitalsLarge, orbitals::Array{Radial.Orbital,1}, grid::Radial.Grid; N = 0)
     error("call instead:  using Plots; pyplot()    ... to access this method simply by plot(...)")

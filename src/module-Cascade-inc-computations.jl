@@ -69,15 +69,12 @@ end
 
 
 """
-`Basics.perform(comp::Cascade.Computation)`  
-    ... to set-up and perform a cascade computation that starts from a given set of initial configurations and proceeds via 
-        various steps until a given number of electrons has been removed or the decay stops at some stable levels with regard 
-        to the given atomic processes. The results of all individual steps are printed to screen but nothing is returned 
-        otherwise.
-
-`Basics.perform(comp::Cascade.Computation; output::Bool=true, outputToFile::Bool=true)`   
-    ... to perform the same but to return the complete output in a dictionary;  the particular output depends on the type 
-        and specifications of the cascade but can easily accessed by the keys of this dictionary.
+`Basics.perform(comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true, outputDirectory::String="")`
+    ... to set-up and perform the cascade computation prescribed by comp. The method first rejects an unrealizable cascade approach,
+        before any orbital or amplitude work is done, and then dispatches on comp.scheme and hands all three keywords to
+        Cascade.perform(comp.scheme, comp; ...), so that what it returns is what that scheme's method returns: with output = false
+        nothing, and with output = true a results::Basics.PerformResults whose key "cascade data:" is what a subsequent
+        Cascade.Simulation reads. The results of all individual steps are printed to screen.
 """
 function Basics.perform(comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true,
                         outputDirectory::String="")
@@ -91,15 +88,12 @@ end
 
 
 """
-`Basics.perform(comp::Cascade.Simulation)`  
-    ... to set-up and perform a cascade computation that starts from a given set of initial configurations and proceeds via 
-        various steps until a given number of electrons has been removed or the decay stops at some stable levels with regard 
-        to the given atomic processes. The results of all individual steps are printed to screen but nothing is returned 
-        otherwise.
-
-`Basics.perform(comp::Cascade.Simulation; output::Bool=false)`   
-    ... to perform the same but to return the complete output in a dictionary;  the particular output depends on the type 
-        and specifications of the cascade but can easily accessed by the keys of this dictionary.
+`Basics.perform(comp::Cascade.Simulation; output::Bool=false)`
+    ... to set-up and perform the cascade simulation prescribed by comp, i.e. to propagate an initial level population through the
+        line data of a previous cascade computation. The method only dispatches to Cascade.perform(comp::Cascade.Simulation;
+        output=output), so that what it returns is what that method returns: with output = false nothing, and with output = true a
+        results::Dict{String,Any} whose keys give access to the individual simulation steps. The results of all individual steps
+        are printed to screen.
 """
 function Basics.perform(comp::Cascade.Simulation; output::Bool=false)
     Cascade.perform(comp::Cascade.Simulation, output=output)

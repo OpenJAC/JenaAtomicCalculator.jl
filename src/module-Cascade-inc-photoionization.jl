@@ -144,15 +144,18 @@ end
 
 
 """
-`Cascade.perform(scheme::PhotoIonizationScheme, comp::Cascade.Computation)`  
-    ... to set-up and perform a photo-excitation computation that starts from a given set of initial configurations xor initial multiplets
-        and comprises (various) photoexcitation processes into configurations with up-to NoExcitations single-electron excitations with 
-        regard to the initial multiplets. The results of these excitation are comprised into (output) data::PhotoExcData, while these 
-        data are only printed during the generation and nothing is returned.
-
-`Cascade.perform(scheme::PhotoIonizationScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true)`   
-    ... to perform the same but to return the complete output in a dictionary that is written to disk and can be used in subsequent
-        cascade simulation. The particular output depends on the specifications of the cascade.
+`Cascade.perform(scheme::PhotoIonizationScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true,
+                    outputDirectory::String="")`
+    ... to set-up and perform a photoionization cascade computation. It starts either from comp.initialConfigs, for which an SCF and
+        CI computation is carried out first, xor from the given comp.initialMultiplets; it then generates the configurations that
+        photoionization and the excitations between scheme.excitationFromShells and scheme.excitationToShells give rise to, groups
+        them into cascade blocks, determines the individual steps and computes the PhotoIonization.Line's of every step for the
+        photon energies in scheme.photonEnergies. All intermediate and final results are printed to screen and to the summary file.
+        With output = false, nothing is returned. With output = true, a results::Basics.PerformResults is returned -- an
+        AbstractDict{String,Any} -- that carries the initial and the generated multiplets, the photoionization lines, and the
+        Cascade.Data{PhotoIonization.Line} under the key "cascade data:", which is the key a subsequent Cascade.Simulation reads.
+        With outputToFile = true the same data is written to a zzz-cascade-photoionization-<date>.jld file, into outputDirectory
+        when one is named and into the working directory otherwise.
 """
 function perform(scheme::PhotoIonizationScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true, outputDirectory::String="")
 
@@ -202,7 +205,8 @@ function perform(scheme::PhotoIonizationScheme, comp::Cascade.Computation; outpu
 
         #  Write out the result to file to later continue with simulations on the cascade data
         if  outputToFile
-            filename = "zzz-cascade-photoionization-computations-" * string(Dates.now())[1:13] * ".jld"
+            if  outputDirectory != ""    mkpath(outputDirectory)    end
+            filename = joinpath(outputDirectory, "zzz-cascade-photoionization-computations-" * string(Dates.now())[1:13] * ".jld")
             println("\n* Write all results to disk; use:\n   JLD2.save(''$filename'', results) \n   using JLD2 " *
                     "\n   results = JLD2.load(''$filename'')    ... to load the results back from file.")
             if  printSummary   println(iostream, "\n* Write all results to disk; use:\n   JLD2.save(''$filename'', results) \n   using JLD2 " *

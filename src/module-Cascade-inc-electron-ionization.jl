@@ -175,13 +175,17 @@ end
 
 
 """
-`Cascade.perform(scheme::ElectronIonizationScheme, comp::Cascade.Computation)`
-    ... to set up and perform an excitation-autoionization cascade computation for the given initial configurations
-        xor initial multiplets.  Nothing is returned unless output::Bool=false.
-
-`Cascade.perform(scheme::ElectronIonizationScheme, comp::Cascade.Computation; output=true, outputToFile::Bool=true)`
-    ... to perform the same but to return the complete output in a dictionary; this dictionary can be saved to disk
-        and is the input of a subsequent Cascade.Simulation.
+`Cascade.perform(scheme::ElectronIonizationScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true,
+                    outputDirectory::String="")`
+    ... to set-up and perform an electron-impact ionization cascade computation for the given initial configurations xor initial
+        multiplets. The method first rejects a scheme that requests no channel at all, and then generates the three sets of
+        configurations -- impact excitation, autoionization and radiative stabilization -- groups each into cascade blocks and
+        computes the lines of every step.
+        With output = false, nothing is returned. With output = true, a results::Basics.PerformResults is returned -- an
+        AbstractDict{String,Any} -- that carries the initial and the generated multiplets, the individual line lists, and
+        under the key "cascade data:" the Cascade.Data of ImpactExcitation.Line, AutoIonization.Line and PhotoEmission.Line that a subsequent Cascade.Simulation reads. With
+        outputToFile = true the same data is written to a zzz-cascade-electron-ionization-computations-<date>.jld file, into outputDirectory when one is
+        named and into the working directory otherwise.
 """
 function perform(scheme::ElectronIonizationScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true,
                  outputDirectory::String="")
@@ -268,7 +272,8 @@ function perform(scheme::ElectronIonizationScheme, comp::Cascade.Computation; ou
         results = Base.merge( results, Dict("cascade data:"                 => data) )
 
         if  outputToFile
-            filename = "zzz-cascade-electron-ionization-computations-" * string(Dates.now())[1:13] * ".jld"
+            if  outputDirectory != ""    mkpath(outputDirectory)    end
+            filename = joinpath(outputDirectory, "zzz-cascade-electron-ionization-computations-" * string(Dates.now())[1:13] * ".jld")
             println("\n* Write all results to disk; use:\n   JLD2.save(''$filename'', results) \n   using JLD2 " *
                     "\n   results = JLD2.load(''$filename'')    ... to load the results back from file.")
             if  printSummary   println(iostream, "\n* Write all results to disk; use:\n   JLD2.save(''$filename'', results) \n" *

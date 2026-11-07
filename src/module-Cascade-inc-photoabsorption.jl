@@ -3,17 +3,18 @@
 
 
 """
-`Cascade.perform(scheme::PhotoAbsorptionScheme, comp::Cascade.Computation)`  
-    ... to set-up and perform a photoabsorption cascade computation that that accounts for the direct and resonant 
-        of photoabsorption. Apart from the direct photoionization of the atom, it enables one to treat the photoexcitation 
-        and subsequent electron emission (autoionization) in the cascade. Typical photoabsorption properties are 
-        energy-dependent photoionization cross sections, photoabsorption spectra, PI plasma rate coefficients, and others.
-        The results of a photoabsorption cascade computation are comprised into (output) data::ExcitationData, while 
-        nothing is returned otherwise.
-
-`Cascade.perform(scheme::PhotoAbsorptionScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true)`   
-    ... to perform the same but to return the complete output in a dictionary that is written to disk and can be used in subsequent
-        cascade simulation. The particular output depends on the specifications of the cascade.
+`Cascade.perform(scheme::PhotoAbsorptionScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true,
+                    outputDirectory::String="")`
+    ... to set-up and perform a photoabsorption cascade computation that accounts for both the direct and the resonant part of
+        photoabsorption. Apart from the direct photoionization of the atom, it enables one to treat the photoexcitation and the
+        subsequent electron emission (autoionization) in the cascade. Typical photoabsorption properties are energy-dependent
+        photoionization cross sections, photoabsorption spectra, PI plasma rate coefficients and others. The method runs the
+        photoionization and the photoexcitation part in turn and merges their results.
+        With output = false, nothing is returned. With output = true, a results::Basics.PerformResults is returned -- an
+        AbstractDict{String,Any} -- that carries the initial and the generated multiplets, the individual line lists, and
+        under the key "cascade data:" the Cascade.Data of the two parts that a subsequent Cascade.Simulation reads. With
+        outputToFile = true the same data is written to a zzz-cascade-photoabsorption-computations-<date>.jld file, into outputDirectory when one is
+        named and into the working directory otherwise.
 """
 function perform(scheme::PhotoAbsorptionScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true, outputDirectory::String="")
     if  output    results = Dict{String, Any}()    else    results = nothing    end
@@ -66,7 +67,8 @@ function perform(scheme::PhotoAbsorptionScheme, comp::Cascade.Computation; outpu
 
     #  Write out the result to file to later continue with simulations on the cascade data
     if  outputToFile
-        filename = "zzz-cascade-photoabsorption-computations-" * string(Dates.now())[1:13] * ".jld"
+        if  outputDirectory != ""    mkpath(outputDirectory)    end
+        filename = joinpath(outputDirectory, "zzz-cascade-photoabsorption-computations-" * string(Dates.now())[1:13] * ".jld")
         println("\n* Write all results to disk; use:\n   JLD2.save(''$filename'', results) \n   using JLD2 " *
                 "\n   results = JLD2.load(''$filename'')    ... to load the results back from file.")
         if  printSummary   println(iostream, "\n* Write all results to disk; use:\n   JLD2.save(''$filename'', results) \n   using JLD2 " *

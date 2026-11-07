@@ -4,13 +4,11 @@ export  generate
 
 
 """
-`Basics.generate(representation::AtomicState.Representation)`  
-    ... to generate an atomic representation as specified by the representation.repType::AbstractRepresentationType.
-        All relevant intermediate and final results are printed to screen (stdout). Nothing is returned.
-
-`Basics.generate(representation::AtomicState.Representation; output::Bool=false)`  
-    ... to generate the same but to return the complete output in a dictionary; the particular output depends on the type and 
-        specifications of the representation but can easily accessed by the keys of this dictionary.
+`Basics.generate(representation::AtomicState.Representation; output::Bool=false)`
+    ... to generate an atomic representation as specified by the representation.repType::AbstractRepresentationType; all relevant
+        intermediate and final results are printed to screen (stdout). With output = false, nothing is returned. With output = true,
+        a results::Basics.PerformResults is returned, an AbstractDict{String,Any} whose keys depend on the type and the
+        specifications of the representation and give access to the individual steps.
 """
 function Basics.generate(representation::AtomicState.Representation; output::Bool=false)
     results = Basics.generate(representation.repType, representation; output=output)
@@ -65,13 +63,10 @@ end
 
 
 """
-`Basics.generate(repType::AtomicState.MeanFieldBasis, representation::AtomicState.Representation)`  
-    ... to generate a mean-field basis (representation) for a set of reference configurations; all relevant intermediate 
-        and final results are printed to screen (stdout). Nothing is returned.
-
-`Basics.generate(repType::AtomicState.MeanFieldBasis, representation::AtomicState.Representation; output::Bool=false)`  
-    ... to generate the same but to return the complete output in a dictionary; the particular output depends on the type and 
-        specifications of the representation but can easily accessed by the keys of this dictionary.
+`Basics.generate(repType::AtomicState.MeanFieldBasis, rep::AtomicState.Representation; output::Bool=false)`
+    ... to generate a mean-field basis (representation) for the set of reference configurations of rep; all relevant intermediate and
+        final results are printed to screen (stdout). With output = false, nothing is returned. With output = true, a
+        results::Basics.PerformResults is returned, an AbstractDict{String,Any} that carries the generated basis under its own keys.
 
         EITHER THE GENERATOR RUNS ITS OWN SCF OR IT IS GIVEN THE ORBITALS, according to `rep.orbitalSource`:  the default
         `Basics.SeparateOrbitals()` is what this generator has always done, while `Basics.GivenOrbitals(orbitals)` builds
@@ -106,13 +101,10 @@ end
 
 
 """
-`Basics.generate(repType::AtomicState.MeanFieldMultiplet, representation::AtomicState.Representation)`  
-    ... to generate a mean-field basis (representation) for a set of reference configurations; all relevant intermediate 
-        and final results are printed to screen (stdout). Nothing is returned.
-
-`Basics.generate(repType::AtomicState.MeanFieldMultiplet, representation::AtomicState.Representation; output::Bool=false)`  
-    ... to generate the same but to return the complete output in a dictionary; the particular output depends on the type and 
-        specifications of the representation but can easily accessed by the keys of this dictionary.
+`Basics.generate(repType::AtomicState.MeanFieldMultiplet, rep::AtomicState.Representation; output::Bool=false)`
+    ... to generate a mean-field multiplet for the set of reference configurations of rep; all relevant intermediate and final
+        results are printed to screen (stdout). With output = false, nothing is returned. With output = true, a
+        results::Basics.PerformResults is returned, an AbstractDict{String,Any} that carries the generated multiplet.
 
         EITHER THE GENERATOR RUNS ITS OWN SCF OR IT IS GIVEN THE ORBITALS, according to `rep.orbitalSource`:  the default
         `Basics.SeparateOrbitals()` is what this generator has always done, while `Basics.GivenOrbitals(orbitals)` builds
@@ -214,14 +206,11 @@ end
 
 
 """
-`Basics.generate(repType::AtomicState.CiExpansion, representation::AtomicState.Representation)`  
-    ... to generate a configuration-interaction expansion for a single level symmetry and based on a set of reference configurations
-        and a number of pre-specified steps. All relevant intermediate and final results are printed to screen (stdout). 
-        Nothing is returned.
-
-`Basics.generate(repType::AtomicState.CiExpansion, representation::AtomicState.Representation; output::Bool=false)`  
-    ... to generate the same but to return the complete output in a dictionary; the particular output depends on the type and 
-        specifications of the computations but can easily accessed by the keys of this dictionary.
+`Basics.generate(repType::AtomicState.CiExpansion, rep::AtomicState.Representation; output::Bool=false)`
+    ... to generate a configuration-interaction expansion for a single level symmetry, based on the reference configurations of rep
+        and on a number of pre-specified steps; all relevant intermediate and final results are printed to screen (stdout). With
+        output = false, nothing is returned. With output = true, a results::Basics.PerformResults is returned, an
+        AbstractDict{String,Any} whose keys give access to the generated expansion.
 """
 function Basics.generate(repType::AtomicState.CiExpansion, rep::AtomicState.Representation; output::Bool=false)
     if  output    results = Dict{String, Any}()    else    results = nothing    end
@@ -819,14 +808,11 @@ end
 
 
 """
-`Basics.generate(repType::AtomicState.RasExpansion, representation::AtomicState.Representation)`  
-    ... to generate a restricted active-space expansion for a single level symmetry and based on a set of reference configurations
-        and a number of pre-specified steps. All relevant intermediate and final results are printed to screen (stdout). 
-        Nothing is returned.
-
-`Basics.generate(repType::AtomicState.RasExpansion, representation::AtomicState.Representation; output::Bool=false)`  
-    ... to generate the same but to return the complete output in a dictionary; the particular output depends on the type and 
-        specifications of the computations but can easily accessed by the keys of this dictionary.
+`Basics.generate(repType::AtomicState.RasExpansion, rep::AtomicState.Representation; output::Bool=false)`
+    ... to generate a restricted active-space expansion for a single level symmetry, based on the reference configurations of rep and
+        on a number of pre-specified steps; all relevant intermediate and final results are printed to screen (stdout). With
+        output = false, nothing is returned. With output = true, a results::Basics.PerformResults is returned, an
+        AbstractDict{String,Any} whose keys give access to the expansion of each individual step.
 """
 function Basics.generate(repType::AtomicState.RasExpansion, rep::AtomicState.Representation; output::Bool=false)
     if  output    results = Dict{String, Any}()    else    results = nothing    end
@@ -1019,14 +1005,11 @@ end
 
 
 """
-`Basics.generate(repType::AtomicState.GreenExpansion, representation::AtomicState.Representation)`
-    ... to generate a Green (function) expansion for a given approach and excitation scheme of the electron,
-        based on a set of reference configurations, a list of level symmetries as well as for given settings.
-        All relevant intermediate and final results are printed to screen (stdout). Nothing is returned.
-
-`Basics.generate(repType::AtomicState.GreenExpansion, representation::AtomicState.Representation; output::Bool=false)`  
-    ... to generate the same but to return the complete output in a dictionary; the particular output depends on the type and 
-        specifications of the representation but can easily accessed by the keys of this dictionary.
+`Basics.generate(repType::AtomicState.GreenExpansion, rep::AtomicState.Representation; output::Bool=false)`
+    ... to generate a Green (function) expansion for a given approach and excitation scheme of the electron, based on the reference
+        configurations of rep, a list of level symmetries and the given settings; all relevant intermediate and final results are
+        printed to screen (stdout). With output = false, nothing is returned. With output = true, a results::Basics.PerformResults
+        is returned, an AbstractDict{String,Any} whose keys give access to the generated Green channels.
 
         EITHER THE GENERATOR RUNS ITS OWN SCF OR IT IS GIVEN THE ORBITALS, according to `rep.orbitalSource`:  the default
         `Basics.SeparateOrbitals()` is what this generator has always done, while `Basics.GivenOrbitals(orbitals)` builds
