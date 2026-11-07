@@ -135,7 +135,7 @@ end
 
 
 """
-`Empirical.totalEnergy(Z::Int64, conf::Configuration; data::PeriodicTable.AbstractEnergyData=Nist2025() )`  
+`Empirical.totalEnergy(Z::Int64, conf::Configuration; data::PeriodicTable.AbstractEnergyData = PeriodicTable.XrayDataBooklet() )`  
     ... to estimate the total energy of the given configuration for an atom or ions with nuclear charge Z; 
         this total energy is determined either from the (negative) sum of all binding energies
         or the (negative) sum of ionization potentials that are needed to remove the remaining electrons

@@ -1015,7 +1015,8 @@ end
 
 
 """
-`Bsplines.generateOrbitalFromVector(sh::Subshell, energy::Float64, vector::Vector{Float64}, primitives::Bsplines.Primitives)`
+`Bsplines.generateOrbitalFromVector(sh::Subshell, energy::Float64, vector::Vector{Float64}, primitives::Bsplines.Primitives;
+                                    canonicalize::Bool=true)`
     ... generates a (normalized, cleaned) tabulated orbital directly from a given B-spline expansion coefficient vector, rather than from an
         eigenvector INDEXED out of a Basics.Eigen (as Bsplines.generateOrbitalFromPrimitives(sh,wc,primitives) requires). This is needed
         whenever the vector in hand is not literally an eigenvector of anything -- e.g. after SelfConsistent.orthonormalizeSameKappa's

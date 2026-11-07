@@ -90,8 +90,8 @@ end
 
 
 """
-`MultiPhotonTransition.computeLines(scheme::TwoPhotonAbsorptionScheme, finalMultiplet::Multiplet, 
-                                        initialMultiplet::Multiplet, grid::Radial.Grid, settings::MultiPhotonTransition.Settings)` 
+`MultiPhotonTransition.computeLines(scheme::TwoPhotonAbsorptionScheme, finalMultiplet::Multiplet, initialMultiplet::Multiplet,
+                                    grid::Radial.Grid, settings::MultiPhotonTransition.Settings; output=true)`
     ... to compute the multiphoton transition amplitudes and all properties as requested by the given settings. A list of 
         lines::Array{MultiPhotonTransition.Line_2pAbsorptionMonochromatic,1} is returned.
 """
@@ -221,9 +221,11 @@ end
 
 
 """
-`MultiPhotonTransition.computeReducedAmplitudeAbsorption(K::AngularJ64, finalLevel::Level, multipole2::EmMultipole, Jsym::LevelSymmetry, 
-                                                                                omega::Float64, multipole1::EmMultipole, initialLevel::Level,
-                                                                gauge::EmGauge, grid::Radial.Grid, gMultiplet::Multiplet)`  
+`MultiPhotonTransition.computeReducedAmplitudeAbsorption(K::AngularJ64, finalLevel::Level, multipole2::EmMultipole, Jsym::LevelSymmetry,
+                                            omega::Float64, multipole1::EmMultipole, initialLevel::Level,
+                                            gauge::EmGauge, grid::Radial.Grid,
+                                            intermediateStates::Union{Multiplet,Array{AtomicState.GreenChannel,1}},
+                                            selfTolerance::Float64=1.0e-8)`  
     ... to compute the reduced amplitude U^{K, 2gamma emission} (K, Jf, multipole2, Jsym, omega, multipole1, Ji) by means of the
         given Green function/multiplet channels. An amplitude::Complex{Float64} is returned.
 """

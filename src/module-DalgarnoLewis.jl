@@ -118,7 +118,9 @@ end
 
 
 """
-`DalgarnoLewis.Settings(settings::DalgarnoLewis.Settings; regularization=.., singularityTolerance=.., printBefore=..)`
+`DalgarnoLewis.Settings(settings::DalgarnoLewis.Settings;
+                        regularization::Union{Nothing,Float64}=nothing,              singularityTolerance::Union{Nothing,Float64}=nothing,
+                        printBefore::Union{Nothing,Bool}=nothing)`
     ... the standard JAC keyword copy-constructor.
         A `settings::DalgarnoLewis.Settings` is returned.
 """

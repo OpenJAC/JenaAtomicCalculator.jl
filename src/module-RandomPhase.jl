@@ -219,9 +219,14 @@ end
 
 
 """
-`RandomPhase.Settings(settings::RandomPhase.Settings; activeSubshells=.., targetSubshells=.., couplingEnabled=..,
-                       maxIterations=.., accuracy=.., mixing=.., dalgarnoLewis=.., printBefore=.., andersonDepth=..,
-                       allChannels=.., directSolve=..)`
+`RandomPhase.Settings(settings::RandomPhase.Settings;
+                      activeSubshells::Union{Nothing,Array{Subshell,1}}=nothing,
+                      targetSubshells::Union{Nothing,Dict{Subshell,Subshell}}=nothing,
+                      couplingEnabled::Union{Nothing,Bool}=nothing,                 maxIterations::Union{Nothing,Int64}=nothing,
+                      accuracy::Union{Nothing,Float64}=nothing,                     mixing::Union{Nothing,Float64}=nothing,
+                      dalgarnoLewis::Union{Nothing,DalgarnoLewis.Settings}=nothing, printBefore::Union{Nothing,Bool}=nothing,
+                      andersonDepth::Union{Nothing,Int64}=nothing,                  allChannels::Union{Nothing,Bool}=nothing,
+                      directSolve::Union{Nothing,Bool}=nothing)`
     ... the standard JAC keyword copy-constructor.
         A `settings::RandomPhase.Settings` is returned.
 """
@@ -474,10 +479,11 @@ end
 
 """
 `RandomPhase.inducedPotentialZr(multipole::EmMultipole, activeOrbitals::Dict{Subshell,Orbital},
-                                 chis::Dict{Tuple{Subshell,Subshell},DalgarnoLewis.PerturbedOrbital},
-                                 excludeSubshell::Subshell, grid::Radial.Grid;
-                                 occupiedOrbitals::Union{Nothing,Dict{Subshell,Orbital}}=nothing,
-                                 occupations::Union{Nothing,Dict{Subshell,Float64}}=nothing)`
+                                chis::Dict{Tuple{Subshell,Subshell},DalgarnoLewis.PerturbedOrbital},
+                                excludeSubshell::Subshell, grid::Radial.Grid;
+                                occupiedOrbitals::Union{Nothing,Dict{Subshell,Orbital}}=nothing,
+                                occupations::Union{Nothing,Dict{Subshell,Float64}}=nothing,
+                                withExchange::Bool=false)`
     ... builds the DIRECT (Hartree, "ring") induced potential ONE electron of `excludeSubshell` feels from every
         OTHER active electron's CURRENT chi -- its `(N-1)` PARTNERS IN ITS OWN SUBSHELL INCLUDED, whenever
         `occupations` is given -- at the multipole's own rank L, in the SAME "Zr" (= -r*V(r)) convention

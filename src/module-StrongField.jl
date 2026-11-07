@@ -1201,7 +1201,7 @@ end
 
 
 """
-`StrongField.pReducedME(Pepsplp::Array{ComplexF64,1}, lp::Int, jp::Float64, n::Int, l::Int, j::Float64, 
+`StrongField.pReducedME(Pepsplp::Array{ComplexF64,1}, lp::Int, jp::Float64, l::Int, j::Float64,
                         initialOrbital::Orbital, grid::Radial.Grid)`  
     ... computes the reduced matrix elements of the momentum operator <epsilonp lp jp||p||n l j> in the one-particle picture
         where the radial wave function Pepsplp of |epsilonp lp jp> needs to be provided as an argument on the grid rGrid.
@@ -1314,9 +1314,9 @@ end
 
 
 """
-`StrongField.ReducedTime(epsiloni::Float64, volkov::AbstractVolkovState,envelope::Pulse.SinSquaredEnvelope, 
-                            beam::Pulse.AbstractBeam, polarization::Basics.AbstractPolarization,
-                            thetap::Float64, phip::Float64, energyp::Float64,lp::Int, n::Int, l::Int)`  
+`StrongField.ReducedTime(epsiloni::Float64, volkov::AbstractVolkovState, envelope::Pulse.SinSquaredEnvelope,
+                         beam::Pulse.AbstractBeam, polarization::Basics.AbstractPolarization,
+                         thetap::Float64, phip::Float64, energyp::Float64,lp::Int, n::Int, l::Int, grid::Radial.Grid)`  
     ... computes the time integral in the length gauge SFA that includes the reduced matrix element of the momentum operator 
         that is time dependent due to the canonical momentum. This has only been implemented for SinSquared envelopes.
 """

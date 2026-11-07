@@ -118,8 +118,8 @@ end
 
 
 """
-`DecayYield.computeOutcomes(initialConfigs::Array{Configuration,1},asfSettings::AsfSettings,
-                            multiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid, settings::DecayYield.Settings)`
+`DecayYield.computeOutcomes(initialConfigs::Array{Configuration,1}, asfSettings::AsfSettings,
+                            multiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid, settings::DecayYield.Settings; output=true)`
     ... to compute (as selected) the fluorescence and Auger yields for the levels of the given multiplet and as specified
         by the given settings. The results are printed in neat tables to screen but nothing is returned otherwise.
 """

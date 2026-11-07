@@ -204,7 +204,7 @@ end
 
 """
 `Empirical.neutralizationReducedRate(T::Float64, Ef::Float64, EHminus::Float64, Z::Float64, mu::Float64;
-                                     printout::Bool=false, zerosGL::Int64=64)`
+                                     printout::Bool=false, zerosGL::Int64=64, checkRadius::Bool=true)`
     ... to compute the reduced rate coefficient N_if(T; Ef) for the neutralization process A^(Z+1)+ + H^- ->
         A^Z+(f) + H at temperature T [a.u.], by folding Empirical.neutralizationCrossSection with the Maxwell
         distribution,
@@ -323,7 +323,7 @@ end
 
 """
 `Empirical.deExcitationReducedRate(T::Float64, Ei::Float64, Ef::Float64, EHminus::Float64, Z::Float64, mu::Float64;
-                                   printout::Bool=false, zerosGL::Int64=64)`
+                                   printout::Bool=false, zerosGL::Int64=64, checkRadius::Bool=true)`
     ... to compute the reduced rate coefficient D_if(T; Ei, Ef) for the de-excitation process A^Z+(i) + H ->
         A^Z+(f) + H at temperature T [a.u.], by folding Empirical.deExcitationCrossSection with the Maxwell
         distribution,

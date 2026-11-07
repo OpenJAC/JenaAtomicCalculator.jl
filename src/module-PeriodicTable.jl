@@ -97,7 +97,7 @@ end
 
 
 """
-`PeriodicTable.getData()`  
+`PeriodicTable.getData(sa::String, zsymbol::Union{Int64,Symbol})`  
     ... provides various data from the periodic table of elements. 
 
 + `("mass", Z::Int64)`  or  `("mass", symbol::Symbol)`   

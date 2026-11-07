@@ -529,8 +529,8 @@ end
 
 
 """
-`Plasma.displaySahaBoltzmannEquilibrium(stream::IO, isoClasses::Array{IsotopeClass,1}, 
-                                        pm::Basics.AbstractPlasmaModel; printLevelDensities::Bool=false)`  
+`Plasma.displaySahaBoltzmannEquilibrium(stream::IO, isoClasses::Array{IsotopeClass,1},
+                                        pm::Basics.AbstractPlasmaModel; printLevelDensities::Bool=true)`  
     ... list some basic information about the ionic mixture, along with the charge states and the ionic densities;
         it also prints the ionic level number densities if this is required.
         A neat table is printed but nothing is returned otherwise.

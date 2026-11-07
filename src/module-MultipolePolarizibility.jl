@@ -657,8 +657,8 @@ end
 
 """
 `MultipolePolarizibility.computeMultipolePolarizabilities(multipole::EmMultipole, level::Level, gMultiplet::Multiplet,
-                                                           grid::Radial.Grid; omega::Float64=0.0,
-                                                           imaginaryOmega::Bool=false)`  
+                                            grid::Radial.Grid; omega::Float64=0.0, imaginaryOmega::Bool=false,
+                                            helicity::Int64=0)`  
     ... computes the static multipole polarizabilities alpha^(Mp,K)(level) of `level` for the 2^L-pole `multipole` and
         for EVERY rank K that the level can carry (MultipolePolarizibility.allowedRanks), by summing the static reduced
         matrix elements <J' || O^(Mp) || J> = MultipoleMoment.emmStaticAmplitude(L, ...) over every level of

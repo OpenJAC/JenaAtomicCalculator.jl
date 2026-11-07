@@ -303,7 +303,7 @@ end
 
 
 """
-`RacahAlgebra.Ylm(l::AngMomentum, m::AngMomentum, theta::Basic, phi::Basic, star::Bool)`  
+`RacahAlgebra.Ylm(l::AngMomentum, m::AngMomentum, theta::Basic, phi::Basic, star::Bool=false)`  
     ... constructor for defining the spherical harmonic Y_lm (theta,phi) either by Julia Symbol's or SymEngine Basic variables.
         The variable star indicates a complex-conjugate function, and which case a Racah expression is returned.
         
@@ -807,7 +807,7 @@ end
 
 
 """
-`RacahAlgebra.evaluate(rx::RacahExpression)`  
+`RacahAlgebra.evaluate(rx::RacahExpression; special::Bool=false)`  
     ... attempts to evaluate and symbolically simplify a Racah expression by means of special values, if
         special=true, or by sum rules. A newrex::RacahExpression is returned once a (single) simplification 
         has been found, and nothing otherwise. No attempt is presently made to find further simplication, 

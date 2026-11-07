@@ -513,7 +513,11 @@ end
 
 """
 `PhotoDoubleIonization.amplitude(::Absorption, Mp::EmMultipole, gauge::EmGauge, omega::Float64, finalLevel::Level, initialLevel::Level,
-        nLevels::Array{Level,1}, nWeights::Array{Float64,1}, grid::Radial.Grid; display::Bool=false, printout::Bool=false)`
+                                 nLevels::Array{Level,1}, nWeights::Array{Float64,1}, grid::Radial.Grid; display::Bool=false,
+                                 printout::Bool=false,
+                                 nOnShell::Union{Nothing,Array{Bool,1}}=nothing, nBlock::Union{Nothing,Array{Int64,1}}=nothing,
+                                 nEnergy::Union{Nothing,Array{Float64,1}}=nothing,
+                                 energyRange::Union{Nothing,Tuple{Float64,Float64}}=nothing)`
     ... computes the second-order photo-double ionization amplitude
 
                 <alpha_f J_f || O^(Mp, absorption) || alpha_n J_i> <alpha_n J_i || V^(e-e) || alpha_i J_i>  / (E_i - E_n)
@@ -758,8 +762,11 @@ end
 
 """
 `PhotoDoubleIonization.generateIntermediateLevels(symn::LevelSymmetry, gMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid,
-        energyGrid::Radial.GridGL, contSettings::Continuum.Settings, maxKappa::Int64;
-        nuclearPot::Union{Nothing,Radial.Potential}=nothing, primitives::Union{Nothing,Bsplines.Primitives}=nothing)`
+                                            energyGrid::Radial.GridGL, contSettings::Continuum.Settings, maxKappa::Int64;
+                                            nuclearPot::Union{Nothing,Radial.Potential}=nothing,
+                                            primitives::Union{Nothing,Bsplines.Primitives}=nothing,
+                                            spectators::Union{Nothing,Array{Tuple{Subshell,Float64},1}}=nothing,
+                                            onShellTotalEnergy::Union{Nothing,Float64}=nothing)`
     ... builds the intermediate levels of the second-order sum for ONE required total symmetry symn, by adding a continuum partial wave to
         every level of the (N-1)-electron Green multiplet. Every kappa with abs(kappa) <= maxKappa that couples a Green level to symn is
         taken, at every energy of energyGrid.

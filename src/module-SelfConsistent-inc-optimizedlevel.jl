@@ -335,8 +335,13 @@ end
 
 
 """
-`SelfConsistent.buildCIMatrixEOL(cache::SelfConsistent.PairCoefficientCache, orbitals::Dict{Subshell, Orbital},
-                                 grid::Radial.Grid, potential::Radial.Potential)`
+`SelfConsistent.buildCIMatrixEOL(cache::PairCoefficientCache, orbitals::Dict{Subshell, Orbital},
+                                 grid::Radial.Grid, potential::Radial.Potential,
+                                 radial1pCache::Dict{Tuple{Subshell,Subshell},Float64}          = Dict{Tuple{Subshell,Subshell},Float64}(),
+                                 radial2pCache::Dict{Tuple{Int64,Subshell,Subshell,Subshell,Subshell},Float64} =
+                                 Dict{Tuple{Int64,Subshell,Subshell,Subshell,Subshell},Float64}(),
+                                 vkCache::Dict{Tuple{Int64,Subshell,Subshell,Int64},Vector{Float64}} =
+                                 Dict{Tuple{Int64,Subshell,Subshell,Int64},Vector{Float64}}())`
     ... (re-) builds the CI Hamiltonian matrix for one symmetry block from CACHED, orbital-independent
         angular coefficients (see cacheCsfPairCoefficientsEOL) and the CURRENT radial functions in
         orbitals -- algebraically identical to Hamiltonian.setupMatrixKinkAware's pure-Coulomb contribution
@@ -451,18 +456,13 @@ end
 
 
 """
-`SelfConsistent.selectTargetLevelsEOL(mp::Multiplet, levelSelectionCI::LevelSelection)`
-    ... determines the target level(s) for the EOL functional from an (energy-sorted) multiplet mp,
-        using levelSelectionCI EXCLUSIVELY.  If configurations is given, the target set is selected by
-        reference weight (see below) and, if symmetries is given as well, restricted to those J^P --
-        the one-orbital-set-per-J route for RAS layers.  Otherwise either indices or symmetries may be
-        given, never both.
-        If symmetries is given, the target set is the LOWEST level of each listed symmetry (the classic
-        EOL use case, e.g. the lowest of J=1/2^+ together with the lowest of J=3/2^+). If indices is
-        given, the target set is those exact levels by their (global, energy-sorted) index. If
-        levelSelectionCI is inactive or both arrays are empty, the target set defaults to the single
-        lowest level overall -- a genuine OL (one-level) computation.
-        An  Array{Level,1}  is returned.
+`SelfConsistent.referenceCsfIndices(basis::Basis, refConfigs::Array{Configuration,1})`
+    ... to find those CSFs of the given basis that belong to one of the reference configurations refConfigs.  A CSF
+        belongs to a reference configuration when its NON-RELATIVISTIC occupations agree with that configuration's
+        shell by shell, so that a configuration named as 5f^1 matches a CSF carrying 5f_5/2^1 or 5f_7/2^1 alike.
+        These indices are what the EOL target selection weights a level on, since the weight asks what a level IS
+        rather than where it currently sits in the energy order.  An indices::Array{Int64,1} is returned, in
+        increasing order and empty if no CSF matches.
 """
 function referenceCsfIndices(basis::Basis, refConfigs::Array{Configuration,1})
     # A CSF belongs to a reference configuration when its NON-RELATIVISTIC occupations agree with that
@@ -483,6 +483,18 @@ function referenceCsfIndices(basis::Basis, refConfigs::Array{Configuration,1})
 end
 
 
+"""
+`SelfConsistent.selectTargetLevelsEOL(mp::Multiplet, levelSelectionCI::LevelSelection)`
+    ... to determine the target level(s) of the EOL functional from the (energy-sorted) multiplet mp, using
+        levelSelectionCI EXCLUSIVELY;  the three fields consulted are its configurations, symmetries and indices.
+        If levelSelectionCI.configurations is non-empty, the target set is selected by REFERENCE WEIGHT, and is
+        restricted to the listed J^P if levelSelectionCI.symmetries is non-empty as well -- the one-orbital-set-per-J
+        route for RAS layers.  Otherwise either indices or symmetries may be given, never both:  with symmetries the
+        target set is the LOWEST level of each listed symmetry, which is the classic EOL use case, e.g. the lowest
+        J=1/2^+ together with the lowest J=3/2^+;  with indices it is those exact levels by their global,
+        energy-sorted index.  If levelSelectionCI is inactive, or both arrays are empty, the target set defaults to
+        the single lowest level overall -- a genuine OL (one-level) computation.  An Array{Level,1} is returned.
+"""
 function selectTargetLevelsEOL(mp::Multiplet, levelSelectionCI::LevelSelection)
     if  levelSelectionCI.active  &&  !isempty(levelSelectionCI.configurations)
         # SELECTION BY REFERENCE WEIGHT.  Selecting the EOL target set by index is not merely imprecise, it is
@@ -647,7 +659,7 @@ end
 
 
 """
-`SelfConsistent.combineAngularCoefficientsEOL(blockCaches, targetLevels::Array{Level,1})`
+`SelfConsistent.combineAngularCoefficientsEOL(blockCaches, targetLevels::Array{Level,1}; pairs::Symbol=:all)`
     ... generalizes SelfConsistent.computeAngularCoefficients (AL's single-CSF-average analog: loop CSFs,
         weight 1/ncsf) to CSF PAIRS, weighted by the EOL generalized weight
         d²_rs = Σᵢ WT_i · c_r⁽ⁱ⁾ · c_s⁽ⁱ⁾, with WT_i the normalized statistical (2Jᵢ+1) weight of each
@@ -765,8 +777,11 @@ end
 
 
 """
-`SelfConsistent.energyFromBVectorsSplit(bVectors, coeffs1p, coeffs2p, subshells, primitives, grid, nucPot,
-                                        isFrozen, frozenRk)`  
+`SelfConsistent.energyFromBVectorsSplit(bVectors::Dict{Subshell, Vector{Float64}},
+                                        coeffs1p::Array{Coefficient1p,1}, coeffs2p::Array{Coefficient2p,1},
+                                        subshells::Array{Subshell,1}, primitives::Bsplines.Primitives,
+                                        grid::Radial.Grid, nucPot::Radial.Potential,
+                                        isFrozen::Function, frozenRk::Dict{NTuple{5,Any}, Float64})`  
     ... as energyFromBVectors, but returns the pair (eFrozen, eActive) of SelfConsistent.computeFunctionalSplit,
         which is what the line search compares and what carries the persistent radial memo.
 """
@@ -812,8 +827,9 @@ end
 
 """
 `SelfConsistent.virtualDirections(bVectors::Dict{Subshell, Vector{Float64}}, subshells::Array{Subshell,1},
-        primitives::Bsplines.Primitives, nucPot::Radial.Potential, matrixB::Array{Float64,2},
-        storage::Dict{String,Array{Float64,2}}; nVirtual::Int64=20)`  
+                                  primitives::Bsplines.Primitives, nucPot::Radial.Potential,
+                                  matrixB::Array{Float64,2}, storage::Dict{String,Array{Float64,2}};
+                                  nVirtual::Int64=20, spectrum=nothing)`  
     ... builds, for each subshell, an S-orthonormal set of ALLOWED rotation directions: positive-branch
         eigenvectors of the one-electron Dirac matrix of that kappa, projected free of every occupied
         orbital of the same kappa. Rotations among the occupied orbitals themselves are deliberately
@@ -962,9 +978,11 @@ end
 
 """
 `SelfConsistent.computeOrbitalGradient(bVectors::Dict{Subshell, Vector{Float64}},
-        coeffs1p::Array{Coefficient1p,1}, coeffs2p::Array{Coefficient2p,1},
-        subshells::Array{Subshell,1}, primitives::Bsplines.Primitives, nucPot::Radial.Potential,
-        storage::Dict{String,Array{Float64,2}})`  
+                                       coeffs1p::Array{Coefficient1p,1},
+                                       coeffs2p::Array{Coefficient2p,1},
+                                       subshells::Array{Subshell,1}, primitives::Bsplines.Primitives,
+                                       nucPot::Radial.Potential, storage::Dict{String,Array{Float64,2}},
+                                       matrixB::Array{Float64,2})`  
     ... the ANALYTIC gradient dE/db_a of the same energy that energyFromBVectors evaluates, for every
         subshell, as a full B-spline coefficient vector. Nothing here is new machinery: the one-electron
         integral is I(a,b) = b_a^T H1 b_b with H1 = Bsplines.setupLocalMatrix, and the Slater integral is
@@ -1147,9 +1165,10 @@ end
 
 
 """
-`SelfConsistent.projectOntoPositiveBranch(bVectors::Dict{Subshell, Vector{Float64}},
-        subshells::Array{Subshell,1}, primitives::Bsplines.Primitives, nucPot::Radial.Potential,
-        matrixB::Array{Float64,2}, storage::Dict{String,Array{Float64,2}})`  
+`SelfConsistent.projectOntoPositiveBranch(bVectors::Dict{Subshell, Vector{Float64}}, subshells::Array{Subshell,1},
+                                          primitives::Bsplines.Primitives, nucPot::Radial.Potential,
+                                          matrixB::Array{Float64,2}, storage::Dict{String,Array{Float64,2}};
+                                          spectrum=nothing, frozen::Array{Subshell,1}=Subshell[])`  
     ... projects every orbital onto the POSITIVE-ENERGY branch of its own kappa block, then S-orthonormalizes
         the orbitals of each kappa among themselves, entirely in B-spline coefficient space. Returns the
         projected (bVectors, maximum negative-branch weight removed).
@@ -1255,8 +1274,9 @@ end
 
 
 """
-`SelfConsistent.solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.Model,
-        primitives::Bsplines.Primitives, settings::AsfSettings; printout::Bool=true)`  
+`SelfConsistent.solveOptimizedLevelFieldByRotation(basis::Basis, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives,
+                                            settings::AsfSettings; printout::Bool=true, nVirtual::Int64=16,
+                                            method::Symbol=:lbfgs, cgRestart::Int64=10, lbfgsMemory::Int64=12)`  
     ... EOL by direct minimization of the energy over orbital ROTATIONS, instead of by solving a per-subshell
         generalized eigenvalue problem. It sits beside the older solveOptimizedLevelField, which is left
         untouched; this one is what SelfConsistent.performSCF dispatches to for Basics.EOLField, and hence

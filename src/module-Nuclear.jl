@@ -143,7 +143,8 @@ end
 DeformedFermiNucleus(beta2::Float64) = DeformedFermiNucleus(beta2, 0., 0., Nuclear.fermiA)
 
 """
-`Nuclear.DeformedFermiNucleus(; beta2=.., axisRatio=.., beta4=0., w=0., a=Nuclear.fermiA)`
+`Nuclear.DeformedFermiNucleus(; beta2::Union{Nothing,Float64}=nothing, axisRatio::Union{Nothing,Float64}=nothing,
+                              beta4::Float64=0., w::Float64=0., a::Float64=Nuclear.fermiA)`
     ... keyword constructor for a quadrupole-deformed Fermi charge distribution. **Give EITHER beta2 OR axisRatio,
         never both and never neither** -- they describe the same deformation and are converted into one another by
         `Nuclear.axisRatio`, so supplying both invites an inconsistent pair; either mistake raises here rather than
@@ -267,7 +268,7 @@ end
 
 
 """
-`Nuclear.Model(nm::Nuclear.Model;
+`Nuclear.Model(nm::Nuclear.Model;            Z::Union{Nothing,Float64}=nothing,          model::Union{Nothing,AbstractNuclearModel}=nothing,
     mass::Union{Nothing,Float64}=nothing,    radius::Union{Nothing,Float64}=nothing,     spinI::Union{Nothing,AngularJ64}=nothing,  
     mu::Union{Nothing,Float64}=nothing,      Q::Union{Nothing,Float64}=nothing,          Omega::Union{Nothing,Float64}=nothing)`
 

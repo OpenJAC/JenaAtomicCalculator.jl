@@ -425,43 +425,62 @@ end
 
 
 """
-`Beam.oamOf(beam)`
-    ... to return the orbital angular momentum (OAM) winding number of the given beam, under whichever field name its
-        own struct happens to use (`mOAM` for a `Beam.BesselBeam`, `lOAM` for a `Beam.LaguerreGauss`), so that generic
-        code can ask for a beam's OAM without first finding out which concrete type it holds. A `Beam.PlaneWave` carries
-        none; a `Beam.Component` or `Beam.PhotonBeam` reports its wrapped `beamType`'s own OAM. A `value::Int64` is
-        returned.
+`Beam.oamOf(beam::Beam.PlaneWave)`
+    ... to return the orbital angular momentum (OAM) winding number of a plane wave, which carries none.  This is one of
+        six methods that together let generic code ask for a beam's OAM without first finding out which concrete type it
+        holds, since the field name differs from one struct to the next -- mOAM for a Beam.BesselBeam, lOAM for a
+        Beam.LaguerreGauss.  A value::Int64, here always 0, is returned.
 """
 function oamOf(beam::Beam.PlaneWave)
     return( 0 )
 end
 
 
-# `Beam.oamOf(beam::Beam.BesselBeam)`  ... the beam's own mOAM field.
+"""
+`Beam.oamOf(beam::Beam.BesselBeam)`
+    ... to return the orbital angular momentum (OAM) winding number of a Bessel beam, which it keeps in its own mOAM
+        field.  A value::Int64 is returned.
+"""
 function oamOf(beam::Beam.BesselBeam)
     return( beam.mOAM )
 end
 
 
-# `Beam.oamOf(beam::Beam.BesselGauss)`  ... the beam's own mOAM field.
+"""
+`Beam.oamOf(beam::Beam.BesselGauss)`
+    ... to return the orbital angular momentum (OAM) winding number of a Bessel-Gauss beam, which it keeps in its own
+        mOAM field.  A value::Int64 is returned.
+"""
 function oamOf(beam::Beam.BesselGauss)
     return( beam.mOAM )
 end
 
 
-# `Beam.oamOf(beam::Beam.LaguerreGauss)`  ... the beam's own lOAM field.
+"""
+`Beam.oamOf(beam::Beam.LaguerreGauss)`
+    ... to return the orbital angular momentum (OAM) winding number of a Laguerre-Gauss beam, which it keeps in its own
+        lOAM field.  A value::Int64 is returned.
+"""
 function oamOf(beam::Beam.LaguerreGauss)
     return( beam.lOAM )
 end
 
 
-# `Beam.oamOf(beam::Beam.Component)`  ... delegates to the wrapped beamType's own OAM.
+"""
+`Beam.oamOf(beam::Beam.Component)`
+    ... to return the orbital angular momentum (OAM) winding number of a beam component, which it takes from the beamType it
+        wraps rather than carrying one of its own.  A value::Int64 is returned.
+"""
 function oamOf(beam::Beam.Component)
     return( Beam.oamOf(beam.beamType) )
 end
 
 
-# `Beam.oamOf(beam::Beam.PhotonBeam)`  ... delegates to the wrapped beamType's own OAM.
+"""
+`Beam.oamOf(beam::Beam.PhotonBeam)`
+    ... to return the orbital angular momentum (OAM) winding number of a photon beam, which it takes from the beamType it
+        wraps rather than carrying one of its own.  A value::Int64 is returned.
+"""
 function oamOf(beam::Beam.PhotonBeam)
     return( Beam.oamOf(beam.beamType) )
 end

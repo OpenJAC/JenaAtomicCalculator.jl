@@ -311,7 +311,8 @@ end
                                      configs::Array{Configuration,1};
                                      grid::Radial.Grid=Radial.Grid(true),
                                      asfSettings::AsfSettings=AsfSettings(),
-                                     printout::Bool=false)`
+                                     printout::Bool=false,
+                                     plotfile::String="")`
     ... computes the configuration-averaged level energy for each configuration in configs
         and for each nuclear charge in Zvalues, tracing the given configurations along an
         isoelectronic sequence.  For each (Z, config) pair a separate SCF+CI computation
@@ -551,7 +552,7 @@ end
 """
 `ForPedestrians.computeProperties(theme::Basics.HyperfineStructure, configs::Array{Configuration,1};
                                   nuclearModel::Union{Nothing,Nuclear.Model}=nothing,
-                                  grid::Radial.Grid=Radial.Grid(true), asfSettings::AsfSettings=AsfSettings(),
+                                  grid::Radial.Grid=Radial.Grid(true), asfSettings::Union{Nothing,AsfSettings}=nothing,
                                   printout::Bool=false)`
     ... computes the hyperfine A and B constants of all levels that are defined by the given configurations.
         The nuclear spin is taken from the theme; the magnetic dipole moment mu and the electric quadrupole
@@ -951,7 +952,10 @@ end
 
 
 """
-`ForPedestrians.computeBranchingFractions(theme::Basics.ForPhotoEmission, initialConfigs::Array{Configuration,1}, finalConfigs::Array{Configuration,1})`
+`ForPedestrians.computeBranchingFractions(theme::Basics.ForPhotoEmission, initialConfigs::Array{Configuration,1},
+                                          finalConfigs::Array{Configuration,1};
+                                          grid::Radial.Grid=Radial.Grid(true), asfSettings::AsfSettings=AsfSettings(),
+                                          printout::Bool=false)`
     ... computes branching fractions for E1 radiative decay from all levels of initialConfigs to
         finalConfigs.  Both Coulomb and Babushkin gauge fractions are shown; all other rate quantities
         are suppressed.  The results are printed to screen but nothing is returned otherwise.
@@ -1032,7 +1036,10 @@ end
 
 
 """
-`ForPedestrians.computeBranchingFractions(theme::Basics.ForAutoIonization, initialConfigs::Array{Configuration,1}, finalConfigs::Array{Configuration,1})`
+`ForPedestrians.computeBranchingFractions(theme::Basics.ForAutoIonization, initialConfigs::Array{Configuration,1},
+                                          finalConfigs::Array{Configuration,1};
+                                          grid::Radial.Grid=Radial.Grid(), asfSettings::AsfSettings=AsfSettings(),
+                                          printout::Bool=false)`
     ... computes branching fractions for Auger decay from all levels of initialConfigs to
         finalConfigs (N-1 electrons).  A single rate column is shown (Coulomb interaction).
         The results are printed to screen but nothing is returned otherwise.
@@ -1121,7 +1128,10 @@ end
 
 
 """
-`ForPedestrians.displaySpectrum(theme::Basics.ForPhotoEmission, initialConfigs::Array{Configuration,1}, finalConfigs::Array{Configuration,1})`
+`ForPedestrians.displaySpectrum(theme::Basics.ForPhotoEmission, initialConfigs::Array{Configuration,1},
+                                finalConfigs::Array{Configuration,1};
+                                grid::Radial.Grid=Radial.Grid(true), asfSettings::AsfSettings=AsfSettings(),
+                                plotfile::String="", printout::Bool=false)`
     ... computes E1 radiative transition rates and displays the photon emission spectrum as an
         ASCII bar chart (lines sorted by energy, bar height = relative intensity).
         If plotfile is given and Plots.jl is loaded, a figure is also saved.
@@ -1218,7 +1228,10 @@ end
 
 
 """
-`ForPedestrians.displaySpectrum(theme::Basics.ForAutoIonization, initialConfigs::Array{Configuration,1}, finalConfigs::Array{Configuration,1})`
+`ForPedestrians.displaySpectrum(theme::Basics.ForAutoIonization, initialConfigs::Array{Configuration,1},
+                                finalConfigs::Array{Configuration,1};
+                                grid::Radial.Grid=Radial.Grid(), asfSettings::AsfSettings=AsfSettings(),
+                                plotfile::String="", printout::Bool=false)`
     ... computes Auger rates and displays the electron (Auger) emission spectrum as an
         ASCII bar chart (lines sorted by kinetic energy, bar height = relative intensity).
         If plotfile is given and Plots.jl is loaded, a figure is also saved.
@@ -1389,7 +1402,8 @@ end
 
 """
 `ForPedestrians.estimateCrossSections(theme::Basics.ForImpactIonization, initialConfigs::Array{Configuration,1};
-                                      grid::Radial.Grid=Radial.Grid(true), printout::Bool=false)` 
+                                      electronEnergies::Array{Float64,1} = [2.0^(i-1) for i=1:18],
+                                      grid::Radial.Grid=Radial.Grid(true), printout::Bool=false)`
     ... estimates the electron impact-ionization cross sections of all shells in the given configurations.
         The results are printed to screen but nothing is returned otherwise.
         
@@ -1452,9 +1466,9 @@ end
 
 """
 `ForPedestrians.computeChargeStateDistribution(theme::Basics.ForStepwiseDecay,
-                                               initialConfigs::Array{Configuration,1};
-                                               grid::Radial.Grid=Radial.Grid(false),
-                                               printout::Bool=false)`
+                                            initialConfigs::Array{Configuration,1};
+                                            grid::Radial.Grid=Radial.Grid(),
+                                            printout::Bool=false)`
     ... computes the charge state distribution that arises from the stepwise radiative and Auger
         decay of all levels from the given initial configurations (typically a single configuration
         with one inner-shell hole).  Both radiative (E1) and Auger channels are included at each

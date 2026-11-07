@@ -11,7 +11,7 @@ using Printf, ..Basics,  ..Defaults
 
 
 """
-`TableStrings.center(n::Int64, sa::String)`  
+`TableStrings.center(n::Int64, sa::String; na::Int64=0)`  
     ... a string sa is centered within a string of length n, and optionally, na blanks are appended; a string is returned.
 """
 function  center(n::Int64, sa::String; na::Int64=0) 
@@ -39,7 +39,7 @@ end
 
 
 """
-`TableStrings.flushleft(n::Int64, sa::String)`  
+`TableStrings.flushleft(n::Int64, sa::String; na::Int64=0)`  
     ... a string sa is left-placed within a string of length n, and optionally, na blanks are appended; a string is returned.
 """
 function  flushleft(n::Int64, sa::String; na::Int64=0) 
@@ -49,7 +49,7 @@ end
 
 
 """
-`TableStrings.flushright(n::Int64, sa::String)`  
+`TableStrings.flushright(n::Int64, sa::String; na::Int64=0)`  
     ... a string sa is right-placed within a string of length n, and optionally, na blanks are appended; a string is returned.
 """
 function  flushright(n::Int64, sa::String; na::Int64=0) 

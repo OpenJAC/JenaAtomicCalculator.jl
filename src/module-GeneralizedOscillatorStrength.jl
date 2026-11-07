@@ -177,7 +177,8 @@ end
 
 
 """
-`GeneralizedOscillatorStrength.amplitude(L::Int64, q::Float64, finalLevel::Level, initialLevel::Level, grid::Radial.Grid;`
+`GeneralizedOscillatorStrength.amplitude(L::Int64, q::Float64, finalLevel::Level, initialLevel::Level,
+                                         grid::Radial.Grid; display::Bool=false)`
 
     ... to compute the (many-electron) reduced matrix element <alpha_f J_f || Sum_j j_L(q r_j) C^L(j) || alpha_i J_i> of the L-th
         multipole component of the plane wave exp(i K.r), for the given final and initial level.  The single-electron kernel is

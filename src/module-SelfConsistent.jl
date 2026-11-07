@@ -145,7 +145,7 @@ end
 
 """
 `SelfConsistent.initializeBasis(configs::Array{Configuration,1}, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives,
-                                settings::AsfSettings; levelSymmetries::Array{LevelSymmetry,1}=LevelSymmetry[], printout::Bool=false)` 
+                                settings::AsfSettings; levelSymmetries::Array{LevelSymmetry,1}=LevelSymmetry[], printout::Bool=true)`
     ... Initialized a many-electron basis from the given list of configurations, the nuclear model as well as ASF settings.
         It assumes that a proper set of primitives::Primitives has been initialized before. The initial set of orbitals in this
         basis is determined by the settings::AsfSettings.  A basis::Basis is returned.
@@ -423,7 +423,7 @@ end
 
 """
 `SelfConsistent.performSCF(configs::Array{Configuration,1}, nm::Nuclear.Model, grid::Radial.Grid,
-                           settings::AsfSettings; levelSymmetries::Array{LevelSymmetry,1}=LevelSymmetry[], printout::Bool=false)`
+                           settings::AsfSettings; levelSymmetries::Array{LevelSymmetry,1}=LevelSymmetry[], printout::Bool=true)`
     ... Performs a SCF computation for the given list of configurations, the nuclear model as well as ASF settings.
         If explicit levelSymmetries are given, only these symmetries are considered. Internally, a proper set of primitives::Primitives 
         is initialized and used in the computations. The generated SCF field is controlled by the settings::AsfSettings.  

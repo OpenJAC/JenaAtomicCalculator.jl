@@ -676,7 +676,7 @@ end
 
 """
 `HyperfineInduced.displayHyperfineComposition(stream::IO, hfMultiplet::Hfs.HfMultiplet, role::String;
-                            threshold::Float64=1.0e-3)`
+                                            threshold::Float64=1.0e-7, nAlways::Int64=3)`
     ... to list, for every reported hyperfine level, the electronic levels and nuclear states that compose it,
         with their mixing coefficients; nothing is returned.
 

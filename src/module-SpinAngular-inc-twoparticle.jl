@@ -951,7 +951,8 @@ end
 
 
 """
-`SpinAngular.moveTwoWeight(jc::NTuple{2,AngularJ64}, ja::NTuple{2,AngularJ64}, jsite::NTuple{4,AngularJ64}, swapped::NTuple{2,Bool}, crossPair::Bool, R::AngularJ64, k::Int64)`
+`SpinAngular.moveTwoWeight(jc::NTuple{2,AngularJ64}, ja::NTuple{2,AngularJ64}, jsite::NTuple{4,AngularJ64},
+                           swapped::NTuple{2,Bool}, pattern::Symbol, R::AngularJ64, k::Int64)`
     ... to compute the weight with which one value `R` of the chain's free intermediate rank enters a four-subshell
         two-electron-move coefficient of rank `k`. Four subshells act, each with one operator, and the physical operator
         pairs each creation with its own annihilation -- a pairing that in general CROSSES the subshell chain, which is

@@ -30,7 +30,7 @@ end
 
 """
 `Plasma.computeFormFactors(qValues::Array{Float64,1}, orbitals::Dict{Subshell, Orbital}, chemMu::Float64, temp::Float64,
-                            grid::Radial.Grid)`
+                           grid::Radial.Grid; radiusCell::Float64=0.)`
     ... computes the (standard) form factor F(q) for the electron density as given by the AA orbitals.
         A list of formFactors::Array{Float64,1} is returned that directly refers to the given q-values.
 

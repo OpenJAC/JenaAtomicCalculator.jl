@@ -875,7 +875,7 @@ end
 
 
 """
-`AngularMomentum.Wigner_9j(method::AngularMomentum.AbstractWignerMethod, j11, j12, j13, j21, j22, j23, j31, j32, j33)`
+`AngularMomentum.Wigner_9j( method::GslWigner, j11, j12, j13, j21, j22, j23, j31, j32, j33 )`
     ... as the previous method, but with the Wigner method given explicitly, so that the three 6-j symbols of each
         term are evaluated without re-reading the global. A value::Float64 is returned.
 """

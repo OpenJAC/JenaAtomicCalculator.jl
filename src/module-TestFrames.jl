@@ -13,7 +13,7 @@ export testDummy
 
 
 """
-`TestFrames.testCompareLines(oldLine::String, newLine::String)`
+`TestFrames.testCompareLines(oldLine::String, newLine::String; rtol::Float64=1.0e-6)`
     ... compares two output lines token by token: tokens that are parseable as Float64 are compared
         with relative tolerance rtol; all other tokens are compared exactly as strings. Returns true
         if every token agrees within tolerance, false otherwise.
@@ -67,7 +67,7 @@ end
 
 
 """
-`TestFrames.testCompareValues(oldValues::Array{Float64,1}, newValues::Array{Float64,1})`
+`TestFrames.testCompareValues(oldValues::Array{Float64,1}, newValues::Array{Float64,1}; rtol::Float64=1.0e-6)`
     ... compares two lists of numbers with the same relative-tolerance rule that TestFrames.testCompareLines
         applies to its numeric tokens. Returns true if every entry agrees within rtol, false otherwise.
 """

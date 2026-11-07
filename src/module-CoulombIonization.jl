@@ -239,8 +239,9 @@ end
 
 
 """
-`CoulombIonization.computeAmplitude(q::Float64, q0::Float64, beta::Float64, Mi::AngularM64, Mt::AngularM64,
-                                    cLevel::Level, iLevel::Level, grid::Radial.Grid)`  
+`CoulombIonization.computeAmplitude(q::Float64, q0::Float64, beta::Float64, Mix::Float64, Mtx::Float64,
+                                    cLevel::Level, iLevel::Level, grid::Radial.Grid, key::Int64,
+                                    cache::Dict{Tuple{Symbol,Int64,Int64,Int64},ComplexF64})`  
     ... computes the Coulomb-ionization amplitude K^(Coulion)(vec q; alpha_i J_i M_i --> (alpha_f J_f, eps kappa) J_t M_t)
         for one momentum transfer q.  An amplitude::ComplexF64 is returned.
 

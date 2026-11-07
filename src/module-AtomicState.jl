@@ -77,7 +77,8 @@ end
 
 
 """
-`AtomicState.MeanFieldSettings(settings::AtomicState.MeanFieldSettings; scField=.., gridStopper=..)`
+`AtomicState.MeanFieldSettings(settings::AtomicState.MeanFieldSettings;
+                               scField::Union{Nothing,AbstractScField}=nothing,              gridStopper::Union{Nothing,Bool}=nothing)`
     ... the standard JAC keyword copy-constructor; a `settings::MeanFieldSettings` is returned.
 """
 function MeanFieldSettings(settings::AtomicState.MeanFieldSettings;
@@ -519,7 +520,15 @@ end
 
 
 """
-`AtomicState.RasStep(rasStep::AtomicState.RasStep;`
+`AtomicState.RasStep(rasStep::AtomicState.RasStep;
+                     seFrom::Array{Shell,1}=Shell[], seTo::Array{Shell,1}=Shell[],
+                     deFrom::Array{Shell,1}=Shell[], deTo::Array{Shell,1}=Shell[],
+                     teFrom::Array{Shell,1}=Shell[], teTo::Array{Shell,1}=Shell[],
+                     qeFrom::Array{Shell,1}=Shell[], qeTo::Array{Shell,1}=Shell[],
+                     shapedTo::Array{Shell,1}=Shell[],
+                     frozen::Array{Shell,1}=Shell[], constraints::Array{String,1}=String[],
+                     treatment::Union{Nothing,Basics.AbstractQTreatment}=nothing,
+                     scfRoute::Union{Nothing,Basics.AbstractScfRoute}=nothing)`
 
                     seFrom::Array{Shell,1}=Shell[], seTo::Array{Shell,1}=Shell[],
                     deFrom::Array{Shell,1}=Shell[], deTo::Array{Shell,1}=Shell[],
@@ -1577,7 +1586,11 @@ end
 
 
 """
-`AtomicState.Representation( ... example for the generation of a mean-field basis)`  
+`AtomicState.Representation(wa::Bool)`  
+    ... to return a default representation::AtomicState.Representation, which the keyword copy-constructor above then
+        modifies;  the argument wa is not read.  The examples below show the typical use.
+
+  Example for the generation of a mean-field basis:
 
         name        = "Oxygen 1s^2 2s^2 2p^4 ground configuration"
         grid        = Radial.Grid(true)
@@ -1632,8 +1645,7 @@ end
                         GreenExpansion( AtomicState.DampedSpaceCI(), Basics.DeExciteSingleElectron(), 
                         levelSymmetries, 3, greenSettings) ) 
                         
-    ... These simple examples can be further improved by overwriting the corresponding parameters.
-        A `representation::AtomicState.Representation` is returned.
+    Either example is adapted by overwriting the parameters that matter for the case at hand.
 """
 function Representation(wa::Bool)    
     AtomicState.Representation()    
@@ -1642,7 +1654,8 @@ end
 
 """
 `AtomicState.Representation(name::String, nuclearModel::Nuclear.Model, refConfigs::Array{Configuration,1},
-                            repType::AbstractRepresentationType; printout::Bool=true)`
+                            repType::AbstractRepresentationType; printout::Bool=true,
+                            orbitalSource::Basics.AbstractOrbitalSource=Basics.SeparateOrbitals())`
     ... constructor for which NO grid is given, so that the radial box is derived from the REFERENCE
         configurations by Basics.recommendedGrid; a rep::AtomicState.Representation is returned.
 

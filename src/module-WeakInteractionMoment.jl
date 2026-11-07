@@ -275,7 +275,8 @@ end
 
 
 """
-`WeakInteractionMoment.schiffMomentAmplitude(finalLevel::Level, initialLevel::Level, nm::Nuclear.Model, grid::Radial.Grid;`
+`WeakInteractionMoment.schiffMomentAmplitude(finalLevel::Level, initialLevel::Level, nm::Nuclear.Model,
+                                            grid::Radial.Grid; display::Bool=false)`
 
     ... to compute the Schiff-moment amplitude <alpha_f J_f || H^(Schiff) || alpha_i J_i> for the given final and initial level and for the
         nuclear density of the given nuclear model.  The operator is `4 pi S . grad rho(r)`, of rank 1 and odd parity, and -- being a
@@ -353,7 +354,8 @@ end
 
 
 """
-`WeakInteractionMoment.weakChargeAmplitude(finalLevel::Level, initialLevel::Level, nm::Nuclear.Model, grid::Radial.Grid;`
+`WeakInteractionMoment.weakChargeAmplitude(finalLevel::Level, initialLevel::Level, nm::Nuclear.Model,
+                                           grid::Radial.Grid; display::Bool=false)`
 
     ... to compute the weak-charge amplitude <alpha_f J_f || H^(weak-charge) || alpha_i J_i> for the given final and initial level and for
         the nuclear density of the given nuclear model.  A value::ComplexF64 is returned.

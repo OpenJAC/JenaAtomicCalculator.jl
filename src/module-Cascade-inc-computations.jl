@@ -55,7 +55,8 @@ end
 
     
 """
-`Basics.isSimilar()`  ... returns true if two instances are similar to each other, and false otherwise.
+`Basics.isSimilar(keya::LevelKey, keyb::LevelKey, relAcc::Float64)`  
+    ... returns true if two instances are similar to each other, and false otherwise.
 
 + `(keya::LevelKey, keyb::LevelKey, relAcc::Float64)`  
     ... returns true if two level keys refer to the same level, i.e. level with the same symmetry and

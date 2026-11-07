@@ -119,8 +119,9 @@ GBL_STANDARD_GRID            = Radial.Grid(true, printout=false)
 
 
 """
-`Defaults.convertUnits()`  
-    ... converts some data from one format/unit into another one; cf. the supported keystrings and return values.
+`Defaults.convertUnits(sa::String, wa::Float64)`  
+    ... converts one value from one format/unit into another one;  the keystring sa selects the conversion from the list
+        below, and the return value is given with it.
 
 + `("cross section: from atomic to predefined unit", value::Float64)`  or  `("cross section: from atomic", value::Float64)`  
     ... to convert an cross section value from atomic to the predefined cross section unit; a Float64 is returned.
@@ -354,10 +355,9 @@ end
 
 
 """
-
-
-+ `(string, values::Array{Float64,1})`  
-    ... to convert for the same strings as above but for an list of values; a corresponding Array{Float64,1} is returned.
+`Defaults.convertUnits(sa::String, values::Array{Float64,1})`  
+    ... to apply the same conversion as Defaults.convertUnits(sa::String, wa::Float64), and for the same keystrings, to a
+        whole list of values at once;  a newValues::Array{Float64,1} of the same length is returned.
 """
 function convertUnits(sa::String, values::Array{Float64,1})
     newValues = Float64[]
@@ -369,7 +369,7 @@ end
 
 
 """
-`Defaults.setDefaults()`  
+`Defaults.setDefaults(sa::String)`  
     ... (re-) defines some 'standard' settings which are common to all the computations with the JAC module, and which can 
         be 'overwritten' by the user. --- An improper setting of some variable may lead to an error message, if recognized
         immediately. The following defaults apply if not specified otherwise by the user: the framework is 'relativistic', 
@@ -597,9 +597,9 @@ end
 
 
 """
-`Defaults.setDefaults("relativistic subshell list", subshells::Array{Subshell,1}; printout::Bool=true)`  
-    ... to (pre-) define internally the standard relativistic subshell list on which the standard order of orbitals is based.
-        Nothing is returned;  the default is set internally.
+`Defaults.setDefaults(sa::String, subshells::Array{Subshell,1}; printout::Bool=true)`  
+    ... to (pre-) define internally the standard relativistic subshell list on which the standard order of orbitals is based;
+        the keystring is sa = "relativistic subshell list".  Nothing is returned;  the default is set internally.
 """
 function setDefaults(sa::String, subshells::Array{Subshell,1}; printout::Bool=true)
     if        sa == "relativistic subshell list"
@@ -639,9 +639,9 @@ end
 
 
 """
-`Defaults.setDefaults("standard grid", grid::Radial.Grid; printout::Bool=true)`  
-    ... to (pre-) define internally the standard radial grid which is used to represent most orbitals.
-        Nothing is returned;  the default is set internally.
+`Defaults.setDefaults(sa::String, grid::Radial.Grid; printout::Bool=true)`  
+    ... to (pre-) define internally the standard radial grid which is used to represent most orbitals;  the keystring is
+        sa = "standard grid".  Nothing is returned;  the default is set internally.
 """
 function setDefaults(sa::String, grid::Radial.Grid; printout::Bool=true)
     global GBL_STANDARD_GRID
@@ -658,9 +658,9 @@ end
 
 
 """
-`Defaults.setDefaults("continuum: SCF potential", scField::Basics.AbstractScField)`  
-    ... to (re-) define the potential that is applied for the generation of the continuum orbitals.
-        Nothing is returned;  the default is set internally.
+`Defaults.setDefaults(sa::String, scField::Basics.AbstractScField)`  
+    ... to (re-) define the potential that is applied for the generation of the continuum orbitals;  the keystring is
+        sa = "continuum: SCF potential".  Nothing is returned;  the default is set internally.
 """
 function setDefaults(sa::String, scField::Basics.AbstractScField)
     global GBL_CONT_POTENTIAL
@@ -676,10 +676,10 @@ end
 
 
 """
-`Defaults.setDefaults("QED: damped-hydrogenic", Znuc::Float64, wa::Array{Float64,1})`  
-    ... to (re-) define the lambda-C damped overlap integrals of the lowest kappa-orbitals 
-        [ wa_1s_1/2, wa_2p_1/2, wa_2p_3/2, wa_3d_3/2, wa_3d_5/2 ] for the (new) nuclear charge Znuc; 
-        nothing is returned.
+`Defaults.setDefaults(sa::String, Znuc::Float64, wa::Array{Float64,1})`  
+    ... to (re-) define the lambda-C damped overlap integrals of the lowest kappa-orbitals
+        [ wa_1s_1/2, wa_2p_1/2, wa_2p_3/2, wa_3d_3/2, wa_3d_5/2 ] for the (new) nuclear charge Znuc;  the keystring is
+        sa = "QED: damped-hydrogenic".  Nothing is returned.
 """
 function setDefaults(sa::String, Znuc::Float64, wa::Array{Float64,1})
     global GBL_QED_HYDROGENIC_LAMBDAC,  GBL_QED_NUCLEAR_CHARGE
@@ -701,7 +701,7 @@ end
     
     
 """
-`Defaults.getDefaults()`  
+`Defaults.getDefaults(sa::String)`  
     ... gives/supplies different information about the (present) framework of the computation or about some 
         given data; cf. Defaults.setDefaults(). 
 
@@ -766,7 +766,11 @@ end
 
 
 """
-`Defaults.getDefaults("ordered shell list: non-relativistic", n_max::Int64)`  
+`Defaults.getDefaults(sa::String, n_max::Int64)`  
+    ... to give an ordered list of shells or subshells up to the (maximum) principal number n_max;  the keystring sa
+        selects which of the two, as below.
+
++ `("ordered shell list: non-relativistic", n_max::Int64)`
     ... to give an ordered list of non-relativistic shells::Array{Shell,1} up to the (maximum) principal number n_max.
         
 + `("ordered subshell list: relativistic", n_max::Int64)`   
@@ -801,10 +805,9 @@ end
     
     
 """
-`Defaults.warn()`  
-    ... deals with warnings that occur during a run and session; it handles the global array GBL_WARNINGS.
-
-+ `(AddWarning, warning::String)`  ... to add warning to the global array GBL_WARNINGS.
+`Defaults.warn(wa::AbstractWarning)`  
+    ... deals with warnings that occur during a run and session; it handles the global array GBL_WARNINGS.  Adding a
+        warning carries its text and is done by Defaults.warn(wa::AbstractWarning, sa::String) instead.
 
 + `(PrintWarnings)`  ... to print all warnings that are currently kept in the global array GBL_WARNINGS.
 

@@ -514,7 +514,9 @@ end
 
 
 """
-`Hfs.computeHyperfineRepresentation(hfBasisVectors::Array{HfBasisVector,1}, nm::Nuclear.Model, grid::Radial.Grid)`
+`Hfs.computeHyperfineRepresentation(hfBasisVectors::Array{HfBasisVector,1}, grid::Radial.Grid;
+                                    hfMultipoles::Array{EmMultipole,1}=EmMultipole[Basics.M1, Basics.E2],
+                                    printout::Bool=false)`
     ... to set-up and diagonalize the Hamiltonian matrix of H^(DFB) + H^(hfs) within the atomic hyperfine (IJF-coupled) basis; a
         hfMultiplet::Hfs.HfMultiplet is returned.
 

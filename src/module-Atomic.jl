@@ -125,7 +125,11 @@ end
 
 
 """
-`Atomic.Computation( ... example for SCF computations)`  
+`Atomic.Computation(wa::Bool)`  
+    ... to return a default computation::Atomic.Computation, which the keyword copy-constructor above then modifies;  the
+        argument wa is not read.  The two examples below show the typical use.
+
+  Example for SCF computations:
 
         grid     = Radial.Grid(true)
         nuclearM = Nuclear.Model(18., FermiNucleus())
@@ -133,7 +137,7 @@ end
         configs  = [Configuration("[Ne] 3s^2 3p^5"), Configuration("[Ne] 3s 3p^6")]
         Atomic.Computation(Atomic.Computation(), name="Example", grid=grid, nuclearModel=nuclearM, configs=configs, asfSettings=settings )
 
-`Atomic.Computation( ... example for the computation of one atomic process)`
+  Example for the computation of one atomic process:
 
         grid           = Radial.Grid(true)
         initialConfigs = [Configuration("[Ne] 3s 3p^6"), Configuration("[Ne] 3s^2 3p^4 3d")]
@@ -143,8 +147,7 @@ end
                             initialConfigs=initialConfigs, finalConfigs=finalConfigs, 
                             process = Radiative(), processSettings=photoSettings ); 
     
-    ... These simple examples can be further improved by overwriting the corresponding parameters.
-        A `computation::Atomic.Computation` is returned.
+    Either example is adapted by overwriting the parameters that matter for the case at hand.
 """
 function Computation(wa::Bool)    
     Atomic.Computation()    

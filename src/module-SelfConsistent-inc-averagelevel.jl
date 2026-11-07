@@ -69,7 +69,7 @@ end
 
 """
 `SelfConsistent.solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives,
-                                       settings::AsfSettings; printout::Bool=true)`
+                                       settings::AsfSettings; printout::Bool=true, andersonDepth::Int64=GBL_AL_ANDERSON_DEPTH)`
     ... solves the average-level (AL) self-consistent field, validated to 5+ significant figures against
         literature for He/Be/Ne/Ar (see project memory), with a bVector-native architecture modeled directly
         on DBSR_HF (Zatsarinny & Froese Fischer, CPC 202, 287 (2016)): B-spline expansion coefficients

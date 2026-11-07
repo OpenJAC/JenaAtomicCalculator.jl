@@ -148,7 +148,12 @@ end
 
 
 """
-`LandeZeeman.Settings(set::LandeZeeman.Settings; keywords...)`
+`LandeZeeman.Settings(set::LandeZeeman.Settings;
+                      calcLandeJ::Union{Nothing,Bool}=nothing,           calcLandeF::Union{Nothing,Bool}=nothing,
+                      calcZeeman::Union{Nothing,Bool}=nothing,            calcQZScoeff::Union{Nothing,Bool}=nothing,
+                      includeSchwinger::Union{Nothing,Bool}=nothing,      printBefore::Union{Nothing,Bool}=nothing,
+                      BField::Union{Nothing,Float64}=nothing,             levelSelection::Union{Nothing,LevelSelection}=nothing,
+                      gMultiplet::Union{Nothing,Multiplet}=nothing)`
     ... keyword constructor to modify selected fields of a LandeZeeman.Settings object;
         for fields not given, the values of set are used.
         A `settings::LandeZeeman.Settings` is returned.
@@ -377,7 +382,8 @@ end
 
 
 """
-`LandeZeeman.computeQuadraticZeemanC2(Fsub::SublevelF, Fsublevels::Array{SublevelF,1}, grid::Radial.Grid, settings::LandeZeeman.Settings)`  
+`LandeZeeman.computeQuadraticZeemanC2(multiplet::Multiplet, level::Level, Fsub::SublevelF, nm::Nuclear.Model, grid::Radial.Grid,
+                                      settings::LandeZeeman.Settings)`
     ... to compute all quadratic-Zeeman shift C2 coefficients; an c2::Float64 is returned for the given hyperfine level
         Fsub.
 """

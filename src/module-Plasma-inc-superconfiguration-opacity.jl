@@ -15,7 +15,7 @@ end
 
 
 """
-`Plasma.displayResults(stream::IO, groups::Array{Any,1}, weights::Array{Float64,1}, Z::Float64)`
+`Plasma.displayResults(stream::IO, groups::Array, weights::Array{Float64,1}, Z::Float64)`
     ... prints, for each group (each a `SuperConfigurations.Group`, typed loosely here for the SAME
         include-order reason `superConfigurationsModule()` exists above), its configuration, mean energy,
         width (sqrt variance), degeneracy, and Boltzmann population fraction weights[i]/Z. Nothing is

@@ -679,7 +679,7 @@ end
 
 
 """
-`Base.show(io::IO, basis::Basis; full=false)`  ... prepares a proper printout of the variable basis::Basis.
+`Base.show(io::IO, basis::Basis)`  ... prepares a proper printout of the variable basis::Basis.
         nothing is returned.
 """
 function Base.show(io::IO, basis::Basis) 

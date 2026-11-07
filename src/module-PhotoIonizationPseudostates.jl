@@ -246,7 +246,15 @@ end
 
 
 """
-`PhotoIonizationPseudostates.Settings(set::PhotoIonizationPseudostates.Settings;`
+`PhotoIonizationPseudostates.Settings(set::PhotoIonizationPseudostates.Settings;
+                                      multipoles::Union{Nothing,Array{EmMultipole,1}}=nothing,
+                                      gauges::Union{Nothing,Array{UseGauge,1}}=nothing,
+                                      photonEnergies::Union{Nothing,Array{Float64,1}}=nothing,
+                                      lValues::Union{Nothing,Array{Int64,1}}=nothing,
+                                      pseudostateWindow::Union{Nothing,Tuple{Float64,Float64}}=nothing,
+                                      pseudostateRbox::Union{Nothing,Float64}=nothing,
+                                      continuumExchange::Union{Nothing,Bool}=nothing,
+                                      printBefore::Union{Nothing,Bool}=nothing)`
 
         multipoles=..,          gauges=..,              photonEnergies=..,       lValues=..,
         pseudostateWindow=..,   pseudostateRbox=..,     continuumExchange=..,   printBefore=..)

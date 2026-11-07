@@ -100,11 +100,28 @@ def splitArgs(s):
 
 
 def signature(L, k):
-    """The full signature at line k, continued over wrapped lines."""
+    """The full signature at line k, continued over wrapped lines and CUT at the close of the
+    argument list.  A one-line definition puts its body on the same line, so returning the whole
+    line reported `determinePolarizationLambda(kind::LeftCircular)   return(  1 )    end` as
+    disagreeing with a docstring that states the signature correctly:  7 of 115."""
     sig, t = FUNCOL.match(L[k]).group(1) if FUNCOL.match(L[k]) else L[k].strip(), k
     while sig.count("(") > sig.count(")") and t+1 < len(L):
         t += 1;  sig += " " + L[t].strip()
+    q = argParen(sig)
+    if q >= 0:
+        d = 0
+        for i in range(q, len(sig)):
+            if   sig[i] == "(":  d += 1
+            elif sig[i] == ")":
+                d -= 1
+                if d == 0:  return sig[:i+1] + whereOf(sig[i+1:])
     return sig
+
+
+def whereOf(tail):
+    """The ` where {...}` clause of a signature, which belongs to it, or an empty string."""
+    m = re.match(r'\s*(where\s+\S+)', tail)
+    return " " + m.group(1) if m else ""
 
 
 def argParen(s):
@@ -153,13 +170,31 @@ def headersOf(head):
         q = argParen(txt)
         if q < 0 or not re.match(r'^[A-Za-z_]\w*(\.([A-Za-z_]\w*|:\([^)]*\)|:\S+))*[!?]?$', txt[:q].strip()):
             i += 1;  continue
-        acc, j = txt, i
-        while acc.count("(") > acc.count(")") and j+1 < len(spans):
-            j += 1;  acc += spans[j][2]
+        ## A WRAPPED SIGNATURE IS CONTINUED ALONG THE DOCSTRING'S OWN LINES, backticked or not, and
+        ## the walk STOPS at a blank line or at the line that opens the description.  Joining across
+        ## backtick SPANS instead, which ignores the text and the blank lines between them, mangled 13
+        ## of 122 reported mismatches:  `Hfs.Settings(; calcM1::Bool=true,` closes its backtick in
+        ## mid-signature and the remainder of the keyword list is unbackticked, so the walk ended at
+        ## the `settings::Hfs.Settings` of the return sentence four lines below.
+        acc, endPos = txt, e+1
+        while acc.count("(") > acc.count(")"):
+            eol  = head.find("\n", endPos)
+            if eol < 0:  eol = len(head)
+            rest = head[endPos:eol]
+            if rest.strip():
+                acc += rest.replace("`", "");  endPos = eol
+                if acc.count("(") <= acc.count(")"):  break
+            if eol >= len(head):  break
+            nEnd = head.find("\n", eol+1)
+            if nEnd < 0:  nEnd = len(head)
+            if not head[eol+1:nEnd].strip() or head[eol+1:nEnd].strip().startswith(("...", "+")):  break
+            endPos = eol + 1
+        j = i
+        while j+1 < len(spans) and spans[j+1][0] < endPos:  j += 1
         ## (3) A HEADER IS FOLLOWED BY THE `...` THAT OPENS ITS DESCRIPTION, on the rest of its own
         ## line or on the next non-blank one.  This is what separates a header from a cited call.
-        eol  = head.find("\n", spans[j][1])
-        tail = head[spans[j][1]+1 : eol if eol >= 0 else len(head)].strip()
+        eol  = head.find("\n", endPos)
+        tail = head[endPos : eol if eol >= 0 else len(head)].strip().strip("`").strip()
         if not tail:
             rest = head[eol+1:] if eol >= 0 else ""
             tail = next((l.strip() for l in rest.split("\n") if l.strip()), "")

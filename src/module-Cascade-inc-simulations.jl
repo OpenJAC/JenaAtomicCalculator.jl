@@ -691,16 +691,13 @@ end
 
 
 """
-`Cascade.perform(simulation::Cascade.Simulation`  
-    ... to simulate a cascade decay (and excitation) from the given data. Different computational methods and different properties of 
-        the ionic system, such as the ion distribution or final-level distribution can be derived and displayed from these simulations. 
-        Of course, the details of these simulations strongly depend on the atomic processes and data that have been generated before by 
-        performing a computation::Cascade.Computation. The results of all individual steps are printed to screen but nothing is 
-        returned otherwise.
-
-`Cascade.perform(simulation::Cascade.Simulation; output::Bool=false)`   
-    ... to perform the same but to return the complete output in a dictionary; the particular output depends on the method and 
-        specifications of the cascade but can easily accessed by the keys of this dictionary.
+`Cascade.perform(simulation::Cascade.Simulation; output::Bool=false)`  
+    ... to simulate a cascade decay (and excitation) from the given data.  Different computational methods and different properties of
+        the ionic system, such as the ion distribution or the final-level distribution, can be derived and displayed from these
+        simulations.  The details of course depend strongly on the atomic processes and data generated beforehand by performing a
+        computation::Cascade.Computation.  The results of all individual steps are printed to screen.  With output = false, nothing
+        is returned otherwise;  with output = true, a results::Basics.PerformResults is returned -- an AbstractDict{String,Any} --
+        whose keys depend on the method and the specifications of the cascade.
 """
 function perform(simulation::Cascade.Simulation; output::Bool=false)
     # The property (and, where it matters, the method) select what is simulated BY DISPATCH; this used to be a
@@ -1430,7 +1427,8 @@ end
 
 
 """
-`Cascade.extractIonizingResonances(levels::Array{Cascade.Level,1}, property::Cascade.AbstractSimulationProperty)`
+`Cascade.extractIonizingResonances(levels::Array{Cascade.Level,1}, property::Cascade.AbstractSimulationProperty;
+                                   strict::Bool=true)`
     ... determines and prints the resonance strengths of the two resonant electron-capture channels of electron-impact
         ionization, together with the recombination strength of the SAME resonances so that the competition between the
         two is visible.  Nothing is returned.
@@ -1626,7 +1624,8 @@ end
 
 """
 `Cascade.displayEiiRateCoefficients(stream::IO, temperatures::Array{Float64,1}, alphaRes::Array{Basics.EmProperty,1},
-                                    alphaEa::Array{Float64,1}, alphaDr::Array{Basics.EmProperty,1},
+                                    alphaEa::Array{Float64,1}, alphaDir::Array{Float64,1}, skipped::Array{String,1},
+                                    alphaDr::Array{Basics.EmProperty,1},
                                     total::Array{Basics.EmProperty,1}, weightAbove::Array{Float64,1},
                                     resonances::Array{Cascade.IonizingResonance,1}, csEnergies::Array{Float64,1},
                                     property::Cascade.EiiRateCoefficients)`

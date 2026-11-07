@@ -44,8 +44,8 @@ end
 
 
 """
-`Cascade.determineSteps(scheme::Cascade.PhotoIonizationScheme, comp::Cascade.Computation, 
-                        initialList::Array{Cascade.Block,1}, ionizedList::Array{Cascade.Block,1}, excitedList::Array{Cascade.Block,1})`  
+`Cascade.determineSteps(scheme::Cascade.PhotoIonizationScheme, comp::Cascade.Computation,
+                        initialList::Array{Cascade.Block,1}, ionizedList::Array{Cascade.Block,1})`  
     ... determines all step::Cascade.Step's that need to be computed for this decay cascade. It cycles through all processes of the given
         decay scheme and selects all pairs of blocks due to the selected processes and cascade approach. It checks that at least on 
         pair of levels supports either a `photo-ionization' or `photo-excitation' within the step. A stepList::Array{Cascade.Step,1} 
@@ -121,9 +121,11 @@ end
 
 """
 `Cascade.generateConfigurationsForPhotoionization(multiplets::Array{Multiplet,1},  scheme::PhotoIonizationScheme, nm::Nuclear.Model)`  
-    ... generates all possible (photo-absorption) configurations with a single displacements of an electron from
-        scheme.excitationFromShells  to either scheme.excitationToShells or into partial waves with scheme.lValues.
-        A Tuple(initialConfList::Array{Configuration,1}, confList::Array{Configuration,1}) is returned.
+    ... generates the configurations reached by removing ONE electron from each of scheme.excitationFromShells, which is what
+        a photoionization cascade needs;  no bound-bound excitation is generated here, so neither scheme.excitationToShells nor
+        scheme.lValues is read by this method.  A Tuple(initialConfList::Array{Configuration,1},
+        ionConfList::Array{Configuration,1}) is returned, the first holding the reference configurations of the given multiplets
+        and the second the photo-ionized ones.
 """
 function generateConfigurationsForPhotoionization(multiplets::Array{Multiplet,1},  scheme::PhotoIonizationScheme, nm::Nuclear.Model)
     # Determine all (reference) configurations from multiplets and generate the 'excited/ionized' configurations due to the 
@@ -148,9 +150,9 @@ end
                     outputDirectory::String="")`
     ... to set-up and perform a photoionization cascade computation. It starts either from comp.initialConfigs, for which an SCF and
         CI computation is carried out first, xor from the given comp.initialMultiplets; it then generates the configurations that
-        photoionization and the excitations between scheme.excitationFromShells and scheme.excitationToShells give rise to, groups
-        them into cascade blocks, determines the individual steps and computes the PhotoIonization.Line's of every step for the
-        photon energies in scheme.photonEnergies. All intermediate and final results are printed to screen and to the summary file.
+        the removal of one electron from each of scheme.excitationFromShells gives rise to, groups them into cascade blocks,
+        determines the individual steps and computes the PhotoIonization.Line's of every step for the photon energies in
+        scheme.photonEnergies. All intermediate and final results are printed to screen and to the summary file.
         With output = false, nothing is returned. With output = true, a results::Basics.PerformResults is returned -- an
         AbstractDict{String,Any} -- that carries the initial and the generated multiplets, the photoionization lines, and the
         Cascade.Data{PhotoIonization.Line} under the key "cascade data:", which is the key a subsequent Cascade.Simulation reads.

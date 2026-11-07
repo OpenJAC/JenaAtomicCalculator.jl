@@ -110,7 +110,9 @@ end
 
 
 """
-`SelfConsistent.computeFunctionalSplit(coeffs1p, coeffs2p, orbitals, grid, potential, isFrozen, frozenRk)`  
+`SelfConsistent.computeFunctionalSplit(coeffs1p::Array{Coefficient1p,1}, coeffs2p::Array{Coefficient2p,1},
+                                       orbitals::Dict{Subshell, Orbital}, grid::Radial.Grid, potential::Radial.Potential,
+                                       isFrozen::Function, frozenRk::Dict{NTuple{5,Any}, Float64})`  
     ... the same functional as computeFunctional, but returned as the PAIR (eFrozen, eActive): the part built
         entirely from frozen subshells, and the rest.  Two things follow from the split, and they are the
         reason it exists.
@@ -210,8 +212,12 @@ end
 
 """
 `SelfConsistent.computeTwoElectronV(subshell::Subshell, coeffs2p::Array{Coefficient2p,1},
-                                           bVectors::Dict{Subshell, Vector{Float64}}, primitives::Bsplines.Primitives,
-                                           tensorCaches::Dict{Int64, NTuple{3,RadialIntegrals.ScreenedPotentialCache}})`
+                                    bVectors::Dict{Subshell, Vector{Float64}}, primitives::Bsplines.Primitives,
+                                    tensorCaches::Dict{Int64, NTuple{3,RadialIntegrals.ScreenedPotentialCache}};
+                                    directKernels::Dict{Tuple{Int64,Subshell,Subshell},Array{Float64,2}} =
+                                    Dict{Tuple{Int64,Subshell,Subshell},Array{Float64,2}}(),
+                                    exchangeKernels::Dict{Tuple{Int64,Subshell},Array{Float64,2}} =
+                                    Dict{Tuple{Int64,Subshell},Array{Float64,2}}())`
     ... computes the direct and exchange two-electron potential matrix for the given subshell, taking
         bVectors::Dict{Subshell,Vector{Float64}} -- B-spline expansion coefficients -- as the SOLE, canonical
         per-subshell state, rather than a persistent Dict{Subshell,Orbital}. Every coeffs2p entry relevant to
@@ -328,9 +334,14 @@ end
 
 """
 `SelfConsistent.computeFockMatrix(subshell::Subshell, coeffs2p::Array{Coefficient2p,1},
-                                         bVectors::Dict{Subshell, Vector{Float64}}, primitives::Bsplines.Primitives,
-                                         nucPot::Radial.Potential, storage::Dict{String,Array{Float64,2}},
-                                         occ::Float64, tensorCaches::Dict{Int64, NTuple{3,RadialIntegrals.ScreenedPotentialCache}})`
+                                  bVectors::Dict{Subshell, Vector{Float64}}, primitives::Bsplines.Primitives,
+                                  nucPot::Radial.Potential, storage::Dict{String,Array{Float64,2}},
+                                  occ::Float64, tensorCaches::Dict{Int64, NTuple{3,RadialIntegrals.ScreenedPotentialCache}};
+                                  coeffs2pUnscaled::Array{Coefficient2p,1}=Coefficient2p[],
+                                  directKernels::Dict{Tuple{Int64,Subshell,Subshell},Array{Float64,2}} =
+                                  Dict{Tuple{Int64,Subshell,Subshell},Array{Float64,2}}(),
+                                  exchangeKernels::Dict{Tuple{Int64,Subshell},Array{Float64,2}} =
+                                  Dict{Tuple{Int64,Subshell},Array{Float64,2}}())`
     ... computes the full per-subshell Hamiltonian matrix (one-electron + direct + exchange), matching the
         role of DBSR_HF's hf_matrix.f90: Bsplines.setupLocalMatrix provides the one-electron (kinetic +
         nuclear + rest-mass) block natively in B-spline basis (reused unchanged), and

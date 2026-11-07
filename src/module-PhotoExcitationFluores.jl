@@ -77,7 +77,17 @@ end
 
 
 """
-`PhotoExcitationFluores.Settings(set::PhotoExcitationFluores.Settings; keywords...)`
+`PhotoExcitationFluores.Settings(set::PhotoExcitationFluores.Settings;
+                                 multipoles::Union{Nothing,Array{EmMultipole,1}}=nothing,
+                                 gauges::Union{Nothing,Array{UseGauge,1}}=nothing,
+                                 calcPhotonDm::Union{Nothing,Bool}=nothing,
+                                 calcAngular::Union{Nothing,Bool}=nothing,
+                                 calcStokes::Union{Nothing,Bool}=nothing,
+                                 printBefore::Union{Nothing,Bool}=nothing,
+                                 incidentStokes::Union{Nothing,ExpStokes}=nothing,
+                                 solidAngles::Union{Nothing,Array{SolidAngle,1}}=nothing,
+                                 photonEnergyShift::Union{Nothing,Float64}=nothing,
+                                 pathwaySelection::Union{Nothing,PathwaySelection}=nothing)`
     ... keyword constructor to modify selected fields of a PhotoExcitationFluores.Settings object;
         for fields not given, the values of set are used.
         A `settings::PhotoExcitationFluores.Settings` is returned.

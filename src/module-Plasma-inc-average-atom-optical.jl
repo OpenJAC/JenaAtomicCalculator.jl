@@ -36,7 +36,8 @@ end
 
 """
 `Plasma.computeConductivityLines(scfResult::NamedTuple, temp::Float64, radiusWS::Float64, grid::Radial.Grid,
-                                  primitives::Bsplines.Primitives)`
+                                 primitives::Bsplines.Primitives; fMin::Float64=1.0e-8, sigmaMin::Float64=1.0e-14,
+                                 useFreeSpectra::Bool=false)`
     ... computes every dipole-allowed transition between the box states of a converged average atom and the
         conductivity it carries;  an `Array{Plasma.ConductivityLine,1}` is returned, sorted by omega.
 
@@ -138,7 +139,8 @@ end
 
 
 """
-`Plasma.computeConductivitySumRules(lines::Array{Plasma.ConductivityLine,1}, nFree::Float64, radiusWS::Float64)`
+`Plasma.computeConductivitySumRules(lines::Array{Plasma.ConductivityLine,1}, nFree::Float64, radiusWS::Float64;
+                                    freeLines::Array{Plasma.ConductivityLine,1}=ConductivityLine[])`
     ... evaluates the conductivity sum rule of Johnson, Guet & Bertsch (2006), Eq. (15), separately for the three
         kinds of transition;  a NamedTuple `(nBoundBound, nBoundFree, nFreeFree, nTotal, nFree, gamma)` is
         returned.
@@ -237,7 +239,9 @@ end
 
 """
 `Plasma.computeConductivitySpectrum(lines::Array{Plasma.ConductivityLine,1}, omegas::Array{Float64,1},
-                                    broadening::Float64)`
+                                    broadening::Float64;
+                                    freeLines::Array{Plasma.ConductivityLine,1}=ConductivityLine[],
+                                    kinds::Array{Symbol,1}=[:boundBound, :boundFree, :freeFree])`
     ... folds the conductivity lines into a spectrum on the given photon energies;  a
         `sigmas::Array{Float64,1}` of the real part of the conductivity [a.u.] is returned.
 

@@ -99,7 +99,8 @@ end
 
     
 """
-`Basics.isViolated()`  ... returns true if some rule/limitation is violated, and false otherwise.
+`Basics.isViolated(conf::Configuration, restriction::AbstractConfigurationRestriction)`  
+    ... returns true if some rule/limitation is violated, and false otherwise.
 
 + `(conf::Configuration, restriction::AbstractConfigurationRestriction)`  
     ... returns true if restriction is violated by the given conf, and false otherwise.
@@ -264,9 +265,9 @@ end
 
 
 """
-`Basics.merge(aList::Array{Shell,1}, bList::Array{Shell,1}, ...)`  
-    ... to merge two (or more) shell lists into a single list, to unify and to order them. 
-        A cList::Array{Shell,1} is returned
+`Basics.merge(aList::Array{Shell,1}, bList::Array{Shell,1})`  
+    ... to merge two shell lists into a single list, to unify and to order them;  three lists are merged by the method
+        below.  A cList::Array{Shell,1} is returned
 """
 function Basics.merge(aList::Array{Shell,1}, bList::Array{Shell,1})
     cList = copy(aList);      append!(cList, bList);      cList = Base.unique(cList)
@@ -286,9 +287,9 @@ end
 
 
 """
-`Basics.merge(aList::Array{Subshell,1}, bList::Array{Subshell,1}, ...)`  
-    ... to merge two (or more) subshell lists into a single list, to unify and to order them. 
-        A cList::Array{Subshell,1} is returned
+`Basics.merge(aList::Array{Subshell,1}, bList::Array{Subshell,1})`  
+    ... to merge two subshell lists into a single list, to unify and to order them;  three lists are merged by the method
+        below.  A cList::Array{Subshell,1} is returned
 """
 function Basics.merge(aList::Array{Subshell,1}, bList::Array{Subshell,1})
     cList = copy(aList);      append!(cList, bList);      cList = Base.unique(cList)

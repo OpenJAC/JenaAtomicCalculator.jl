@@ -232,8 +232,8 @@ end
 
 
 """
-`PhotoEmission.amplitude(::Emission, Mp::EmMultipole, gauge::EmGauge, omega::Float64, finalLevel::Level,
-                            initialLevel::Level, grid::Radial.Grid; display::Bool=false, printout::Bool=false)`
+`PhotoEmission.amplitude(kind::Emission, Mp::EmMultipole, gauge::EmGauge, omega::Float64, finalLevel::Level,
+                         initialLevel::Level, grid::Radial.Grid; display::Bool=false, printout::Bool=false)`
     ... to compute the photon emission amplitude alone, discarding the cancellation factor that
         PhotoEmission.amplitudeAndCancellation returns beside it. Kept so that every caller which wants only the
         amplitude reads as it always did. A value::ComplexF64 is returned.

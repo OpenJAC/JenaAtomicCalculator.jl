@@ -40,7 +40,7 @@ end
 
 
 """
-`MultipoleMoment.amplitude(K::Integer, level::Level, grid::Radial.Grid, display::Bool=false)`  
+`MultipoleMoment.amplitude(K::Integer, level::Level, grid::Radial.Grid; display::Bool=false)`  
     ... to compute the K-th order (static) electric multipole-moment < alpha J J | Θ^(K) | alpha J J >  
         for the given level. A value::Float64 is returned.
         This functon has been contributed by Jan Gilles (2024) but is rather different and mixes 

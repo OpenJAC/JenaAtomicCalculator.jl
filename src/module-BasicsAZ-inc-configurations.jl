@@ -1885,9 +1885,10 @@ end
 
 
 """
-`Basics.merge(aList::Array{Configuration,1}, bList::Array{Configuration,1}, ...)`  
-    ... to merge two (or more) configuration list into a single list and to unify them. 
-        A cList::Array{Configuration,1} is returned.
+`Basics.merge(lists...)`  
+    ... to merge any number of configuration lists into a single list and to unify them.  The arguments are NOT typed, so
+        this method is reached by every call that no more specific merge method accepts;  the result is built as a
+        Configuration[], and anything else raises on the first append.  A cList::Array{Configuration,1} is returned.
 """
 function Basics.merge(lists...)
     cList = Configuration[]

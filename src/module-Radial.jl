@@ -863,9 +863,11 @@ end
 
 
 """
-`Radial.generateGrid(grid::Radial.Grid; boxSize=nothing, boxSizeWithZeroWeights=nothing,
-                                        maximumFreeElectronEnergy=nothing, maximumPrincipalQN=nothing,
-                                        lValue::Int64=0, Zeff::Union{Nothing,Float64}=nothing)`
+`Radial.generateGrid(grid::Radial.Grid; boxSize::Union{Nothing,Float64}=nothing,
+                     boxSizeWithZeroWeights::Union{Nothing,Float64}=nothing,
+                     maximumFreeElectronEnergy::Union{Nothing,Float64}=nothing,
+                     maximumPrincipalQN::Union{Nothing,Int64}=nothing,
+                     lValue::Int64=0, Zeff::Union{Nothing,Float64}=nothing)`
     ... generates a grid that fulfills a particular physical requirement.  EXACTLY ONE of the four schemes
         below must be selected; a grid::Radial.Grid is returned and the reasoning is printed.
 

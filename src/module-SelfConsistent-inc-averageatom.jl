@@ -30,7 +30,8 @@ end
 
 
 """
-`SelfConsistent.averageAtomFreeWaveLimit(mu::Float64, temp::Float64, radiusBox::Float64)`
+`SelfConsistent.averageAtomFreeWaveLimit(mu::Float64, temp::Float64, radiusBox::Float64; tolerance::Float64=1.0e-6,
+                                         lCap::Int64=160)`
     ... returns the partial wave `lMaxFree::Int64` beyond which the free box states of the cell can no longer hold
         `tolerance` electrons, so that the sum over partial waves may stop there.
 
@@ -60,7 +61,8 @@ end
 
 
 """
-`SelfConsistent.averageAtomSpectra(pot::Radial.Potential, lMax::Int64, primitives::Bsplines.Primitives)`
+`SelfConsistent.averageAtomSpectra(pot::Radial.Potential, lMax::Int64, primitives::Bsplines.Primitives;
+                                   lMaxFree::Int64=lMax, freeSpectra::Union{Nothing,NamedTuple}=nothing)`
     ... diagonalizes the one-electron problem of every kappa with l <= lMax in the given potential, and the
         FREE-PARTICLE problem of every kappa with l <= lMaxFree in the same box, and returns the NamedTuple
         `(kappas, kappasFree, lMax, lMaxFree, trueEigen, trueStart, freeEigen, freeStart)`:  the `Basics.Eigen`
@@ -155,7 +157,8 @@ end
 
 
 """
-`SelfConsistent.averageAtomCellNorms(spectra::NamedTuple, primitives::Bsplines.Primitives, iCell::Int64)`
+`SelfConsistent.averageAtomCellNorms(spectra::NamedTuple, primitives::Bsplines.Primitives, iCell::Int64;
+                                     energyCap::Float64=1.0e3, previous::Union{Nothing,NamedTuple}=nothing)`
     ... computes, for every box state of every kappa, the part of it that lies INSIDE the Wigner-Seitz cell,
         `int_0^(R_WS) (P^2 + Q^2) dr`;  a NamedTuple `(trueNorm, freeNorm)` of `Dict{Int64,Array{Float64,1}}` is
         returned, indexed exactly as the eigenvalue lists are.
@@ -356,7 +359,7 @@ end
 
 """
 `SelfConsistent.averageAtomPotential(scField::Basics.AbstractScField, rhot::Array{Float64,1}, grid::Radial.Grid,
-                                      iCell::Int64)`
+                                     iCell::Int64; backgroundDensity::Float64=0.)`
     ... builds the ELECTRONIC part of the average-atom potential from a given radial density rhot, and returns a
         `pot::Radial.Potential` holding `Z(r) = -r V(r)`, as everywhere else in JAC.
 
@@ -494,8 +497,9 @@ end
 
 """
 `SelfConsistent.solveAverageAtomSpectra(orbitals::Dict{Subshell, Orbital}, nuclearModel::Nuclear.Model,
-                                         scField::Basics.AbstractScField, temp::Float64, radiusWS::Float64,
-                                         primitives::Bsplines.Primitives; printout::Bool=true)`
+                                        scField::Basics.AbstractScField, temp::Float64, radiusWS::Float64,
+                                        primitives::Bsplines.Primitives; printout::Bool=true, lMaxFree::Int64=-1,
+                                        freeWaveTolerance::Float64=1.0e-6)`
     ... solves the average-atom field self-consistently IN DENSITY SPACE, i.e. on the full per-kappa B-spline
         spectrum rather than on a list of subshells, and returns the NamedTuple
         `(orbitals, chemMu, nBound, nCont, rhot, pot, spectra, lMax, radiusBox, accuracy, iterations)`.

@@ -81,7 +81,17 @@ end
 
 
 """
-`PhotoExcitationAutoion.Settings(set::PhotoExcitationAutoion.Settings; keywords...)`
+`PhotoExcitationAutoion.Settings(set::PhotoExcitationAutoion.Settings;
+                                 multipoles::Union{Nothing,Array{EmMultipole,1}}=nothing,
+                                 gauges::Union{Nothing,Array{UseGauge,1}}=nothing,
+                                 calcPartialCs::Union{Nothing,Bool}=nothing,
+                                 calcAngular::Union{Nothing,Bool}=nothing,
+                                 calcFano::Union{Nothing,Bool}=nothing,
+                                 printBefore::Union{Nothing,Bool}=nothing,
+                                 incidentStokes::Union{Nothing,ExpStokes}=nothing,
+                                 solidAngles::Union{Nothing,Array{SolidAngle,1}}=nothing,
+                                 electronEnergyShift::Union{Nothing,Float64}=nothing,               maxKappa::Union{Nothing,Int64}=nothing,
+                                 pathwaySelection::Union{Nothing,PathwaySelection}=nothing)`
     ... keyword constructor to modify selected fields of a PhotoExcitationAutoion.Settings object;
         for fields not given, the values of set are used.
         A `settings::PhotoExcitationAutoion.Settings` is returned.

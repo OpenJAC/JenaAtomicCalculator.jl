@@ -525,7 +525,7 @@ end
 
 
 """
-`WeakInteractionEnhancement.edmAmplitude(finalLevel::Level, initialLevel::Level, nm::Nuclear.Model, grid::Radial.Grid;`
+`WeakInteractionEnhancement.edmAmplitude(finalLevel::Level, initialLevel::Level, nm::Nuclear.Model, grid::Radial.Grid; display::Bool=false)`
 
     ... to compute the electron-EDM amplitude <alpha_f J_f || H^(EDM) || alpha_i J_i> for a UNIT electron electric-dipole moment, in the
         nuclear field of the given model.  A value::ComplexF64 is returned.

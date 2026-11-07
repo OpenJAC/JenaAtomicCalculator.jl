@@ -50,7 +50,11 @@ end
 
 
 """
-`IsotopeShift.Settings(set::IsotopeShift.Settings; keywords...)`
+`IsotopeShift.Settings(set::IsotopeShift.Settings;
+                       calcNMS::Union{Nothing,Bool}=nothing,             calcSMS::Union{Nothing,Bool}=nothing,
+                       calcF::Union{Nothing,Bool}=nothing,               calcBoson::Union{Nothing,Bool}=nothing,
+                       printBefore::Union{Nothing,Bool}=nothing,         bosonMass::Union{Nothing,Float64}=nothing,
+                       levelSelection::Union{Nothing,LevelSelection}=nothing)`
     ... keyword constructor to modify selected fields of an IsotopeShift.Settings object;
         for fields not given, the values of set are used.
         A `settings::IsotopeShift.Settings` is returned.

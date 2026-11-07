@@ -234,9 +234,11 @@ end
 
 
 """
-`Liouville.evaluateHamiltonianMatrix(scheme::Liouville.StimulatedRamanScheme, t::Float64, pulses::Vector{Pulse.AbstractPulse},
-                                     atomicHM::Matrix{ComplexF64}, couplingHM::Array{Function, 2})`  
-    ... to evaluate the Hamiltonian matrix for the light-field at given time t. 
+`Liouville.evaluateHamiltonianMatrix(scheme::Liouville.StimulatedRamanScheme, t::Float64, pulses::Vector{Pulse.AbstractPulse})`  
+    ... to evaluate the Hamiltonian matrix for the light field at the given time t.
+        NOT YET IMPLEMENTED, and NOT CALLABLE AS IT STANDS:  the body refers to an atomic and a coupling Hamiltonian matrix
+        that the signature does not carry and nothing defines, so a call raises an UndefVarError.  Both matrices have to be
+        passed in, or built here from scheme and pulses, before this method can do its work.
 """
 function evaluateHamiltonianMatrix(scheme::Liouville.StimulatedRamanScheme, t::Float64, pulses::Vector{Pulse.AbstractPulse})
     println("==> Liouville.evaluateHamiltonianMatrix() ... not yet implemented properly.")
@@ -254,10 +256,10 @@ end
 
 
 """
-`Liouville.evolveDensityMatrix(scheme::Liouville.StimulatedRamanScheme, approach::Liouville.AbstractEvolutionApproach, 
-                             densityM::Array{Float64,2}, hamiltonianM::Array{Float64,2}, lightField::Float64).jena
-                             `  
-    ... to evolve the density matrix for a certain time-interval ... for a given density matrix and some generic Hamiltonian matrix. 
+`Liouville.evolveDensityMatrix(scheme::Liouville.StimulatedRamanScheme, approach::Liouville.AbstractEvolutionApproach,
+                               densityM::Array{Float64,2}, hamiltonianM::Array{Float64,2}, lightField::Float64)`  
+    ... to evolve the density matrix over one time interval, for the given density matrix and a generic Hamiltonian matrix.
+        NOT YET IMPLEMENTED:  the method prints a notice and returns a dm::Array{Float64,2} of zeros.
 """
 function evolveDensityMatrix(scheme::Liouville.StimulatedRamanScheme, approach::Liouville.AbstractEvolutionApproach, 
                              densityM::Array{Float64,2}, hamiltonianM::Array{Float64,2}, lightField::Float64)
