@@ -422,8 +422,11 @@ function computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm
 
     lines = PhotoRecombination.determineLines(finalMultiplet, initialMultiplet, settings)
     if  settings.printBefore    PhotoRecombination.displayLines(stdout, lines)    end
-    maxEnergy = 0.;   for  line in lines   maxEnergy = max(maxEnergy, line.electronEnergy)   end
-    nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
+    maxEnergy = 0.;          for  line in lines   maxEnergy = max(maxEnergy, line.electronEnergy)   end
+    minEnergy = maxEnergy;   for  line in lines   minEnergy = min(minEnergy, line.electronEnergy)   end
+    # The slow end is reported, not refused (item 9b): gridConsistency's minEnergy tier is warn-only, since no
+    # finite box holds one wavelength at threshold and a refusal there would forbid the calculation outright.
+    nrContinuum = Continuum.gridConsistency(maxEnergy, grid; minEnergy=minEnergy)
     # Both are constants of the whole computation and are READ-ONLY below, so they are safely shared.
     nuclearPot = Nuclear.nuclearPotential(nm, grid)
     primitives = Bsplines.generatePrimitives(grid)
