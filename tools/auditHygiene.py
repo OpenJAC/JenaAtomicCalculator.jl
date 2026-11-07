@@ -107,14 +107,66 @@ def signature(L, k):
     return sig
 
 
+def argParen(s):
+    """Index of the parenthesis that opens the ARGUMENT list, or -1.
+
+    `Base.:(==)(confa::Configuration, confb::Configuration)` carries an earlier parenthesis that
+    belongs to the operator's NAME, and splitting at the first one reads the name as `Base.:` and
+    the argument list as `(==)(confa...)`.  That was symmetric between docstring and code and so
+    hid, until the name was also required to be an identifier:  17 `Base.:(==)` methods were then
+    reported as documenting no signature at all.
+    """
+    for i, ch in enumerate(s):
+        if ch == "(" and (i == 0 or s[i-1] != ":"):  return i
+    return -1
+
+
 def splitSig(s):
     """-> (bare name, normalised argument list with `Module.` prefixes dropped), or None."""
-    p = s.find("(")
+    p = argParen(s)
     if p < 0:  return None
     name = s[:p].strip()
     name = name.split(".")[-1] if "." in name else name
     args = re.sub(r'\b[A-Za-z_]\w*\.(?=[A-Z])', '', s[p:].split(" where")[0])
     return name, re.sub(r'\s+', '', args)
+
+
+def headersOf(head):
+    """-> (candidate signatures, headers).  Both are backticked fragments that START a line and name
+       a function, joined across the backtick pairs they span;  a HEADER is additionally followed by the
+       `...` that opens a description.  The looser set answers "which signature does this docstring
+       state", the stricter one "how many things does it document", and they must stay separate:
+       requiring the `...` of the first reported 56 docstrings as carrying no signature where 23 do,
+       while not requiring it of the second reported 106 families where there are 24."""
+    spans = [(m.start(1), m.end(1), m.group(1)) for m in re.finditer(r'`([^`]+)`', head, re.S)]
+    cands, heads, i = [], [], 0
+    while i < len(spans):
+        b, e, txt = spans[i]
+        ## THREE TESTS, AND ALL THREE ARE NEEDED.  Requiring only "starts a line" read a tuple, a
+        ## formula and a cited call as headers and reported 106 family docstrings where there are 37:
+        ## `(orbitals, chemMu, ...)` opening a returned NamedTuple, `n = (2 temp)^(3/2) ...` opening a
+        ## displayed equation, and `minimum(g.meanEnergy for g in groupsPerStage[i+1])` opening a
+        ## sentence all start a line and all carry a parenthesis.
+        bol = head.rfind("\n", 0, b) + 1
+        if head[bol:b-1].strip().strip('"') != "" or "(" not in txt:  i += 1;  continue
+        ## (2) THE NAME MUST BE A DOTTED IDENTIFIER, which an equation and a tuple are not.
+        q = argParen(txt)
+        if q < 0 or not re.match(r'^[A-Za-z_]\w*(\.([A-Za-z_]\w*|:\([^)]*\)|:\S+))*[!?]?$', txt[:q].strip()):
+            i += 1;  continue
+        acc, j = txt, i
+        while acc.count("(") > acc.count(")") and j+1 < len(spans):
+            j += 1;  acc += spans[j][2]
+        ## (3) A HEADER IS FOLLOWED BY THE `...` THAT OPENS ITS DESCRIPTION, on the rest of its own
+        ## line or on the next non-blank one.  This is what separates a header from a cited call.
+        eol  = head.find("\n", spans[j][1])
+        tail = head[spans[j][1]+1 : eol if eol >= 0 else len(head)].strip()
+        if not tail:
+            rest = head[eol+1:] if eol >= 0 else ""
+            tail = next((l.strip() for l in rest.split("\n") if l.strip()), "")
+        cands.append(acc)
+        if tail.startswith("..."):  heads.append(acc)
+        i = j+1
+    return cands, heads
 
 
 def disabledMask(L):
@@ -217,13 +269,19 @@ def audit(path):
             ## then sees an opening backtick with no closing one and reports "no signature at
             ## all" -- it put the figure at 148 where it is 88, and every one of the 60 extra was
             ## a docstring this project had just CORRECTED.
-            head = "\n".join(L[i:j])
-            cand = next((c for c in re.findall(r'`([^`]+)`', head, re.S) if "(" in c), None)
-            if cand is None:
+            cands, heads = headersOf("\n".join(L[i:j]))
+            if not cands:
                 r["noSigInDoc"] += 1;  sites["noSigInDoc"].append(k+1)
             else:
-                a, b = splitSig(cand), splitSig(signature(L, k))
-                if a and b and a != b:  r["sigMismatch"] += 1;  sites["sigMismatch"].append(k+1)
+                ## A DOCSTRING CARRYING MORE THAN ONE HEADER DOCUMENTS MORE THAN ONE THING, which
+                ## Rule 15.3 does not allow:  a reader arriving at one method must find ITS
+                ## description attached to it.  Two shapes occur -- several methods sharing one
+                ## docstring, and one method whose two call forms are written as two headers --
+                ## and both end at one docstring per method whose header matches the code.
+                if len(heads) > 1:  r["docFamily"] += 1;  sites["docFamily"].append(k+1)
+                b = splitSig(signature(L, k))
+                if b and not any(splitSig(h) == b for h in cands  if splitSig(h)):
+                    r["sigMismatch"] += 1;  sites["sigMismatch"].append(k+1)
         i = j+1
 
     # ---------------------------------------------------------------- blank-line separation
@@ -263,6 +321,7 @@ ROWS = [("funcs",           "function definitions"),
         ("noDocNested",     "   also: nested local helpers (exempt)"),
         ("noReturnStated",  "docstrings not stating the return value"),
         ("sigMismatch",     "docstring signatures disagreeing with the code"),
+        ("docFamily",       "docstrings carrying more than one header"),
         ("noSigInDoc",      "docstrings carrying no signature at all"),
         ("untyped",         "functions with an argument lacking a type"),
         ("", ""),
