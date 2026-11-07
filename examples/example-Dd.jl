@@ -262,14 +262,19 @@ elseif  false
     # FOLLOWED UP ON HELMTOP, 07-Nov-2026 (priority item 9c, Rule 22): halving hp again at the 500 keV point
     # (0.075e-2 -> 0.0375e-2, a 26964-point grid) moved the Coulomb cross section from 7.180860e-01 to only
     # 7.180676e-01 barn -- a 0.0026 % shift, i.e. CONVERGED. Mesh coarseness explains the FIRST halving's drop
-    # from 34 % high to 7.17 % high, but NOT the remaining 7.17 % gap against this branch's own 28-Aug-2026
-    # dated claim (0.670034 barn): that gap does not close under further mesh refinement, so a FURTHER,
-    # DIFFERENT mechanism (or a dated claim no longer reproducing against the `src/` this ran against today)
-    # is responsible for it. Two extrapolations from the first two points had predicted the gap would keep
-    # closing (-1.83 % or +1.50 % depending on assumed order) -- BOTH ARE NOW FALSIFIED by this third, directly
-    # measured point. THE DATE BELOW IS NOT CONFIRMED BY THIS, and the open question has changed shape: not
-    # "does the mesh converge" (yes, by hp=0.075e-2 already) but "why does the converged answer disagree with
-    # the dated claim by 7 %, at an energy where gauge agreement is fine (0.73 % here, 0.72 % dated)."
+    # from 34 % high to 7.17 % high, but the remaining 7.17 % against the dated claim does NOT close under
+    # further refinement -- two extrapolations predicting it would (-1.83 % or +1.50 %) are BOTH FALSIFIED.
+    # QUESTION NOW CLOSED, 07-Nov-2026: checking out the exact commit this branch's 28-Aug claim was computed
+    # at (10b907ac) shows the setDefaults("method: normalization, Coulomb functions") line below DID NOT EXIST
+    # THEN -- this branch ran under the file's own file-wide "pure sine" default (line 6). Re-running at that
+    # commit under pure-sine normalization at hp=0.15e-2 reproduces 6.700339e-01/6.651952e-01 barn EXACTLY. The
+    # Coulomb-functions override was added only today (771c4e52, item 9a's STOP-unblocking work) because OTHER
+    # branches in this file raise `Continuum.normalizeOrbitalPureSine(): STOP` under pure sine; it was applied
+    # uniformly to every branch including this one, which never raised STOP and was not in need of it. So the
+    # 7.17 % residual is NOT a code defect and NOT an unconverged mesh: it is the (real, both self-consistent)
+    # difference between pure-sine and Coulomb-functions normalization at 500 keV, on a branch whose dated claim
+    # was never computed under the convention it now runs with. Which convention is the physically better one
+    # here is a separate, already-open question (the Continuum-normalization/RPA-vertex item), not this one.
     # Last successful:  28-Aug-2026 -- Coulomb/Babushkin 546.201/539.408 barn @10 keV (1.24 %), 20.2192/19.9138
     # @100 keV (1.51 %), 0.670034/0.665195 @500 keV (0.72 %). Against 9-Aug (545.5/538.7, 21.35/21.03,
     # 0.9988/0.9923) the shift is +0.1 %, -5.3 % and -32.9 %: the 27-Aug parity correction, growing with the
