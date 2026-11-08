@@ -1186,7 +1186,9 @@ function  computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, n
     # Determine maximum energy and check for consistency of the grid
     maxEnergy = 0.
     for  line in lines,  sh in line.sharings   maxEnergy = max(maxEnergy, sh.epsilon1, sh.epsilon2)   end
-    nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
+    minEnergy = maxEnergy
+    for  line in lines,  sh in line.sharings   minEnergy = min(minEnergy, sh.epsilon1, sh.epsilon2)   end
+    nrContinuum = Continuum.gridConsistency(maxEnergy, grid; minEnergy=minEnergy)
     # Calculate all amplitudes and requested properties
     newLines = PhotoDoubleIonization.Line[]
     for  line in lines
