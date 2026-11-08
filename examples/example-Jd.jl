@@ -15,6 +15,7 @@ println("    intensity-ratio Te diagnostic).")
 
 
 if  true
+    # Last visit:  08-Nov-2026 (RAISED -- see priority item 9)
     # Last visit:  07-Nov-2026   (RAISED -- see priority item 9)
     # Last visit:  20-Oct-2026
     # Last successful:  unknown ...
@@ -108,6 +109,7 @@ if  true
     wb = perform(computation, output=true)
     #
 elseif  true
+    # Last visit:  08-Nov-2026 (RAISED -- see priority item 9)
     # Last visit:  07-Nov-2026   (RAISED -- see priority item 9)
     # Last visit:  20-Oct-2026
     # Last successful:  unknown ...

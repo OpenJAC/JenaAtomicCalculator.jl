@@ -86,6 +86,12 @@ if  true
     wb = perform(wa; output=true)
     #
 elseif  false
+    # Last visit:      08-Nov-2026 (RAISED -- Basics.computePotential(::CHField,...) refuses: Configuration("1s^2")
+    #                    alone carries no coreSubshells, so the StaticField() interaction (which is CHField
+    #                    underneath) has no core to build a field from. Consistent with this branch already
+    #                    being "blocked on branch a" below, whose own gauge/normalization problems are
+    #                    unresolved -- not attempted here, and possibly the same root confusion about what a
+    #                    "static field without exchange" means for a bare 2-electron target.)
     # Last visit:      21-Aug-2026
     # Last successful:  unknown ... not yet run; it is blocked on branch a, see below.
     #

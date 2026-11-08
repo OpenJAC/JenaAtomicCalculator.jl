@@ -91,6 +91,9 @@ if  true
     end
     #
 elseif  false
+    # Last visit:      08-Nov-2026 (TIMED OUT at 500 s -- first time this branch has been run at all; five
+    #                    separate PhotonScattering computations in one loop, so plausibly just heavy, not
+    #                    examined further)
     # Last visit:      12-Oct-2026
     # Last successful:  unknown ... not yet run.
     #

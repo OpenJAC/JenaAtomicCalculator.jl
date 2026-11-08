@@ -162,6 +162,10 @@ if true
     #
 elseif false
     #
+    # Last visit:      08-Nov-2026 (RAISED -- Continuum.normalizeOrbitalCoulombFunctions() CANNOT BE TRUSTED
+    #                    at 322 Ha, 18 points/oscillation; same settled mesh-too-coarse mechanism as
+    #                    example-Jd.jl's own sibling branches under priority item 11's closure, a new
+    #                    instance not a new mechanism -- remedy is grid.hp smaller by ~2.2x, not attempted here)
     # Last visit:      03-Aug-2026
     # Last successful: unknown ... not yet run/verified
     #
