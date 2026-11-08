@@ -103,6 +103,30 @@ elseif  false
 
 elseif  true
     # Last visit:  07-Nov-2026
+    # CAUTION, 08-Nov-2026 (priority list item 11): the default grid (Radial.Grid(true), rbox=614.1 a.u.,
+    # 392 points, pure exponential) flags `3d_5/2 reaches 564.43 a.u. of a 614.1 a.u. box (extent/box =
+    # 0.919)`. UNLIKE EVERY OTHER BRANCH IN THIS ITEM, THIS IS NOT A CLEAN FALSE POSITIVE -- a direct check
+    # finds a real, measurable asymmetry: 3d_3/2 and 3d_5/2, which should be close spin-orbit partners, have
+    # <r> = 15.624 and 20.105 a.u. (ratio 1.287) and E = -0.006631/-0.006840 Ha, while the SAME check on 2p
+    # (the majority shell) gives a <r> ratio of 1.0014 and on 3p (same n as 3d, minority occupation like it)
+    # gives 1.0008. So 3d_5/2 specifically is anomalously diffuse, consistent with Rule 12's "a box too large
+    # starves the high-l/high-n members of a basis, often returning a DIFFERENT STATE" -- but the ratio
+    # (1.287) stays under `checkOrbitalConsistency`'s own 1.5 refusal limit, so the run completes rather than
+    # being refused. **NEITHER PREVIOUSLY TRIED REMEDY HELPS:** `recommendedGrid(refConfigs, nModel)`'s
+    # smaller box (66.7 a.u.) makes the SAME measure WORSE (extent/box 0.960, wrong turn (a) below), and
+    # manually widening to rbox=800 makes `checkOrbitalConsistency` REFUSE outright (<r> ratio 1.695, wrong
+    # turn (b) below) -- so the current default sits in the only usable range found so far, not a box to
+    # casually change. **AND THE ASYMMETRY DOES NOT REACH THE BRANCH'S OWN CLAIMED RESULT:** re-run today,
+    # E1 = -74.8205509552863 Ha, nlev = 139 -- matching the 18-Oct-2026 measurement below to 9 figures despite
+    # the SCF hitting its 24-iteration cap (self-consistency 2.08e-05) rather than its normal stopping test.
+    # 3d is a minor correlating configuration; its orbital-level anomaly evidently does not propagate into
+    # the ground-state energy this branch is anchored to. STILL OPEN: `recommendedGrid`'s multi-reference box
+    # estimate is itself understood now -- merging the SIX reference configurations' shell occupations by
+    # taking the per-shell MAXIMUM (3s=1, 3p=1, 3d=1, as if all three were simultaneously occupied) inflates
+    # the apparent electron count past Z, floors Zeff at 1.0 for every n=3 shell via `Basics.slaterScreening`,
+    # and then the LOWEST-l shell at that shared floor (3s, not the 3d that actually triggers the warning)
+    # sets the box -- a genuine defect in the multi-reference merge, confirmed by hand from the formulas in
+    # `Basics.recommendedGrid`, but fixing it is separate, new work, not done here.
     # Last visit:  18-Oct-2026
     # Last successful:  unknown ... THE 28-Jul-2026 CLAIM IS WITHDRAWN, 18-Oct-2026, and THIS IS THE BRANCH THAT
     #   SHOWS THE SIZE OF THE DEFECT. Its E1 = -74.960229746756 Ha was too bound by 142.8 mHa -- about
