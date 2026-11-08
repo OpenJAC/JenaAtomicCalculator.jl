@@ -166,6 +166,18 @@ function perform(scheme::PhotoIonizationScheme, comp::Cascade.Computation; outpu
     if  output    results = Dict{String, Any}()    else    results = nothing    end
     printSummary, iostream = Defaults.getDefaults("summary flag/stream")
 
+    # A PhotoIonizationScheme CANNOT use excitationToShells, and says so rather than ignoring it in silence.
+    # The field exists because Cascade.PhotoAbsorptionScheme builds BOTH a PhotoIonizationScheme and a
+    # PhotoExcitationScheme from one shared set of nine fields and hands the same arguments to each; the
+    # bound-bound channel is the excitation scheme's work, and generating it here as well would make a
+    # photoabsorption cascade count it twice.  Modelled on Atomic.warnAboutUnusedSettings (`a83c4fa`), which
+    # names an ignored field and never raises, and which reads an Atomic.Computation and so cannot see this.
+    if  length(scheme.excitationToShells) > 0
+        @warn("Cascade.perform(::PhotoIonizationScheme): excitationToShells = $(scheme.excitationToShells) is " *
+              "NOT used by a photoionization cascade, which computes the DIRECT channel only.  For the " *
+              "bound-bound channel use Cascade.PhotoExcitationScheme, or Cascade.PhotoAbsorptionScheme for both.")
+    end
+
     # Perform the SCF and CI computation for the intial-state multiplets if initial configurations are given
     if  comp.initialConfigs != Configuration[]
         multiplet  = SelfConsistent.performSCF(comp.initialConfigs, comp.nuclearModel, comp.grid, comp.asfSettings; printout=false)

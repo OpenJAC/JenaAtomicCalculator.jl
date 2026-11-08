@@ -887,12 +887,19 @@ end
     + excitationFromShells  ::Array{Shell,1}    
         ... List of shells from which photo-excitations are to be considered.
     + excitationToShells    ::Array{Shell,1}    
-        ... List of shells into which photo-excitations are to be considered, including possibly already occupied shells.
+        ... List of shells into which photo-excitations are to be considered, including possibly already occupied
+            shells.  NOT USED BY THIS SCHEME, which computes the DIRECT photoionization channel only;  a non-empty
+            list is reported by a warning at the start of the run.  The field is carried because
+            PhotoAbsorptionScheme builds both this scheme and a PhotoExcitationScheme from one shared set of fields,
+            and the bound-bound channel belongs to the latter -- generating it here as well would count it twice.
+            Use PhotoExcitationScheme for that channel, or PhotoAbsorptionScheme for both together.
     + initialLevelSelection ::LevelSelection    
         ... Specifies the selected initial levels of some given initial-state configurations; these initial level numbers/
             symmetries always refer to the set of initial configurations.
     + lValues               ::Array{Int64,1}
         ... Orbital angular momentum values of the free-electrons, for which partial waves are considered for the PI.
+            This one IS honoured:  it is passed on to PhotoIonization.Settings, which then drops every partial wave
+            whose l is not in the list.
     + electronEnergyShift   ::Float64                 
         ... Energy shift for all bound-state energies relative to the levels from the reference configuration; this is realized by 
             shifting the initial level energies by the negative amount. The shift is taken in the user-defined units.

@@ -26,8 +26,12 @@ function perform(scheme::PhotoAbsorptionScheme, comp::Cascade.Computation; outpu
     if  scheme.calcDirect
         println("\n> Direct photoionization part of the photoabsorption cascade computations")
         println(  "  =======================================================================  \n")
+        # The direct sub-scheme is built with an EMPTY excitationToShells, because a PhotoIonizationScheme
+        # cannot use it: the bound-bound channel is the resonant sub-scheme's work, just below.  Passing the
+        # user's list here changed nothing -- that path never read it -- but it would now trigger the warning
+        # which that scheme raises for a field it must ignore, and here the user is right to have set it.
         iScheme = Cascade.PhotoIonizationScheme(scheme.multipoles, scheme.photonEnergies, scheme.electronEnergies, 
-                            scheme.excitationFromShells, scheme.excitationToShells, scheme.initialLevelSelection, 
+                            scheme.excitationFromShells, Shell[], scheme.initialLevelSelection, 
                             scheme.lValues, scheme.electronEnergyShift, scheme.minCrossSection)
         iComp   = Cascade.Computation(comp, scheme=iScheme)
         iOut    = Cascade.perform(iScheme, iComp; output=true, outputToFile=false)
