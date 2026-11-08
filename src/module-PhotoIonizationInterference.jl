@@ -479,8 +479,9 @@ function computePathways(finalMultiplet::Multiplet, intermediateMultiplet::Multi
     widths   = PhotoIonizationInterference.computeTotalWidths(intermediateMultiplet, initialMultiplet, finalMultiplet, nm, grid, settings)
     pathways = PhotoIonizationInterference.determinePathways(finalMultiplet, intermediateMultiplet, initialMultiplet, settings)
     if  settings.printBefore    PhotoIonizationInterference.displayPathways(stdout, pathways, widths)    end
-    maxEnergy = 0.;    for  pathway in pathways   maxEnergy = max(maxEnergy, pathway.electronEnergy)   end
-    nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
+    maxEnergy = 0.;          for  pathway in pathways   maxEnergy = max(maxEnergy, pathway.electronEnergy)   end
+    minEnergy = maxEnergy;   for  pathway in pathways   minEnergy = min(minEnergy, pathway.electronEnergy)   end
+    nrContinuum = Continuum.gridConsistency(maxEnergy, grid; minEnergy=minEnergy)
 
     # dLevel and initialLevel repeat across the WHOLE photon-energy scan, so one cache shared by every pathway removes almost
     # all of the redundancy; see PhotoIonizationInterference.amplitudeResonant's own docstring for why this exists.
