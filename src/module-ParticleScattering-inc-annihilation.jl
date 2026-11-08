@@ -295,8 +295,9 @@ function computeAnnihilationLines(finalMultiplet::Multiplet, initialMultiplet::M
 
     lines = ParticleScattering.determineAnnihilationLines(finalMultiplet, initialMultiplet, settings)
     if  settings.printBefore    ParticleScattering.displayAnnihilationLines(stdout, lines)    end
-    maxEnergy = 0.;   for  line in lines   maxEnergy = max(maxEnergy, line.positronEnergy)   end
-    nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
+    maxEnergy = 0.;          for  line in lines   maxEnergy = max(maxEnergy, line.positronEnergy)   end
+    minEnergy = maxEnergy;   for  line in lines   minEnergy = min(minEnergy, line.positronEnergy)   end
+    nrContinuum = Continuum.gridConsistency(maxEnergy, grid; minEnergy=minEnergy)
     nucPot      = Nuclear.nuclearPotential(nm, grid)
     newLines    = ParticleScattering.AnnihilationLine[]
     for  line in lines
