@@ -202,7 +202,8 @@ end
 
     
 """
-`ImpactIonization.computeCrossSections(basis::Basis, grid::Radial.Grid, nm::Nuclear.Model, settings::ImpactIonization.Settings; output::Bool=true)`  
+`ImpactIonization.computeCrossSections(basis::Basis, grid::Radial.Grid, nm::Nuclear.Model,
+                                       settings::ImpactIonization.Settings; output::Bool=true)`
     ... to compute the EII cross sections for an atom or ion in chosen model. While the basis describes the
         configuration of the atom, the settings provide access to the selected subshells and energies; 
         a list of crossSections::Array{ImpactIonization.CrossSection,1} is returned.
@@ -866,7 +867,8 @@ end
 
 
 """
-`ImpactIonization.displayCrossSections(stream::IO, crossSections::Array{ImpactIonization.CrossSection,1}, settings::ImpactIonization.Settings)`  
+`ImpactIonization.displayCrossSections(stream::IO, crossSections::Array{ImpactIonization.CrossSection,1},
+                                       settings::ImpactIonization.Settings)`
     ... displays the EII cross sections in a neat tabular form; nothing is returned.
 """
 function  displayCrossSections(stream::IO, crossSections::Array{ImpactIonization.CrossSection,1}, settings::ImpactIonization.Settings)

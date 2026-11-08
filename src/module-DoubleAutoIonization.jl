@@ -375,8 +375,10 @@ end
 
 
 """
-`DoubleAutoIonization.determineSharingsAndChannels(finalLevel::Level, initialLevel::Level, energy::Float64, settings::DoubleAutoIonization.Settings)`  
-    ... to determine a list of DoubleAutoIonization Sharing's and Channel's for a transitions from the initial to final level and by taking into 
+`DoubleAutoIonization.determineSharingsAndChannels(finalLevel::Level, initialLevel::Level, energy::Float64,
+                                            settings::DoubleAutoIonization.Settings)`
+    ... to determine a list of DoubleAutoIonization Sharing's and Channel's for a transitions from the initial to final level and by taking
+    into
         account the particular settings of for this computation; an Array{DoubleAutoIonization.Sharing,1} is returned.
 """
 function determineSharingsAndChannels(finalLevel::Level, initialLevel::Level, energy::Float64, settings::DoubleAutoIonization.Settings)
@@ -396,7 +398,8 @@ end
 
 
 """
-`DoubleAutoIonization.displayDifferentialRates(stream::IO, lines::Array{DoubleAutoIonization.Line,1}, settings::DoubleAutoIonization.Settings)`  
+`DoubleAutoIonization.displayDifferentialRates(stream::IO, lines::Array{DoubleAutoIonization.Line,1},
+                                            settings::DoubleAutoIonization.Settings)`
     ... to display all differential rates, etc. of the selected lines. A neat table is printed but nothing is returned otherwise.
 """
 function  displayDifferentialRates(stream::IO, lines::Array{DoubleAutoIonization.Line,1}, settings::DoubleAutoIonization.Settings)

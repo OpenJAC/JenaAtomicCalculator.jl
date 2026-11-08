@@ -345,7 +345,8 @@ end
 
 
 """
-`PhotoExcitationAutoion.displayPathways(stream::IO, pathways::Array{PhotoExcitationAutoion.Pathway,1}, settings::PhotoExcitationAutoion.Settings)`  
+`PhotoExcitationAutoion.displayPathways(stream::IO, pathways::Array{PhotoExcitationAutoion.Pathway,1},
+                                        settings::PhotoExcitationAutoion.Settings)`
     ... to display a list of pathways and channels that have been selected due to the prior settings. A neat table of 
         all selected transitions and energies is printed but nothing is returned otherwise.
 """

@@ -205,7 +205,8 @@ struct  Ordered2p    end
 #######################################################################################################################
 
 """
-`SpinAngularGaigalas.computeCoefficients(op::SpinAngularGaigalas.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1})`  
+`SpinAngularGaigalas.computeCoefficients(op::SpinAngularGaigalas.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR,
+                                         subshells::Array{Subshell,1})`
     ... computes the spin-angular coefficients for the reduced one-particle matrix element
 
         <leftCsf || op^(k) || rightCsf >  
@@ -226,11 +227,13 @@ end
 
 
 """
-`SpinAngularGaigalas.computeCoefficients(op::SpinAngularGaigalas.TwoParticleOperator, leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1})`  
+`SpinAngularGaigalas.computeCoefficients(op::SpinAngularGaigalas.TwoParticleOperator, leftCsf::CsfR, rightCsf::CsfR,
+                                         subshells::Array{Subshell,1})`
     ... computes the spin-angular coefficients for the reduced two-particle matrix element
 
         <leftCsf || op^(k) || rightCsf >
-        if both CSF refer to the same list of subshells; a Tuple of two lists with one- and two-particle coefficients  tpl::Tuple{coeffs1p::Array{Coefficient1p,1}, coeffs2p::Array{Coefficient2p,1}}  is returned. 
+        if both CSF refer to the same list of subshells; a Tuple of two lists with one- and two-particle coefficients
+        tpl::Tuple{coeffs1p::Array{Coefficient1p,1}, coeffs2p::Array{Coefficient2p,1}} is returned.
 
         leftCsf   - is the bra confuguration state function in relativistic notation;
         rightCsf  - is the ket confuguration state function in relativistic notation;
@@ -246,7 +249,8 @@ end
 
 
 """
-`SpinAngularGaigalas.computeCoefficientsNonScalar(op::SpinAngularGaigalas.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1})`  
+`SpinAngularGaigalas.computeCoefficientsNonScalar(op::SpinAngularGaigalas.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR,
+                                            subshells::Array{Subshell,1})`
     ... computes the spin-angular coefficients for the reduced (scalar) one-particle matrix element
 
         <leftCsf || op^(0) || rightCsf >
@@ -348,7 +352,8 @@ end
 
 
 """
-`SpinAngularGaigalas.computeCoefficientsScalar(op::SpinAngularGaigalas.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1})`  
+`SpinAngularGaigalas.computeCoefficientsScalar(op::SpinAngularGaigalas.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR,
+                                            subshells::Array{Subshell,1})`
     ... computes the spin-angular coefficients for the reduced (scalar) one-particle matrix element
 
         <leftCsf || op^(0) || rightCsf >
@@ -448,11 +453,13 @@ end
 
 
 """
-`SpinAngularGaigalas.computeCoefficientsScalar(op::SpinAngularGaigalas.TwoParticleOperator, leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1})`  
+`SpinAngularGaigalas.computeCoefficientsScalar(op::SpinAngularGaigalas.TwoParticleOperator, leftCsf::CsfR, rightCsf::CsfR,
+                                            subshells::Array{Subshell,1})`
     ... computes the spin-angular coefficients for the reduced (scalar) two-particle matrix element
 
         <leftCsf || op^(0) || rightCsf >
-        a Tuple of two lists with one- and two-particle coefficients tpl::Tuple{coeffs1p::Array{Coefficient1p,1}, coeffs2p::Array{Coefficient2p,1}}  is returned.
+        a Tuple of two lists with one- and two-particle coefficients tpl::Tuple{coeffs1p::Array{Coefficient1p,1},
+        coeffs2p::Array{Coefficient2p,1}} is returned.
 
         leftCsf   - is the bra confuguration state function in relativistic notation;
         rightCsf  - is the ket confuguration state function in relativistic notation;

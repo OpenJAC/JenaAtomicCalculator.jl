@@ -777,7 +777,8 @@ end
         A value::Int64 is returned.
 
         THE THRESHOLD SCALES WITH THE MASS, which is why mass is a keyword here rather than a constant. The negative-energy continuum starts
-        at -2 m c^2, so a fixed -1.999 c^2 is an electron-only value: a muon 1s level in lead lies near 10 MeV = 3.7e5 Hartree, far BELOW the
+        at -2 m c^2, so a fixed -1.999 c^2 is an electron-only value: a muon 1s level in lead lies near 10 MeV = 3.7e5 Hartree, far BELOW
+        the
         electron threshold of 3.75e4, and every muon bound state of a heavy atom would then be rejected here as a spurious Dirac-sea state
         -- silently, since this function returns an index and not an error.
 

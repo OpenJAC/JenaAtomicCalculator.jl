@@ -10,9 +10,11 @@ using  Printf, ..Basics, ..Defaults, ..ManyElectron, ..Nuclear, ..Radial, ..Self
 
 
 """
-`struct  AlphaVariation.Settings  <:  AbstractPropertySettings`  ... defines a type for the details and parameters of computing alpha-variation parameters.
+`struct  AlphaVariation.Settings  <:  AbstractPropertySettings`  
+    ... defines a type for the details and parameters of computing alpha-variation parameters.
 
-    + calcQ                    ::Bool             ... True if the q (and Q) sensitivity coefficients need to be calculated, and false otherwise.
+    + calcQ                    ::Bool             ... True if the q (and Q) sensitivity coefficients need to be calculated, and false
+                                                      otherwise.
     + variationX               ::Float64          ... The finite-difference step x = (alpha/alpha_0)^2 - 1 used to shift alpha in the two
                                                         auxiliary SCF/CI computations; the physical alpha corresponds to x = 0.
     + printBefore              ::Bool             ... True if a list of selected levels is printed before the actual computations start.
@@ -27,8 +29,9 @@ end
 
 
 """
-`AlphaVariation.Settings()`  ... constructor for an `empty` instance of AlphaVariation.Settings for the computation of alpha variation parameters.
-        A `settings::AlphaVariation.Settings` is returned.
+`AlphaVariation.Settings()`  
+    ... constructor for an `empty` instance of AlphaVariation.Settings for the computation of alpha variation parameters. A
+        `settings::AlphaVariation.Settings` is returned.
 """
 function Settings()
     Settings(false, 0.125, false, LevelSelection() )
@@ -86,8 +89,9 @@ end
 
 
 """
-`AlphaVariation.Outcome()`  ... constructor for an `empty` instance of AlphaVariation.Outcome for the computation of alpha-variation properties.
-        A `outcome::AlphaVariation.Outcome` is returned.
+`AlphaVariation.Outcome()`  
+    ... constructor for an `empty` instance of AlphaVariation.Outcome for the computation of alpha-variation properties. A
+        `outcome::AlphaVariation.Outcome` is returned.
 """
 function Outcome()
     Outcome(Level(), 0., 0., 0.)
@@ -241,8 +245,9 @@ end
 
 
 """
-`AlphaVariation.displayOutcomes(stream::IO, outcomes::Array{AlphaVariation.Outcome,1})`  ... to display a list of levels that have been selected
-        for the computations. A small neat table of all selected levels and their energies is printed but nothing is returned otherwise.
+`AlphaVariation.displayOutcomes(stream::IO, outcomes::Array{AlphaVariation.Outcome,1})`  
+    ... to display a list of levels that have been selected for the computations. A small neat table of all selected levels and their
+        energies is printed but nothing is returned otherwise.
 """
 function  displayOutcomes(stream::IO, outcomes::Array{AlphaVariation.Outcome,1})
     nx = 43

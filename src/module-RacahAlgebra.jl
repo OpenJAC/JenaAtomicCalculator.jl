@@ -467,10 +467,10 @@ end
 
 """
 `RacahAlgebra.RacahExpression(rex::RacahAlgebra.RacahExpression;
-                            summations::Union{Nothing,Array{Basic,1}}=nothing,        integrals::Union{Nothing,Array{Integral,1}}=nothing,        
+                            summations::Union{Nothing,Array{Basic,1}}=nothing, integrals::Union{Nothing,Array{Integral,1}}=nothing,
                             phase::Union{Nothing,Basic}=nothing,            
-                            weight::Union{Nothing,Basic}=nothing,                     deltas::Union{Nothing,Array{Kronecker,1}}=nothing,     
-                            triangles::Union{Nothing,Array{Triangle,1}}=nothing,      w3js::Union{Nothing,Array{W3j,1}}=nothing,             
+                            weight::Union{Nothing,Basic}=nothing, deltas::Union{Nothing,Array{Kronecker,1}}=nothing,
+                            triangles::Union{Nothing,Array{Triangle,1}}=nothing, w3js::Union{Nothing,Array{W3j,1}}=nothing,
                             w6js::Union{Nothing,Array{W6j,1}}=nothing,                w9js::Union{Nothing,Array{W9j,1}}=nothing,
                             ylms::Union{Nothing,Array{Ylm,1}}=nothing,                djpqs::Union{Nothing,Array{Djpq,1}}=nothing)`
 
@@ -1400,7 +1400,8 @@ end
 
 
 """
-`RacahAlgebra.rewritePhase(rex::RacahExpression, zeroTerms::Array{SymEngine.Basic,1}; printout::Bool=false, from::String="Unspecified source")`  
+`RacahAlgebra.rewritePhase(rex::RacahExpression, zeroTerms::Array{SymEngine.Basic,1}; printout::Bool=false,
+                           from::String="Unspecified source")`
     ... attempts to rewrite (and shorten) the phase by adding one or several 'zero' terms so that 
         (i) no obsolete indices appear;
         (ii) the number of phase indices becomes smaller

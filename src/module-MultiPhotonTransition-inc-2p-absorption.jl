@@ -509,10 +509,13 @@ end
 
 
 """
-`MultiPhotonTransition.getReducedAmplitudeAbsorption(K::AngularJ64, finalLevel::Level, multipole2::EmMultipole, Jsym::LevelSymmetry, omega::Float64, 
+`MultiPhotonTransition.getReducedAmplitudeAbsorption(K::AngularJ64, finalLevel::Level, multipole2::EmMultipole, Jsym::LevelSymmetry,
+                                            omega::Float64,
                                                                                         multipole1::EmMultipole, initialLevel::Level, 
-                                                        gauge::EmGauge, channels::Array{MultiPhotonTransition.Channel_2pAbsorptionMonochromatic,1})`  
-    ... to get/return the reduced amplitude U^{K, 2gamma absorption} (K, Jf, multipole2, Jsym, omega, multipole1, Ji) from the calculated list
+                                                        gauge::EmGauge,
+                                                        channels::Array{MultiPhotonTransition.Channel_2pAbsorptionMonochromatic,1})`
+    ... to get/return the reduced amplitude U^{K, 2gamma absorption} (K, Jf, multipole2, Jsym, omega, multipole1, Ji) from the calculated
+    list
         of channels. An amplitude::Complex{Float64} is returned.
 """
 function getReducedAmplitudeAbsorption(K::AngularJ64, finalLevel::Level, multipole2::EmMultipole, Jsym::LevelSymmetry, omega::Float64, 

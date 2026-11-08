@@ -1762,7 +1762,8 @@ end
     ... generates a list of non-relativistic configurations that model the stepwise decay of an inner-shell hole by steptwise 
         photoemission and autoionization processes until a certain number of electrons is released. The procedure first determines 
         the most inner-shell hole and continues the stepwise decay until theme.maximallyReleased is reached or no further decay 
-        can occur. Intra-shell processes can be considered but are not reflected in the generated configurations. A list of possible newConfs::Array{Configuration,1} is returned.
+        can occur. Intra-shell processes can be considered but are not reflected in the generated configurations. A list of possible
+        newConfs::Array{Configuration,1} is returned.
 """
 function Basics.generateConfigurations(theme::Basics.ForStepwiseDecay, confs::Array{Configuration,1})
     # A shell that does not occur in a configuration cannot take part in its decay, because the shells that may

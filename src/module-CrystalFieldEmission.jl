@@ -74,7 +74,7 @@ end
 """
 `CrystalFieldEmission.Settings(set::CrystalFieldEmission.Settings;
         multipoles::Union{Nothing,Array{EmMultipole,1}}=nothing,          gauges::Union{Nothing,Array{UseGauge,1}}=nothing,
-        lattice::Union{Nothing,CrystalField.Lattice}=nothing,             model::Union{Nothing,CrystalField.AbstractCrystalFieldModel}=nothing,
+        lattice::Union{Nothing,CrystalField.Lattice}=nothing, model::Union{Nothing,CrystalField.AbstractCrystalFieldModel}=nothing,
         maxRank::Union{Nothing,Int64}=nothing,                            includeJmixing::Union{Nothing,Bool}=nothing,
         printBefore::Union{Nothing,Bool}=nothing,
         minEnergy::Union{Nothing,Float64}=nothing,                        maxEnergy::Union{Nothing,Float64}=nothing)`
@@ -156,7 +156,8 @@ end
 
 
 """
-`CrystalFieldEmission.computeLineAmplitude(mp::EmMultipole, gauge::EmGauge, finalCfLevel::CrystalField.CfLevel, initialCfLevel::CrystalField.CfLevel, grid::Radial.Grid)`
+`CrystalFieldEmission.computeLineAmplitude(mp::EmMultipole, gauge::EmGauge, finalCfLevel::CrystalField.CfLevel,
+                                           initialCfLevel::CrystalField.CfLevel, grid::Radial.Grid)`
     ... computes the crystal-field-resolved multipole transition amplitude between one final and one
         initial Stark sublevel, following the Wigner-Eckart expansion
         <Jf Mf|O^mp_q|Ji Mi> = (-1)^(Jf-Mf) (Jf mp.L Ji; -Mf q Mi) <Jf||O^mp||Ji>, where q = Mf-Mi is
@@ -201,7 +202,8 @@ end
 
 
 """
-`CrystalFieldEmission.computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, grid::Radial.Grid, settings::CrystalFieldEmission.Settings)`
+`CrystalFieldEmission.computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, grid::Radial.Grid,
+                                   settings::CrystalFieldEmission.Settings)`
     ... the standard top-level driver of the module, called automatically by
         Basics.perform(::Atomic.Computation) once computation.processSettings isa
         CrystalFieldEmission.Settings (mirroring PhotoEmission.computeLines's role exactly --

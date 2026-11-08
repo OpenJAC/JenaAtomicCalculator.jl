@@ -718,7 +718,8 @@ end
 
 
 """
-`Basics.determineSelectedPathways(pathwayList::Array{Tuple{Int64,Int64,Int64},1}, initialMultiplet::Multiplet, intermediateMultiplet::Multiplet, 
+`Basics.determineSelectedPathways(pathwayList::Array{Tuple{Int64,Int64,Int64},1}, initialMultiplet::Multiplet,
+                                  intermediateMultiplet::Multiplet,
                                     finalMultiplet::Multiplet)`  
     ... to determine the specified pathways as tupels of initial-, intermediate- and final levels. A level index 0 in pathwayList always 
         refers to all levels from the corresponding multiplet. A (unique) newList::Array{Tuple{Int64,Int64,Int64},1} is returned.

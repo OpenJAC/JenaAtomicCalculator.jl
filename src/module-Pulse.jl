@@ -478,7 +478,7 @@ end
 """
 `Pulse.pulseShapeIntegral(plus::Bool, envelope::Pulse.RectangularEnvelope, beam::AbstractBeam, polarization::Basics.AbstractPolarization,
                                 thetap::Float64, phip::Float64, energyp::Float64, initialEn::Float64, orderSFA::Int)`  
-    ... evaluates the pulse-shape integral F^(orderSFA) [+/-; omega; f^(rectangular); A; angles & energies] for an infinite pulse with given 
+    ... evaluates the pulse-shape integral F^(orderSFA) [+/-; omega; f^(rectangular); A; angles & energies] for an infinite pulse with given
         parameters; an ntg::Complex{Float64} is retured.
 """
 function pulseShapeIntegral(plus::Bool, envelope::Pulse.RectangularEnvelope, beam::AbstractBeam, polarization::Basics.AbstractPolarization,
@@ -511,7 +511,8 @@ end
 """
 `Pulse.pulseShapeIntegral(plus::Bool, envelope::Pulse.SinSquaredEnvelope, beam::AbstractBeam, polarization::Basics.AbstractPolarization,
                                 thetap::Float64, phip::Float64, energyp::Float64, initialEn::Float64, orderSFA::Int)`  
-    ... evaluates the pulse-shape integral F^(orderSFA) [+/-; omega; f^(rectangular); A; angles & energies] for a sine-squared pulse with given 
+    ... evaluates the pulse-shape integral F^(orderSFA) [+/-; omega; f^(rectangular); A; angles & energies] for a sine-squared pulse with
+    given
         parameters; an ntg::Complex{Float64} is retured.
 """
 function pulseShapeIntegral(plus::Bool, envelope::Pulse.SinSquaredEnvelope, beam::AbstractBeam, polarization::Basics.AbstractPolarization,

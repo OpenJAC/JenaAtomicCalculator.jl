@@ -9,7 +9,8 @@ module DecayYield
 using Printf, JenaAtomicCalculator, ..Basics, ..Defaults, ..ManyElectron, ..Nuclear, ..Radial, ..TableStrings
 
 """
-`struct  DecayYield.Settings  <:  AbstractPropertySettings`  ... defines a type for the details and parameters of computing fluorescence and Auger yields.
+`struct  DecayYield.Settings  <:  AbstractPropertySettings`  
+    ... defines a type for the details and parameters of computing fluorescence and Auger yields.
 
     + approach                 ::Basics.AbstractCascadeApproach  ... Cascade approach applied for the yields:
                                                     Basics.AverageSCA(), Basics.SCA() or Basics.UserMCA().

@@ -109,7 +109,8 @@ end
         WHAT IS MIXED. The fixed-point variable is the ELECTRONIC screening potential on the radial grid, not the
         orbitals: it is one vector, the nuclear part is constant and drops out, and the map
         potential -> orbitals -> potential is exactly the self-consistency condition. andersonDepth = 0 recovers
-        the plain iteration (and is then Jacobi rather than Gauss-Seidel, see below); the default 2 is the measured optimum here (3 is nearly equal, larger is WORSE: 24 iterations at 5 and 36 at 12 for Ne), and it
+        the plain iteration (and is then Jacobi rather than Gauss-Seidel, see below); the default 2 is the measured optimum here (3 is
+        nearly equal, larger is WORSE: 24 iterations at 5 and 36 at 12 for Ne), and it
         choice and rarely needs changing.
 
         ONE DELIBERATE DIFFERENCE FROM solveMeanFieldBasis. There the potential is rebuilt inside the kappa loop,

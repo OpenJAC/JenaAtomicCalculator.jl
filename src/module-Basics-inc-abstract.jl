@@ -424,7 +424,8 @@ end
 
 """
 `struct  Basics.RestrictToShellDoubles  <: AbstractConfigurationRestriction`   
-    ... restrict to a double electron occupation in all shells with principal quantum number n >= nmin or orbital angular momentum l >= lmin. 
+    ... restrict to a double electron occupation in all shells with principal quantum number n >= nmin or orbital angular momentum l >=
+    lmin.
 
     + nmin          ::Int64     ... principal quantum number nmin.
     + lmin          ::Int64     ... orbital angular momentum lmin.
@@ -3402,7 +3403,7 @@ end
 
 """
 `Basics.PathwaySelection(active::Bool; indexTriples::Array{Tuple{Int64,Int64,Int64},1}=Tuple{Int64,Int64,Int64}[],
-                symmetryTriples::Array{Tuple{LevelSymmetry,LevelSymmetry,LevelSymmetry},1}=Tuple{LevelSymmetry,LevelSymmetry,LevelSymmetry}[])`  
+                symmetryTriples::Array{Tuple{LevelSymmetry,LevelSymmetry,LevelSymmetry},1}=Tuple{LevelSymmetry,LevelSymmetry,LevelSymmetry}[])`
     ... constructor for specifying the details of a PathwaySelection.
         A `pathwaySelection::Basics.PathwaySelection` is returned.
 """

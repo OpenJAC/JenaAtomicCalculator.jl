@@ -31,8 +31,8 @@ using Printf, ..AngularMomentum, ..AtomicState, ..Basics, ..Defaults, ..ManyElec
 
 
 """
-`struct  RayleighCompton.Settings  <:  AbstractProcessSettings`  ... defines a type for the settings in estimating lastic Rayleigh and inelastic Compton 
-                                        photon scattering cross sections
+`struct  RayleighCompton.Settings  <:  AbstractProcessSettings`  
+    ... defines a type for the settings in estimating lastic Rayleigh and inelastic Compton photon scattering cross sections
 
     + multipoles              ::Array{EmMultipole}      ... Specifies the multipoles of the radiation field that are to be included.
     + gauges                  ::Array{UseGauge}         ... Specifies the gauges to be included into the computations.
@@ -255,7 +255,8 @@ end
 
 
 """
-`RayleighCompton.computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, grid::Radial.Grid, settings::RayleighCompton.Settings; output=true)`  
+`RayleighCompton.computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, grid::Radial.Grid,
+                              settings::RayleighCompton.Settings; output=true)`
     ... to compute the Rayleigh-Compton transition amplitudes and all properties as requested by the given settings. A list of 
         lines::Array{RayleighCompton.Lines} is returned.
 """
@@ -406,7 +407,8 @@ end
 
 
 """
-`RayleighCompton.determineChannels(finalLevel::Level, initialLevel::Level, inOmega::Float64, outOmega::Float64, settings::RayleighCompton.Settings)`  
+`RayleighCompton.determineChannels(finalLevel::Level, initialLevel::Level, inOmega::Float64, outOmega::Float64,
+                                   settings::RayleighCompton.Settings)`
     ... to determine a list of Rayleigh-Compton Channel's for a transitions from the initial to final level and by taking 
         into account the particular settings of for this computation; an Array{RayleighCompton.ChannelChannel,1} is returned.
 """

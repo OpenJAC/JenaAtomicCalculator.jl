@@ -1377,7 +1377,8 @@ end
 
 
 """
-`Basics.generate(::SlaterTypeSpectrumPositive, N::Int64, potential::Radial.Potential, grid::Radial.Grid; N_0::Int64=30, alpha_0::Float64=1.0,`
+`Basics.generate(::SlaterTypeSpectrumPositive, N::Int64, potential::Radial.Potential, grid::Radial.Grid; N_0::Int64=30,
+                 alpha_0::Float64=1.0,`
                     beta_0::Float64=1.1)
     ... to generate the same but to return only the N_0 positive states.  **Not yet implemented !**
 """

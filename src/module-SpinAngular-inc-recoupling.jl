@@ -262,7 +262,8 @@ end
 
 
 """
-`SpinAngular.nonScalarGeneral(op::SpinAngular.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, openList::Array{Int64,1})`
+`SpinAngular.nonScalarGeneral(op::SpinAngular.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1},
+                              openList::Array{Int64,1})`
     ... to compute the rank-k coefficients of a CSF pair of equal occupation with ANY number of open subshells, each
         holding any number of electrons. Each open subshell contributes in turn, its own shell matrix element from
         `SpinAngular.shellReducedW` and its place in the coupling tree from `SpinAngular.chainRecoupling`:
@@ -308,7 +309,8 @@ end
 
 
 """
-`SpinAngular.shellReducedA(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64, Nket::Int64, senKet::Int64, Jket::AngularJ64, mq::AngularM64)`
+`SpinAngular.shellReducedA(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64, Nket::Int64, senKet::Int64, Jket::AngularJ64,
+                           mq::AngularM64)`
     ... to compute the reduced matrix element of a single creation or annihilation operator within one subshell,
         <j^Nbra v J || a^(+/-) || j^Nket v' J'>, from the quasispin representation. As with `shellReducedW`, the
         coefficients of fractional parentage are reused as DATA -- `SpinAngular.completlyReducedCfpByIndices` -- and only
@@ -326,7 +328,8 @@ end
 
 
 """
-`SpinAngular.shellReducedAUncached(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64, Nket::Int64, senKet::Int64, Jket::AngularJ64, mq::AngularM64)`
+`SpinAngular.shellReducedAUncached(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64, Nket::Int64, senKet::Int64,
+                                   Jket::AngularJ64, mq::AngularM64)`
     ... the body of `SpinAngular.shellReducedA`, evaluated without consulting the cache. Kept separate so that the
         cache is a wrapper and the physics is in one place. A value::Float64 is returned.
 """
@@ -463,7 +466,8 @@ end
 
 
 """
-`SpinAngular.nonScalarSubstitution(op::SpinAngular.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64)`
+`SpinAngular.nonScalarSubstitution(op::SpinAngular.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1},
+                                   iCre::Int64, iAnn::Int64)`
     ... to compute the rank-k coefficient of a CSF pair that differs by moving ONE electron: created in subshell `iCre`
         of the bra, annihilated in subshell `iAnn` of the ket. Three ingredients beyond the recoupling, each of which is
         easy to drop and each of which changes the answer:

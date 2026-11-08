@@ -517,7 +517,8 @@ end
 """
 `ManyElectron.parseA(x::AbstractString)`
     ... helper function for `ManyElectron.CsfRGrasp92`
-        Either `nothing` for an empty string, a `value::Int64` for one or two characters, or an `Expr` holding a rational for three, is returned.
+        Either `nothing` for an empty string, a `value::Int64` for one or two characters, or an `Expr` holding a rational for three, is
+        returned.
 """
 function parseA(x::AbstractString)
     y = strip(x)
@@ -716,7 +717,8 @@ end
     + energy       ::Float64          ... energy
     + relativeOcc  ::Float64          ... Relative occupation of this level, if involved in the evolution of a cascade.
     + hasStateRep  ::Bool             ... Determines whether this level 'point' to a physical representation of an state
-                                            (i.e. an basis and corresponding mixing coefficient vector), or just to empty instances, otherwise.
+                                            (i.e. an basis and corresponding mixing coefficient vector), or just to empty instances,
+                                            otherwise.
     + basis        ::Basis            ... relativistic atomic basis
     + mc           ::Vector{Float64}  ... Vector of mixing coefficients w.r.t basis.
 """

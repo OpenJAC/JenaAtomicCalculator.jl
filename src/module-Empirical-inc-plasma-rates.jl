@@ -581,7 +581,8 @@ end
     ... returns the photoionization threshold of shell sh for the ion described by conf, i.e. the energy that has to be supplied to remove
         one electron from that shell; an energy::Float64 > 0. [a.u.] is returned.
 
-        FOR THE OUTERMOST OCCUPIED SHELL OF AN ION this is E(q+1) - E(q), the (q+1)-th successive ionization potential of the element, and it is taken
+        FOR THE OUTERMOST OCCUPIED SHELL OF AN ION this is E(q+1) - E(q), the (q+1)-th successive ionization potential of the element, and
+        it is taken
         from PeriodicTable.ionizationPotentials_Nist2025. That is the quantity the threshold IS, and it is what an X-ray tabulation cannot
         give: Empirical.bindingEnergy is indexed by Z alone and returns the NEUTRAL value whatever the charge state, so for Sr+ it yields
         5.573 eV -- essentially the Sr I -> Sr II potential of 5.695 eV -- where the true edge is the Sr II -> Sr III potential of

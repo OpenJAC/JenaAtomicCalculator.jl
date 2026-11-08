@@ -123,7 +123,8 @@ end
 """
 `PhotonScattering.determineSecondOrderChannels(finalLevel::Level, initialLevel::Level, settings::PhotonScattering.Settings)`
     ... to determine the allowed (incoming multipole, outgoing multipole, intermediate symmetry, gauge, time ordering) channels of
-        one SECOND-ORDER line -- Rayleigh, Raman and resonant inelastic scattering alike, which share this construction exactly. The intermediate symmetries are those reachable from the initial symmetry by the incoming
+        one SECOND-ORDER line -- Rayleigh, Raman and resonant inelastic scattering alike, which share this construction exactly. The
+        intermediate symmetries are those reachable from the initial symmetry by the incoming
         multipole AND from which the final symmetry is reachable by the outgoing one, which is what
         AngularMomentum.allowedTotalSymmetries computes. Both time orderings are generated for every such combination. An
         Array{PhotonScattering.Channel,1} is returned with the amplitudes not yet evaluated.

@@ -253,7 +253,8 @@ end
         decay stops at some stable levels.
         With output = false, nothing is returned. With output = true, a results::Basics.PerformResults is returned -- an
         AbstractDict{String,Any} -- that carries the initial and the generated multiplets, the individual line lists, and
-        under the key "cascade data:" the Cascade.Data of PhotoEmission.Line and AutoIonization.Line that a subsequent Cascade.Simulation reads. With
+        under the key "cascade data:" the Cascade.Data of PhotoEmission.Line and AutoIonization.Line that a subsequent Cascade.Simulation
+        reads. With
         outputToFile = true the same data is written to a zzz-cascade-decay-computations-<date>.jld file, into outputDirectory when one is
         named and into the working directory otherwise.
 """

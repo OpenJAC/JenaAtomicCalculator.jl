@@ -479,7 +479,8 @@ end
         Its AMPLITUDE is not free:  the conductivity sum rule `int sigma dw = pi N_free/(2 Omega)` gives
         `sigma(0) = N_free/(Omega gamma)` with no adjustable factor left.  Only `gamma` is a choice -- and since
         11-Oct-2026 it need not be a choice at all:  `Plasma.dcConductivity` computes it from the average atom's
-        own scattering phase shifts, so the whole optical chain can be run with nothing supplied from outside.  Johnson, Guet & Bertsch (2006) obtain
+        own scattering phase shifts, so the whole optical chain can be run with nothing supplied from outside. Johnson, Guet & Bertsch
+        (2006) obtain
         `gamma = 0.0466 a.u. = 1.27 eV` for aluminium at 0.27 g/cm^3 and 5 eV by imposing that same sum rule on
         their (divergent) free-free integral, and quote `sigma(0) = 0.0262 a.u. = 0.121 (mOhm m)^-1` against
         0.125 from the Ziman formula.  The closed form above gives 0.0286 at their gamma -- 9 % high, the

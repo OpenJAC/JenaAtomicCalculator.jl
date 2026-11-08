@@ -1086,7 +1086,7 @@ end
 
 """
 `Cascade.Simulation(sim::Cascade.Simulation;
-    name::Union{Nothing,String}=nothing,                                  property::Union{Nothing,Cascade.AbstractSimulationProperty}=nothing,
+    name::Union{Nothing,String}=nothing, property::Union{Nothing,Cascade.AbstractSimulationProperty}=nothing,
     method::Union{Nothing,Cascade.AbstractSimulationMethod}=nothing,      settings::Union{Nothing,Cascade.SimulationSettings}=nothing,    
     computationData::Union{Nothing,Array{Dict{String,Any},1}}=nothing )`
 

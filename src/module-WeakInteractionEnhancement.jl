@@ -369,7 +369,7 @@ end
         <f J_f I F_f || D_PNC || i J_i I F_i>.  A value::ComplexF64 is returned, in atomic units (e a_0).
 
         It carries no physics of its own: the weak charge is a purely electronic scalar, so the F-dependence is the single geometrical
-        factor `hyperfineMultipoleFactor` and nothing else.  The function exists so that the two contributions to one measured hyperfine line
+        factor `hyperfineMultipoleFactor` and nothing else. The function exists so that the two contributions to one measured hyperfine line
         can be added, which is what an experiment sees, and so that their RATIO can be formed on the same footing -- the caesium anapole
         moment was extracted from exactly that ratio, as the small difference between the F = 3 -> 4 and F = 4 -> 3 components of one line.
 """

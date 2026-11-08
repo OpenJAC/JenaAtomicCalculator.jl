@@ -462,7 +462,8 @@ end
 
 
 """
-`SpinAngular.moveOnePrimaryVector(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64, iSpec::Int64, kMax::Int64, wCre::Float64, wAnn::Float64)`
+`SpinAngular.moveOnePrimaryVector(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64, iSpec::Int64,
+                                  kMax::Int64, wCre::Float64, wAnn::Float64)`
     ... to compute the primary one-electron-move coefficients for ALL ranks 0 ... kMax of one spectator subshell at once,
         returning them as a vector. Only the spectator's own rank changes with k: the ordering of the three acting
         subshells along the chain, and their places in it, do not -- so they are formed once and the rank vectors are
@@ -578,7 +579,8 @@ end
 
 
 """
-`SpinAngular.moveOnePrimaryFrom(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64, iSpec::Int64, k::Int64, wCre::Float64, wAnn::Float64)`
+`SpinAngular.moveOnePrimaryFrom(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64, iSpec::Int64,
+                                k::Int64, wCre::Float64, wAnn::Float64)`
     ... as `SpinAngular.moveOnePrimary`, but taking the creation and annihilation matrix elements ALREADY FORMED.
         They depend on neither the spectator subshell nor the rank, so a caller sweeping over both computes them once
         and passes them in; `moveOnePrimary` itself is the convenience entry that forms them and delegates here. A
@@ -767,7 +769,8 @@ end
 
 
 """
-`SpinAngular.shellReducedAW(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64, Nket::Int64, senKet::Int64, Jket::AngularJ64, kW::Int64, K::AngularJ64, mq::AngularM64)`
+`SpinAngular.shellReducedAW(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64, Nket::Int64, senKet::Int64, Jket::AngularJ64,
+                            kW::Int64, K::AngularJ64, mq::AngularM64)`
     ... to compute the reduced matrix element of the COUPLED product of a single creation or annihilation operator with
         a rank-kW tensor acting on the SAME subshell, <j^Nbra v J || (a^(j) x W^(kW))^(K) || j^Nket v' J'>. This is the
         object needed whenever three of a two-body operator's four one-electron operators fall on one subshell, i.e.
@@ -829,7 +832,8 @@ end
 
 
 """
-`SpinAngular.shellReducedWA(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64, Nket::Int64, senKet::Int64, Jket::AngularJ64, kW::Int64, K::AngularJ64, mq::AngularM64)`
+`SpinAngular.shellReducedWA(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64, Nket::Int64, senKet::Int64, Jket::AngularJ64,
+                            kW::Int64, K::AngularJ64, mq::AngularM64)`
     ... to compute the reduced matrix element of the coupled product taken in the OTHER order,
         <j^Nbra v J || (W^(kW) x a^(j))^(K) || j^Nket v' J'>, where the single operator acts FIRST and the rank-kW tensor
         second, so that the intermediate subshell terms carry `Nbra` electrons rather than `Nket`.
@@ -879,7 +883,8 @@ end
 
 
 """
-`SpinAngular.moveOneSameShell(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64, iSpec::Int64, k::Int64)`
+`SpinAngular.moveOneSameShell(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, iCre::Int64, iAnn::Int64, iSpec::Int64,
+                              k::Int64)`
     ... to compute, at rank `k`, the two-particle coefficient of a CSF pair differing by ONE electron in the case where
         the spectator subshell COINCIDES with the acceptor `iCre` or the donor `iAnn`. Three of the operator's four
         one-electron operators then fall on that one subshell -- two creations and an annihilation when it is the
@@ -1093,7 +1098,8 @@ end
 
 
 """
-`SpinAngular.shellReducedAA(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64, Nket::Int64, senKet::Int64, Jket::AngularJ64, K::AngularJ64, mq::AngularM64)`
+`SpinAngular.shellReducedAA(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64, Nket::Int64, senKet::Int64, Jket::AngularJ64,
+                            K::AngularJ64, mq::AngularM64)`
     ... to compute the reduced matrix element of TWO creation or TWO annihilation operators coupled on one subshell,
         <j^Nbra v J || (a^(j) x a^(j))^(K) || j^Nket v' J'>, with `mq` = +1/2 for two creations and -1/2 for two
         annihilations, so that Nbra and Nket differ by two. This is the object a two-electron move needs whenever BOTH
@@ -1143,7 +1149,8 @@ end
 
 
 """
-`SpinAngular.twoParticleMoveTwoSameShell(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, dbl::Int64, sgl::Array{Int64,1}, diff::Array{Int64,1})`
+`SpinAngular.twoParticleMoveTwoSameShell(leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, dbl::Int64, sgl::Array{Int64,1},
+                                         diff::Array{Int64,1})`
     ... to compute all two-particle coefficients of a CSF pair that differs by TWO electrons where BOTH of them leave, or
         both arrive in, the SAME subshell `dbl`, the other two operators sitting on the single subshells `sgl`. The
         doubled subshell then carries the coupled two-creation or two-annihilation tensor `shellReducedAA`, and only

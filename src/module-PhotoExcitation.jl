@@ -9,15 +9,18 @@ module PhotoExcitation
 using Printf, ..AngularMomentum, ..Basics,  ..BiOrthogonal, ..Defaults, ..ManyElectron, ..Radial, ..PhotoEmission, ..Statistical, ..TableStrings
 
 """
-`struct  PhotoExcitation.Settings  <:  AbstractProcessSettings`  ... defines a type for the details and parameters of computing photo-excitation  lines.
+`struct  PhotoExcitation.Settings  <:  AbstractProcessSettings`  
+    ... defines a type for the details and parameters of computing photo-excitation lines.
 
     + multipoles              ::Array{EmMultipole,1}    ... Specifies the multipoles of the radiation field that are to be included.
     + gauges                  ::Array{UseGauge,1}       ... Specifies the gauges to be included into the computations.
-    + calcForStokes           ::Bool                    ... True, if the excitation cross sections are to be calculated (and false otherwise)
+    + calcForStokes           ::Bool                    ... True, if the excitation cross sections are to be calculated (and false
+                                                            otherwise)
                                                             for given Stokes parameter of the incident plane-wave photons.
-    + calcPhotonDm            ::Bool                    ... True, if the photon density matrix of a subsequently emitted fluorescence photon 
+    + calcPhotonDm            ::Bool                    ... True, if the photon density matrix of a subsequently emitted fluorescence photon
                                                             is to be calculated and false otherwise. 
-    + calcTensors             ::Bool                    ... True, if statistical tensors of the excited atom are to be calculated, false otherwise.
+    + calcTensors             ::Bool                    ... True, if statistical tensors of the excited atom are to be calculated, false
+                                                            otherwise.
     + calcBiorthogonal        ::Bool                    ... True, if the initial- and final-state multiplets are first
                                                             brought into a bi-orthogonal representation
                                                             (`BiOrthogonal.computeTransformation`) before the transition
@@ -162,7 +165,8 @@ end
 
 
 """
-`PhotoExcitation.computeAmplitudesProperties(line::PhotoExcitation.Line, grid::Radial.Grid, settings::PhotoExcitation.Settings; printout::Bool=true)`  
+`PhotoExcitation.computeAmplitudesProperties(line::PhotoExcitation.Line, grid::Radial.Grid,
+                                            settings::PhotoExcitation.Settings; printout::Bool=true)`
     ... to compute all amplitudes and properties of the given line; a line::PhotoExcitation.Line is returned for which 
         the amplitudes and properties have now been evaluated.
 """
@@ -322,7 +326,8 @@ end
                               SUM_(L,L')  <J_i M_i, L lambda | J_f M_f> <J_i M_i, L' lambda' | J_f M_f'>
                               i^(L-L'+p-p') lambda^p lambda'^p'  A_L conj(A_L')
 
-        and passed to `Statistical.computeTensors`, which owns the definition of rho_kq for the whole code.  Summing over M_i, M_f and M_f' explicitly costs nothing at these angular
+        and passed to `Statistical.computeTensors`, which owns the definition of rho_kq for the whole code. Summing over M_i, M_f and M_f'
+        explicitly costs nothing at these angular
         momenta and avoids a Racah reduction whose 6j phases cannot be checked independently.
 
         THE PHOTON DENSITY MATRIX FOLLOWS THE CONVENTION ALREADY IN USE in `PhotoIonization`: in the helicity basis

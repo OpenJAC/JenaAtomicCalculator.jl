@@ -239,7 +239,8 @@ end
 
 
 """
-`TableStrings.processSymmetryEnergyTupels(n::Int64, pList::Array{Tuple{Basics.AbstractProcess, Int64, LevelSymmetry, Float64},1}, sc::String)`  
+`TableStrings.processSymmetryEnergyTupels(n::Int64, pList::Array{Tuple{Basics.AbstractProcess, Int64, LevelSymmetry, Float64},1},
+                                          sc::String)`
         ... a list of Strings with maximal length n is returned; each string in this list comprises a number of 
         'sc(process: NoElectrons, symmetry, energy),  ' descriptors.
 """

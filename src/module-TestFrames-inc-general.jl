@@ -4317,7 +4317,7 @@ function testModule_Distribution(; short::Bool=true)
     f = en -> Distribution.electronVelocityDistribution(fd, sqrt(2*en))
     for  (en, wb, sb)  in  [(0.4, 1.0, "ten kT below the chemical potential the state is full"),
                             (0.6, 0.0, "ten kT above the chemical potential the state is empty")]
-        wa = f(en) / f(0.5) / 2.0      ## f(muChem) is exactly half the full value, so this is the occupation
+        wa = f(en) / f(0.5) / 2.0      # f(muChem) is exactly half the full value, so this is the occupation
         if  abs(wa - wb) > 1.0e-3
             success = false
             if printTest   info(iostream, "$sb; the occupation at E = $en is $wa, must be $wb")   end

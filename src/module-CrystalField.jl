@@ -399,7 +399,8 @@ end
 
 
 """
-`CrystalField.computeInteractionMatrix(levels::Array{Level,1}, lattice::CrystalField.Lattice, model::CrystalField.AbstractCrystalFieldModel, grid::Radial.Grid, maxRank::Int64)`
+`CrystalField.computeInteractionMatrix(levels::Array{Level,1}, lattice::CrystalField.Lattice,
+                                       model::CrystalField.AbstractCrystalFieldModel, grid::Radial.Grid, maxRank::Int64)`
     ... builds the full crystal-field Hamiltonian matrix over the M_J-resolved basis of all
         `levels` (one CrystalField.CfBasisVector per M_J of every level in `levels`), following
         the Wigner-Eckart decomposition of Eq. (3): for every tensor rank k = 1, .., maxRank the
@@ -473,7 +474,8 @@ end
 
 
 """
-`CrystalField.computeRepresentation(levels::Array{Level,1}, lattice::CrystalField.Lattice, model::CrystalField.AbstractCrystalFieldModel, grid::Radial.Grid, maxRank::Int64)`
+`CrystalField.computeRepresentation(levels::Array{Level,1}, lattice::CrystalField.Lattice, model::CrystalField.AbstractCrystalFieldModel,
+                                    grid::Radial.Grid, maxRank::Int64)`
     ... builds the crystal-field representation for the given (possibly J-mixed) set of parent
         levels: calls CrystalField.computeInteractionMatrix(...) to obtain the full (complex
         Hermitian) Hamiltonian matrix over the M_J-resolved basis, diagonalizes it with
@@ -627,7 +629,8 @@ end
 
 
 """
-`CrystalField.fitScaleField(levels::Array{Level,1}, lattice::CrystalField.Lattice, grid::Radial.Grid, targetSplitting::Float64, maxRank::Int64;
+`CrystalField.fitScaleField(levels::Array{Level,1}, lattice::CrystalField.Lattice, grid::Radial.Grid, targetSplitting::Float64,
+                            maxRank::Int64;
                         tolerance::Float64=1.0e-6, maxIterations::Int64=20)`
 
     ... finds the CrystalField.PointChargeModel.scaleField value -- the S_xtal empirical rescaling

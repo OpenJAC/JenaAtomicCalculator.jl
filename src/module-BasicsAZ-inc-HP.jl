@@ -274,6 +274,8 @@ function Basics.merge(aList::Array{Shell,1}, bList::Array{Shell,1})
     cList = Basics.sort(cList)
     return( cList )
 end
+
+
 """
 `Basics.merge(aList::Array{Shell,1}, bList::Array{Shell,1}, cList::Array{Shell,1})`
     ... merges THREE shell lists into one, by applying the two-list method twice; duplicates are removed and the
@@ -296,6 +298,8 @@ function Basics.merge(aList::Array{Subshell,1}, bList::Array{Subshell,1})
     cList = Basics.sort(cList)
     return( cList )
 end
+
+
 """
 `Basics.merge(aList::Array{Subshell,1}, bList::Array{Subshell,1}, cList::Array{Subshell,1})`
     ... merges THREE subshell lists into one, by applying the two-list method twice; duplicates are removed and the

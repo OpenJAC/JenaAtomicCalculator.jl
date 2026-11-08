@@ -901,7 +901,8 @@ end
         more than rounding, and the difference is the point rather than a defect of this one.
 
         A GREEN SUITE SAYS NOTHING ABOUT THIS FUNCTION UNDER LINEARLY POLARIZED LIGHT, and that is worth knowing before trusting it. The
-        Clebsch-Gordan coupling the two helicities carried the projection -lambda where it needs -lambdap, so both projections summed to zero
+        Clebsch-Gordan coupling the two helicities carried the projection -lambda where it needs -lambdap, so both projections summed to
+        zero
         and every lambda /= lambda' term -- exactly the terms carrying LINEAR polarization -- was deposited at q = 0 rather than at
         q = +-2. Under P1 that cancelled the alignment exactly, A_20 coming out 0.000000 instead of 0.128571; under P2 it produced an
         imaginary orientation that Hermiticity forbids; and q = +-2 was always zero. For UNPOLARIZED and CIRCULAR light those terms vanish

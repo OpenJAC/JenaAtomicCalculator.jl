@@ -246,7 +246,12 @@ def audit(path):
             r["textBanner"] += 1;  sites["textBanner"].append(i+1)
         elif re.match(r'^\s*##[^#]', l):     r["standalone2"] += 1;  sites["standalone2"].append(i+1)
         elif re.search(r'\S\s+##[^#]', l) and not s.startswith("#"):
-            r["appended2Data" if fn in DATA else "appended2"] += 1
+            key = "appended2Data" if fn in DATA else "appended2"
+            ## RECORD THE SITE, not only the count.  Until 08-Nov-2026 this branch incremented the
+            ## counter alone, so `--json` gave a number with no line numbers behind it and the one
+            ## real site could not be found from the report -- it had to be re-derived by grep.  A
+            ## count a later pass cannot act on is barely better than no count.
+            r[key] += 1;  sites[key].append(i+1)
         if re.search(r'(?<![=!])==\s*nothing', l):
             r["eqNothing"] += 1;  sites["eqNothing"].append(i+1)
         if s and not s.startswith("#") and depth == 0:

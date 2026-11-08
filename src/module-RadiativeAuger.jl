@@ -142,7 +142,8 @@ end
 
 # RadiativeAuger line between an initial and final (bound-state) level
 """
-`struct  Line`  ... defines a type for a radiative Auger line that may include the definition of sublines and their corresponding amplitudes.
+`struct  Line`  
+    ... defines a type for a radiative Auger line that may include the definition of sublines and their corresponding amplitudes.
 
     + initialLevel   ::Level          ... initial-(state) level
     + finalLevel     ::Level          ... final-(state) level

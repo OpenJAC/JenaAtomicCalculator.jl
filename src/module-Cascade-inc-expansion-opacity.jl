@@ -101,7 +101,8 @@ end
 `Cascade.determineSteps(scheme::Cascade.ExpansionOpacityScheme, comp::Cascade.Computation, blockList::Array{Cascade.Block,1})`  
     ... determines all step::Cascade.Step's that need to be computed for this expansion opacity cascade. 
         It considers the pairwise photoexcitation between all blocks and checks that at least one transition is allowed for these blocks.
-        A stepList::Array{Cascade.Step,1} is returned, and for which subsequently all required transition amplitudes and oscillator strengths
+        A stepList::Array{Cascade.Step,1} is returned, and for which subsequently all required transition amplitudes and oscillator
+        strengths
         are computed.
 """
 function determineSteps(scheme::Cascade.ExpansionOpacityScheme, comp::Cascade.Computation, blockList::Array{Cascade.Block,1})
@@ -125,7 +126,7 @@ end
 
 """
 `Cascade.generateBlocks(scheme::Cascade.ExpansionOpacityScheme, comp::Cascade.Computation, confs::Array{Configuration,1}; printout::Bool=true)`  
-    ... generate all block::Cascade.Block's, that need to be computed for this expansion opacity cascade, and compute also the corresponding 
+    ... generate all block::Cascade.Block's, that need to be computed for this expansion opacity cascade, and compute also the corresponding
         multiplets. The different cascade approches realizes different strategies how these blocks are selected and computed. 
         A blockList::Array{Cascade.Block,1} is returned.
 """
@@ -260,7 +261,8 @@ end
         With output = false, nothing is returned. With output = true, a results::Basics.PerformResults is returned -- an
         AbstractDict{String,Any} -- that carries the initial and the generated multiplets, the individual line lists, and
         under the key "cascade data:" the Cascade.Data{PhotoExcitation.Line} that a subsequent Cascade.Simulation reads. With
-        outputToFile = true the same data is written to a zzz-cascade-expansion-opacity-computations-<date>.jld file, into outputDirectory when one is
+        outputToFile = true the same data is written to a zzz-cascade-expansion-opacity-computations-<date>.jld file, into outputDirectory
+        when one is
         named and into the working directory otherwise.
 """
 function perform(scheme::ExpansionOpacityScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true, outputDirectory::String="")

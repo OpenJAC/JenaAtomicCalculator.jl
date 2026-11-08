@@ -78,7 +78,8 @@ end
 
 """
 `Cascade.generateBlocks(scheme::Cascade.PhotoIonizationScheme, comp::Cascade.Computation, confs::Array{Configuration,1}; printout::Bool=true)`  
-    ... generate all block::Cascade.Block's, that need to be computed for this excitation cascade, and compute also the corresponding multiplets.
+    ... generate all block::Cascade.Block's, that need to be computed for this excitation cascade, and compute also the corresponding
+    multiplets.
         The different cascade approaches realizes different strategies how these block are selected and computed. 
         A blockList::Array{Cascade.Block,1} is returned.
 """

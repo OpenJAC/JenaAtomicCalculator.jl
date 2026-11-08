@@ -463,7 +463,8 @@ end
 
 
 """
-`PhotoExcitationFluores.displayPathways(stream::IO, pathways::Array{PhotoExcitationFluores.Pathway,1}, settings::PhotoExcitationFluores.Settings)`  
+`PhotoExcitationFluores.displayPathways(stream::IO, pathways::Array{PhotoExcitationFluores.Pathway,1},
+                                        settings::PhotoExcitationFluores.Settings)`
     ... to list the energies and multipoles of the selected pathways. A neat table is printed but nothing is returned otherwise.
 """
 function  displayPathways(stream::IO, pathways::Array{PhotoExcitationFluores.Pathway,1}, settings::PhotoExcitationFluores.Settings)

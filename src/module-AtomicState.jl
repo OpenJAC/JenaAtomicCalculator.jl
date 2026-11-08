@@ -1527,7 +1527,8 @@ end
 ### Representation ##################################################################################
 """
 `struct  AtomicState.Representation`  
-    ... a struct for defining an atomic state representation. Such representations often refer to approximate wave function approximations of
+    ... a struct for defining an atomic state representation. Such representations often refer to approximate wave function approximations
+    of
         one or several levels but may concern also a mean-field basis (for some multiplet of some given configurations) or Green functions,
         etc.
 

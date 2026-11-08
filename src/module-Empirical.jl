@@ -335,7 +335,7 @@ end
 """
 `Empirical.Computation(comp::Empirical.Computation;
     name::Union{Nothing,String}=nothing,               nuclearModel::Union{Nothing,Nuclear.Model}=nothing,
-    grid::Union{Nothing,Radial.Grid}=nothing,          configs::Union{Nothing,Array{Configuration,1}}=nothing,       settings::Union{Nothing,Any}=nothing,            
+    grid::Union{Nothing,Radial.Grid}=nothing, configs::Union{Nothing,Array{Configuration,1}}=nothing, settings::Union{Nothing,Any}=nothing,
     printout::Bool=false)`
 
     ... constructor for modifying the given Empirical.Computation by 'overwriting' the previously selected parameters.

@@ -449,7 +449,8 @@ end
 
 
 """
-`InternalConversion.reducedRif(mp::EmMultipole, kappaInitial::Int64, kappaFinal::Int64, k::Float64, orbitalInitial::Radial.Orbital, orbitalFinal::Radial.Orbital, grid::Radial.Grid)`
+`InternalConversion.reducedRif(mp::EmMultipole, kappaInitial::Int64, kappaFinal::Int64, k::Float64, orbitalInitial::Radial.Orbital,
+                               orbitalFinal::Radial.Orbital, grid::Radial.Grid)`
     ... computes the radial factor R_if^(tau L) from the InternalConversion.icRadialIntegral building blocks:
         Eq. (2) for a magnetic multipole, which is the single integral of F^(0), and Eq. (3) for an electric
         one, which is the two-term combination carrying h_(L-1) beside h_L. A value::ComplexF64 is returned.
@@ -577,7 +578,8 @@ end
 
 
 """
-`InternalConversion.computeAmplitudesProperties(line::InternalConversion.Line, nm::Nuclear.Model, grid::Radial.Grid, nrContinuum::Int64, settings::InternalConversion.Settings)`
+`InternalConversion.computeAmplitudesProperties(line::InternalConversion.Line, nm::Nuclear.Model, grid::Radial.Grid, nrContinuum::Int64,
+                                            settings::InternalConversion.Settings)`
     ... fills in a Line's channels and total ICC (Eq. (1), summed over multipoles and kappa),
         mirroring AutoIonization.computeAmplitudesProperties: generates the continuum orbital for
         each channel's kappa via Continuum.generateOrbitalForLevel(...), attaches it to the final
@@ -612,7 +614,8 @@ end
 
 
 """
-`InternalConversion.computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid, settings::InternalConversion.Settings)`
+`InternalConversion.computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid,
+                                 settings::InternalConversion.Settings)`
     ... the top-level driver, called automatically by Basics.perform(::Atomic.Computation) once
         computation.processSettings isa InternalConversion.Settings. `nm` is the nuclear model of the
         computation (Z, charge distribution) -- it fixes the potential in which the ejected electron's

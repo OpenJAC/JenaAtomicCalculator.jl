@@ -11,13 +11,15 @@ using Printf, ..AngularMomentum, ..Basics, ..Defaults, ..InteractionStrength, ..
 
 
 """
-`struct  Einstein.Settings  <:  AbstractPropertySettings`  ... defines a type for the details and parameters of computing Einstein lines and coefficients
+`struct  Einstein.Settings  <:  AbstractPropertySettings`  
+    ... defines a type for the details and parameters of computing Einstein lines and coefficients
 
     + multipoles              ::Array{EmMultipoles}          ... Specifies the multipoles of the radiation field that are to be included.
     + printBefore             ::Bool                         ... True, if all energies and lines are printed before their evaluation.
     + lineSelection           ::LineSelection                ... Specifies the selected levels, if any.
     + photonEnergyShift       ::Float64                      ... An overall energy shift for all photon energies.
-    + mimimumPhotonEnergy     ::Float64                      ... minimum transition energy for which (photon) transitions are included into the
+    + mimimumPhotonEnergy     ::Float64                      ... minimum transition energy for which (photon) transitions are included into
+                                                                 the
                                                                     computation.
     + maximumPhotonEnergy     ::Float64                      ... maximum transition energy for which (photon) transitions are included.
 """
@@ -79,7 +81,8 @@ end
 
 
 """
-`struct  Einstein.Channel`  ... defines a type for a single Einstein emission/absorption channel that specifies the multipole, gauge and amplitude.
+`struct  Einstein.Channel`  
+    ... defines a type for a single Einstein emission/absorption channel that specifies the multipole, gauge and amplitude.
 
     + multipole         ::EmMultipole        ... Multipole of the photon emission/absorption.
     + gauge             ::EmGauge            ... Gauge for dealing with the (coupled) radiation field.

@@ -789,7 +789,8 @@ end
 
 
 """
-`NuclearShielding.computeOutcomes(multiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid, settings::NuclearShielding.Settings; output=true)`  
+`NuclearShielding.computeOutcomes(multiplet::Multiplet, nm::Nuclear.Model, grid::Radial.Grid,
+                                  settings::NuclearShielding.Settings; output=true)`
     ... computes the nuclear shielding factors for the selected levels of the given multiplet.  The ion must be CLOSED
         SHELL: the response of an open-shell ion is not a scalar and the factorisation this module rests on does not
         apply, so such a case is refused rather than approximated.  An array of outcomes::Array{Outcome,1} is returned if

@@ -525,7 +525,8 @@ end
 
 
 """
-`MultiPhotonTransition.determineSharingsAndChannels(finalLevel::Level, initialLevel::Level, energy::Float64, settings::MultiPhotonTransition.Settings)`  
+`MultiPhotonTransition.determineSharingsAndChannels(finalLevel::Level, initialLevel::Level, energy::Float64,
+                                            settings::MultiPhotonTransition.Settings)`
     ... to determine a list of MultiPhotonTransition 2pEmission Sharing's and Channel's for a transitions from the initial to 
         final level and by taking into account the particular settings of for this computation; 
         an Array{MultiPhotonTransition.Sharing_2pEmission,1} is returned.

@@ -437,11 +437,12 @@ end
 
 """
 `struct  SphericalTensor.SphericalAmplitude`   
-    ... to represent a (non-reduced, many-electron) spherical amplitude that may include one or several spherical matrix elements, spherical 
-        field operator components as well as  various symbols from Racah's algebra. In general, these spherical amplitudes need further to be 
+    ... to represent a (non-reduced, many-electron) spherical amplitude that may include one or several spherical matrix elements, spherical
+        field operator components as well as various symbols from Racah's algebra. In general, these spherical amplitudes need further to be
         simplified to (fully) reduced amplitudes prior to the calculations.
 
-    + rex              ::RacahAlgebra.RacahExpression       ... contains all factors from Racah's algebra including summations and delta-factors
+    + rex              ::RacahAlgebra.RacahExpression       ... contains all factors from Racah's algebra including summations and
+                                                                delta-factors
     + constants        ::Array{AbstractSphericalConstant,1} ... product (list) of scalar constants.
     + fields           ::Array{SphericalFieldComp,1}        ... product (list) of external field tensors.
     + productMes       ::Array{ProductMatrixElement,1}      ... product (list) of product matrix elements.
@@ -528,7 +529,8 @@ end
     ... to represent a (reduced, many-electron) amplitude that may include one or several reduced matrix elements, spherical field operators
         and various symbols from Racah's algebra. In general, these reduced amplitudes need to be simplified prior to the calculations.
 
-    + rex              ::RacahAlgebra.RacahExpression       ... contains all factors from Racah's algebra including summations and delta-factors
+    + rex              ::RacahAlgebra.RacahExpression       ... contains all factors from Racah's algebra including summations and
+                                                                delta-factors
     + fields           ::Array{AbstractSphericalField,1}    ... product (list) of external field tensors.
     + reducedMes       ::Array{ReducedMatrixElement,1}      ... product (list) of reduced matrix elements.
 """

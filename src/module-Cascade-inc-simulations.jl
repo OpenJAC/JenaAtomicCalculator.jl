@@ -2447,6 +2447,8 @@ function displayRelaxationCurve(stream::IO, relaxPercentage::Array{Float64,1}, r
 
     return( nothing )
 end
+
+
 """
 `Cascade.simulatePhotoAbsorptionSpectrum(simulation::Cascade.Simulation, 
                                             linesP::Array{PhotoIonization.Line,1}, linesE::Array{PhotoExcitation.Line,1})` 

@@ -32,12 +32,18 @@ export  perform
     + intermediateAsfSettings        ::AsfSettings                     ... Provides the SCF settings for the intermediate-state multiplet.
     + finalConfigs                   ::Array{Configuration,1}          ... A list of final-state configurations.
     + finalAsfSettings               ::AsfSettings                     ... Provides the SCF and CI settings for the final-state multiplet.
-    + orbitalSource                  ::Basics.AbstractOrbitalSource    ... Says WHICH one-electron orbital set the initial, intermediate and final
-                                                                           multiplets are built on.  `SeparateOrbitals()` is the default and is what JAC
-                                                                           has always done -- every multiplet from its own SCF.  The alternatives exist
-                                                                           because an explicit SECOND-ORDER amplitude is valid only on ONE orthonormal
-                                                                           set:  `ManyElectron.matrixElement_HminusE` drops the overlap term `-E <r|s>`,
-                                                                           which vanishes identically only then.  See `Basics.AbstractOrbitalSource`.
+    + orbitalSource                  ::Basics.AbstractOrbitalSource    ... Says WHICH one-electron orbital set the initial, intermediate and
+                                                                           final
+                                                                           multiplets are built on. `SeparateOrbitals()` is the default and
+                                                                           is what JAC
+                                                                           has always done -- every multiplet from its own SCF. The
+                                                                           alternatives exist
+                                                                           because an explicit SECOND-ORDER amplitude is valid only on ONE
+                                                                           orthonormal
+                                                                           set: `ManyElectron.matrixElement_HminusE` drops the overlap term
+                                                                           `-E <r|s>`,
+                                                                           which vanishes identically only then. See
+                                                                           `Basics.AbstractOrbitalSource`.
     + processSettings                ::Basics.AbstractProcessSettings  ... Provides the settings for the selected process.
 """
 struct  Computation
@@ -74,10 +80,10 @@ end
 """
 `Atomic.Computation(comp::Atomic.Computation;
     name::Union{Nothing,String}=nothing,                                        nuclearModel::Union{Nothing,Nuclear.Model}=nothing,
-    grid::Union{Nothing,Radial.Grid}=nothing,                                   propertySettings::Union{Nothing,Array{Basics.AbstractPropertySettings,1},Any}=nothing,   
+    grid::Union{Nothing,Radial.Grid}=nothing, propertySettings::Union{Nothing,Array{Basics.AbstractPropertySettings,1},Any}=nothing,
     configs::Union{Nothing,Array{Configuration,1}}=nothing,                     asfSettings::Union{Nothing,AsfSettings}=nothing, 
     initialConfigs::Union{Nothing,Array{Configuration,1}}=nothing,              initialAsfSettings::Union{Nothing,AsfSettings}=nothing, 
-    intermediateConfigs::Union{Nothing,Array{Configuration,1}}=nothing,         intermediateAsfSettings::Union{Nothing,AsfSettings}=nothing, 
+    intermediateConfigs::Union{Nothing,Array{Configuration,1}}=nothing, intermediateAsfSettings::Union{Nothing,AsfSettings}=nothing,
     finalConfigs::Union{Nothing,Array{Configuration,1}}=nothing,                finalAsfSettings::Union{Nothing,AsfSettings}=nothing, 
     orbitalSource::Union{Nothing,Basics.AbstractOrbitalSource}=nothing,
     processSettings::Union{Nothing,Any}=nothing,            

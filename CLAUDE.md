@@ -433,19 +433,29 @@ reader finding what they expect where they expect it.
    docstring written in the wrong place, and it is worth moving. A separator with a LABEL between its rules is
    not that, and must not be reported as that; the old `textBanner` counter conflated the two and is retired.
 
-8. **No empty `#` lines.** A blank line separates blocks of code better than a bare comment marker.
-9. Comments are for a reader who knows Julia and atomic physics but not this file's history. **Remove
+8. **No empty `#` lines BETWEEN BLOCKS OF CODE.** There a blank line separates better than a bare comment
+   marker. **But a bare `#` INSIDE a multi-line comment block is a paragraph separator and STAYS** -- amended
+   08-Nov-2026, when the five remaining ones turned out to be exactly that: replacing them with blank lines
+   would split one comment block into three, which is the opposite of what the rule is for. The test is whether
+   the line has comment lines above AND below it.
+
+9. **A MODULE PARKED UNDER RULE 13 IS NOT TOUCHED BY A HYGIENE PASS AT ALL** -- added 08-Nov-2026. Four
+   blank-line gaps in `module-SpinAngularGaigalas.jl` were left deliberately: the module is set aside, a
+   cosmetic edit there asserts attention it has not had, and Rule 13's whole point is that a later reader must
+   not read activity as progress. This matches the maintainer's standing line on modules that are not yet real
+   physics -- they return with an application, not with a tidy-up.
+10. Comments are for a reader who knows Julia and atomic physics but not this file's history. **Remove
    historical remarks that can no longer be checked** -- references to code that has since been deleted, to
    an older variant, or to a commit. A docstring says what the code does, not what it once differed from.
    (The `#== ... ==#` form for a large deliberately-disabled block stays; it is a different thing.)
 
 **Bodies**
 
-10. Every compute-method **ends with a clear `return( ... )` line, separated from the body by a blank line**,
+11. Every compute-method **ends with a clear `return( ... )` line, separated from the body by a blank line**,
     so the result and its type are visible without reading upwards. Very short functions may omit the blank
     line.
-11. Top-level `function` lines and their docstrings start at column 1; 4-space indent inside.
-12. Existing column alignment in copy-constructors is preserved exactly (see the style section above).
+12. Top-level `function` lines and their docstrings start at column 1; 4-space indent inside.
+13. Existing column alignment in copy-constructors is preserved exactly (see the style section above).
 
 **READ THESE RULES WITH TOLERANCE** -- the maintainer's instruction, 28-Aug-2026. The goal is to make the code
 **more easily accessible to a potential user**, not to reach a state a detector calls clean. Where a rule and that

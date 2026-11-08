@@ -462,7 +462,8 @@ end
 
 
 """
-`RadialIntegrals.rkDiagonal(k::Int64, a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid)`   ... computes the (radial and diagonal) integral of r^k for two radial orbital functions.
+`RadialIntegrals.rkDiagonal(k::Int64, a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid)`  
+    ... computes the (radial and diagonal) integral of r^k for two radial orbital functions.
 
 + (k::Int64, a::Radial.Orbital, b::Radial.Orbital, grid::Radial.Grid)`  
     ... computes this integral for two relativistic orbitals:   < r^k >_ab = int_0^\\infty  dr  [P_a P_b + Q_a Q_b]  r^k
@@ -1114,7 +1115,8 @@ end
 
 
 """
-`RadialIntegrals.SlaterRkDamped(tau::Float64, k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Orbital, grid::Radial.Grid)`  
+`RadialIntegrals.SlaterRkDamped(tau::Float64, k::Int64, a::Radial.Orbital, b::Radial.Orbital, c::Radial.Orbital, d::Orbital,
+                                grid::Radial.Grid)`
     ... computes the (relativistic) Slater integral
 
         R^k (abcd) = int_0^infty dr int_0^infty ds (P_a P_c + Q_a Q_c) r_<^k / r_>^(k+1) (P_b P_d + Q_b Q_d) * exp(-tau * r - tau*s)

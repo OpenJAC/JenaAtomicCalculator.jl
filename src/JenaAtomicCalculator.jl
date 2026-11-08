@@ -72,9 +72,9 @@ incDeepLearning         = true
    step, which cuts load and precompile time when working on the core.  It is not dead code -- it is the
    counterpart of the assignments above, and the two must be kept in step.  Labelled 13-Aug-2026.
 incAdvancedProcesses    = false
-incCascades             = false  ## Requires: incBasicProcesses
-incPlasma               = false  ## Requires: incProperties
-incLiouville            = false  ## Requires: incProperties
+incCascades             = false  # Requires: incBasicProcesses
+incPlasma               = false  # Requires: incProperties
+incLiouville            = false  # Requires: incProperties
 incStrongField          = false
 incRacahAlgebra         = false  ==#
 

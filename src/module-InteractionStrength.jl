@@ -40,9 +40,12 @@ end
         `XL_CoulombKinkAware` and `XL_Breit` all answer the same kind of question -- a strength for rank L
         and four orbitals, asked for by a spin-angular coefficient -- so what separates them belongs here rather than in three separate
         dictionaries. `route` is one of :Coulomb, :CoulombKinkAware, :Gaunt or :Breit, and `factor` carries the photon-frequency scaling of
-        CoulombBreit(factor); it is 0. for every route that has none. `quadrature` is :direct or :swept and carries the two ways of evaluating a
-        Breit radial integral -- the same physics by a different summation, so they must not share a memo; it is :direct for every route that
-        offers no choice. IT WAS ADDED 04-Sep-2026 AND THE KEY TYPE HAD TO BE WIDENED WITH IT: XLKey is a CONCRETE tuple type, so a key of the
+        CoulombBreit(factor); it is 0. for every route that has none. `quadrature` is :direct or :swept and carries the two ways of
+        evaluating a
+        Breit radial integral -- the same physics by a different summation, so they must not share a memo; it is :direct for every route
+        that
+        offers no choice. IT WAS ADDED 04-Sep-2026 AND THE KEY TYPE HAD TO BE WIDENED WITH IT: XLKey is a CONCRETE tuple type, so a key of
+        the
         wrong arity fails at the `setindex!`, deep inside the CI build and ONLY on the cached path -- which is exactly the path a probe that
         calls XL_Breit directly does not exercise.
 
@@ -362,7 +365,8 @@ end
         each of them having to re-derive the rule; `module-Hfs.jl` and `module-PhotoEmission.jl` had each derived it separately.
 
         THE GAUGES, following Grant, J. Phys. B 7, 12 (1974): `Coulomb` is the velocity form and `Babushkin` the length form of the electric
-        multipole operator; `Magnetic` is the single form of a magnetic one. For exact one-body eigenfunctions the two electric forms must agree
+        multipole operator; `Magnetic` is the single form of a magnetic one. For exact one-body eigenfunctions the two electric forms must
+        agree
         at the physical photon energy, and here they do -- H 1s-2p gives Coulomb/Babushkin = 1.000000 on shell. Away from that energy they
         legitimately differ: the length form scales with the omega it is given, while the velocity form carries the level difference through
         <f|p|i> = i m (E_f - E_i) <f|r|i>, so an OFF-SHELL call is not gauge invariant and must not be expected to be.

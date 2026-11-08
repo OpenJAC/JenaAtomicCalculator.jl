@@ -792,7 +792,8 @@ end
 
 
 """
-`AngularMomentum.wigner6jValue(method::AngularMomentum.FloatingWigner, a::Float64, b::Float64, c::Float64, d::Float64, e::Float64, f::Float64)`
+`AngularMomentum.wigner6jValue(method::AngularMomentum.FloatingWigner, a::Float64, b::Float64, c::Float64, d::Float64, e::Float64,
+                               f::Float64)`
     ... as the previous method, but evaluating in Float64 arithmetic throughout. A value::Float64 is returned.
 """
 function wigner6jValue(method::FloatingWigner, a::Float64, b::Float64, c::Float64, d::Float64, e::Float64, f::Float64)

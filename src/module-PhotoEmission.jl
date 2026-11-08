@@ -741,7 +741,8 @@ end
 
 
 """
-`PhotoEmission.displayQualityFlags(stream::IO, lines::Array{PhotoEmission.Line,1}, qualities::Array{Array{PhotoEmission.LineQuality,1},1}, settings::PhotoEmission.Settings)`
+`PhotoEmission.displayQualityFlags(stream::IO, lines::Array{PhotoEmission.Line,1}, qualities::Array{Array{PhotoEmission.LineQuality,1},1},
+                                   settings::PhotoEmission.Settings)`
     ... to display, for every line and every contributing multipole, the two cheap indicators of how far the computed
         rate may be trusted: Cowan's cancellation factor in each gauge, and the Babushkin/Coulomb rate ratio. Neither
         is an observable, and neither costs anything -- the cancellation factor comes from the sum that already forms
@@ -810,7 +811,8 @@ end
 
 """
 `PhotoEmission.displayRates(stream::IO, lines::Array{PhotoEmission.Line,1}, settings::PhotoEmission.Settings)`
-    ... lists, for every line, the Einstein A and B coefficients, the WEIGHTED oscillator strength gf = g_lower * f, the decay width and -- for E1 -- the line
+    ... lists, for every line, the Einstein A and B coefficients, the WEIGHTED oscillator strength gf = g_lower * f, the decay width and --
+    for E1 -- the line
         strength. One row is printed per (multipole, gauge), so an electric multipole contributes two rows and a magnetic one a single row.
         A neat table is printed to stream; nothing::Nothing is returned.
 """

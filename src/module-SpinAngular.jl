@@ -57,7 +57,8 @@
     Gaunt because the structure distinguishing them lives in X^L; GRASP's COULOMB coefficient instead multiplies the
     plain Slater integral R^k, while its Breit coefficients multiply one of six integral kinds chosen by a type tag, so
     that convention does not generalise -- plus `toGraspCoulomb`, a numerical bridge built here (NOT a relation either
-    code states) so the oracle comparison can be expressed, verified on six direct terms. A first closed-form attempt at the diagonal case was WITHDRAWN: its
+    code states) so the oracle comparison can be expressed, verified on six direct terms. A first closed-form attempt at the diagonal case
+    was WITHDRAWN: its
     exchange term was fitted on closed-shell data and misses a coupling dependence that only open subshells reveal.
 
     For a single open subshell ONE EXPRESSION covers every rank, which is what goal (1) asked for:
@@ -376,7 +377,8 @@ end
 
 
 """
-`SpinAngular.scalarSingleSubstitution(op::SpinAngular.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1}, diffs::Array{Int64,1})`
+`SpinAngular.scalarSingleSubstitution(op::SpinAngular.OneParticleOperator, leftCsf::CsfR, rightCsf::CsfR, subshells::Array{Subshell,1},
+                                      diffs::Array{Int64,1})`
     ... to compute the coefficient of a scalar one-particle operator between two CSFs that differ by moving one electron
         between the two subshells named in `diffs`. A scalar operator cannot change j or l, so the two subshells must share
         the same kappa; `SpinAngular.isAllowed1p` decides this, and a pair such as (2s, 2p_1/2) is rejected here rather

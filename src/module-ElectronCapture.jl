@@ -20,9 +20,11 @@ using  Printf, ..AngularMomentum, ..AutoIonization, ..Basics, ..Beam, ..Bsplines
     + minCaptureEnergy        ::Float64                      ... Minimum energy of free (Auger) electrons to be captured.
     + maxCaptureEnergy        ::Float64                      ... Maximum energy of free (Auger) electrons to be captured.
     + maxKappa                ::Int64                        ... Maximum kappa value of partial waves to be included.
-    + operator                ::AbstractEeInteraction        ... Auger/capture operator that is to be used for evaluating the capture amplitudes: 
+    + operator                ::AbstractEeInteraction        ... Auger/capture operator that is to be used for evaluating the capture
+                                                                 amplitudes:
                                                                     allowed values are: CoulombInteraction(), BreitInteraction(), ...
-    + beamType                ::Beam.AbstractBeamType        ... Type of the incoming (continuum-electron) beam; default Beam.PlaneWave(), which
+    + beamType                ::Beam.AbstractBeamType        ... Type of the incoming (continuum-electron) beam; default Beam.PlaneWave(),
+                                                                 which
                                                                     reproduces the on-axis capture of every earlier computation exactly.
     + impactVectors           ::Array{Tuple{Float64,Float64},1}
         ... (bPerp, phiB) impact vectors [a.u., rad] of the target from the beam axis; unused by Beam.PlaneWave(),

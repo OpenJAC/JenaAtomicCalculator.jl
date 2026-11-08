@@ -11,7 +11,8 @@
     what that does and does not mean. The 15-Aug text below is kept because it is the diagnosis, and it is still
     the best statement of what is wrong.
 
-    STATUS, 15-Aug-2026 (SUPERSEDED, KEPT AS THE DIAGNOSIS): POSTPONED BY THE MAINTAINER. Do NOT pick this module up as a task without saying so
+    STATUS, 15-Aug-2026 (SUPERSEDED, KEPT AS THE DIAGNOSIS): POSTPONED BY THE MAINTAINER. Do NOT pick this module up as a task without
+    saying so
     first. It was rebuilt on this date from the parked quasi-shell version, and the rebuild is UNFINISHED:
     the structure works and passes several internal tests, but the ABSOLUTE SCALE IS WRONG BY THREE TO FOUR
     ORDERS OF MAGNITUDE and no number it produces means anything yet.

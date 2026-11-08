@@ -168,7 +168,8 @@ end
         With output = false, nothing is returned. With output = true, a results::Basics.PerformResults is returned -- an
         AbstractDict{String,Any} -- that carries the initial and the generated multiplets, the individual line lists, and
         under the key "cascade data:" the Cascade.Data{ImpactExcitation.Line} that a subsequent Cascade.Simulation reads. With
-        outputToFile = true the same data is written to a zzz-cascade-impact-excitation-computations-<date>.jld file, into outputDirectory when one is
+        outputToFile = true the same data is written to a zzz-cascade-impact-excitation-computations-<date>.jld file, into outputDirectory
+        when one is
         named and into the working directory otherwise.
 """
 function perform(scheme::ImpactExcitationScheme, comp::Cascade.Computation; output::Bool=false, outputToFile::Bool=true, outputDirectory::String="")

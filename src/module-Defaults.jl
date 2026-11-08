@@ -156,14 +156,17 @@ GBL_STANDARD_GRID            = Radial.Grid(true, printout=false)
                                                 from the predefined to the atomic energy unit; a Float64 is returned.
 + `("energy: from eV to atomic", value::Float64)` ... to convert an energy value from eV to the atomic energy unit; a Float64 is returned.
 
-+ `("energy: from wavelength [nm] to atomic", value::Float64)` ... to convert a wavelength [nm] to the atomic energy unit; a Float64 is returned.
++ `("energy: from wavelength [nm] to atomic", value::Float64)` ... to convert a wavelength [nm] to the atomic energy unit; a Float64 is
+                                                                   returned.
 
-+ `("intensity: from W/cm^2 to atomic", value::Float64)` ... to convert the intensity [in W/cm^2] to the atomic intensity unit; a Float64 is returned.
++ `("intensity: from W/cm^2 to atomic", value::Float64)` ... to convert the intensity [in W/cm^2] to the atomic intensity unit; a Float64 is
+                                                             returned.
 
 + `("kinetic energy to wave number: atomic units", value::Float64)`  ... to convert a kinetic energy value (in a.u.) into a wave number
                                                 k (a.u.); a Float64 is returned.
 
-+ `("kinetic energy to wavelength: atomic units", value::Float64)`  ... to convert a kinetic energy value (in a.u.) into a wavelength (a.u.); 
++ `("kinetic energy to wavelength: atomic units", value::Float64)`  ... to convert a kinetic energy value (in a.u.) into a wavelength
+                                                                        (a.u.);
                                                 a Float64 is returned.
 
 + `("length: from fm to atomic", value::Float64)`  ... to convert a length value (in fm) into a.u.;  a Float64 is returned.
@@ -171,25 +174,29 @@ GBL_STANDARD_GRID            = Radial.Grid(true, printout=false)
     ... to convert a length value (in Bohr's a.u.) to the speficied length unit;  a Float64 is returned.
 
 + `("moment: from nuclear magneton to atomic", value::Float64)`  ... to convert a value in mu_nuc into a.u.;  a Float64 is returned.
-+ `("moment: from nuclear magneton x fm^2 to atomic", value::Float64)`  ... to convert a value in [mu_nuc x fm^2] into a.u.;  a Float64 is returned.
++ `("moment: from nuclear magneton x fm^2 to atomic", value::Float64)`  ... to convert a value in [mu_nuc x fm^2] into a.u.; a Float64 is
+                                                                            returned.
 
 + `("rate: from atomic to predefined unit", value::Float64)`  or  ("rate: from atomic", value::Float64)  ... to convert a rate value 
                                             from atomic to the predefined rate unit; a Float64 is returned.
 
-+ `("rate: from atomic to 1/s", value::Float64)`  ... to convert an rate value from atomic to the speficied rate unit; a Float64 is returned.
++ `("rate: from atomic to 1/s", value::Float64)`  ... to convert an rate value from atomic to the speficied rate unit; a Float64 is
+                                                      returned.
 
 + `("rate: from predefined to atomic unit", value::Float64)`  or  `("rate: to atomic", value::Float64)'... to convert a
                                                 rate value from the predefined to the atomic rate unit; a Float64 is returned.
 
 
-+ `("strength: from atomic to predefined unit", value::Float64)`  or  ("strength: from atomic", value::Float64)  ... to convert a (resonance) 
++ `("strength: from atomic to predefined unit", value::Float64)`  or  ("strength: from atomic", value::Float64)  ... to convert a
+                                                                                                                     (resonance)
                                                 strength value from atomic to the predefined rate unit; a Float64 is returned.
                                                 
 + `("time: from atomic to predefined unit", value::Float64)`  or  ("time: from atomic", value::Float64)  ... to convert an time value 
                                             from atomic to the predefined time unit; a Float64 is returned.
 
 + `("time: from atomic to sec", value::Float64)`  or  `("time: from atomic to fs", value::Float64)'  or
-    `("time: from atomic to as", value::Float64)`  ... to convert a time value from atomic to the speficied time unit; a Float64 is returned.
+    `("time: from atomic to as", value::Float64)`  
+        ... to convert a time value from atomic to the speficied time unit; a Float64 is returned.
 
 + `("time: from predefined to atomic unit", value::Float64)`  or  `("time: to atomic", value::Float64)'  ... to convert a
                                             time value from the predefined to the atomic time unit; a Float64 is returned.

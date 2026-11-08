@@ -140,10 +140,12 @@ end
     ... defines a type for defining  Liouville evolution computations for the interaction of atoms with a light field.
 
     + scheme                         ::Liouville.AbstractLiouvilleScheme    ... Scheme (kind) of Liouville evolution computation.
-    + approach                       ::Liouville.AbstractEvolutionApproach  ... Approach used to solve the time evolution of the density matrix.
+    + approach                       ::Liouville.AbstractEvolutionApproach  ... Approach used to solve the time evolution of the density
+                                                                                matrix.
     + freeTime                       ::Float64                              
         ... time in [a.u.] that is chosen for free propagation before the first pulse arrives and after the last pulse has left the atoms.
-            In practice, each pulse has an internally chosen final length, and the time before the first and after the last pulse are cosidered
+            In practice, each pulse has an internally chosen final length, and the time before the first and after the last pulse are
+            cosidered
             to follow a trivial time evolutions just due to the atomic Hamiltonian.
     + pulses                         ::Vector{Pulse.AbstractPulse}          ... List of pulses that act upon the atom.
     + nuclearModel                   ::Nuclear.Model                        ... Model, charge and parameters of the nucleus.
@@ -178,8 +180,8 @@ end
 
 """
 `Liouville.Computation(comp::Liouville.Computation;
-    scheme::Union{Nothing,Liouville.AbstractLiouvilleScheme}=nothing,           approach::Union{Nothing,Liouville.AbstractEvolutionApproach}=nothing, 
-    freeTime::Union{Nothing,Float64}=nothing,                                   pulses::Union{Nothing,Vector{Pulse.AbstractPulse}}=nothing,           
+    scheme::Union{Nothing,Liouville.AbstractLiouvilleScheme}=nothing, approach::Union{Nothing,Liouville.AbstractEvolutionApproach}=nothing,
+    freeTime::Union{Nothing,Float64}=nothing, pulses::Union{Nothing,Vector{Pulse.AbstractPulse}}=nothing,
     nuclearModel::Union{Nothing,Nuclear.Model}=nothing,                         grid::Union{Nothing,Radial.Grid}=nothing,      
     refConfigs::Union{Nothing,Array{Configuration,1}}=nothing,                  asfSettings::Union{Nothing,AsfSettings}=nothing, 
     settings::Union{Nothing,Liouville.Settings}=nothing, 
