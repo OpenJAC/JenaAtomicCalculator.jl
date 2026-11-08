@@ -273,8 +273,9 @@ function  computePathways(finalMultiplet::Multiplet, intermediateMultiplet::Mult
     # Display all selected lines before the computations start
     if  settings.printBefore    PhotoExcitationAutoion.displayPathways(stdout, pathways, settings)    end
     # Determine maximum (electron) energy and check for consistency of the grid
-    maxEnergy = 0.;   for  pathway in pathways   maxEnergy = max(maxEnergy, pathway.electronEnergy)   end
-    nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
+    maxEnergy = 0.;          for  pathway in pathways   maxEnergy = max(maxEnergy, pathway.electronEnergy)   end
+    minEnergy = maxEnergy;   for  pathway in pathways   minEnergy = min(minEnergy, pathway.electronEnergy)   end
+    nrContinuum = Continuum.gridConsistency(maxEnergy, grid; minEnergy=minEnergy)
     # Calculate all amplitudes and requested properties
     newPathways = PhotoExcitationAutoion.Pathway[]
     for  pathway in pathways
