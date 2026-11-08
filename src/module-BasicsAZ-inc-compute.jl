@@ -474,18 +474,19 @@ end
         An Radial.Potential with -r * V_DFS(r)  is returned to be consistent with an effective charge Z(r).
 """
 function Basics.computePotential(scField::Basics.AaDFSField, grid::Radial.Grid, orbitals::Dict{Subshell, Orbital}, mu::Float64, temp::Float64)
-    npoints = grid.NoPoints;    rhot = zeros( npoints );     wb = zeros( npoints );    wx = zeros( npoints )
+    npoints = grid.NoPoints;    rhot = zeros( npoints );    rhoMtp = 0
     # Compute the charge density with the average-atom occupation numbers
-    for (k,v)  in  orbitals 
+    for (k,v)  in  orbitals
         occ  = Basics.twice( Basics.subshell_j(k)) + 1
         occ  = occ * Basics.FermiDirac(v.energy, mu, temp)
-        nrho = length(v.P)
+        nrho = length(v.P);    rhoMtp = max(rhoMtp, nrho)
         for    i = 1:nrho   rhot[i] = rhot[i] + occ * (v.P[i]^2 + v.Q[i]^2)    end
     end
-    # Define the integrant and take the integrals
+    # rhot is EXACTLY zero past rhoMtp (item 7), so Y^0(r)/r = int dr' rhot(r')/max(r,r') is the k=0 case of
+    # Bsplines.ykOnGrid's split-kernel sum -- O(npoints) once, rather than the O(npoints^2) double loop this
+    # used to run (confirmed killed at npoints ~ 850000, ~7e11 operations, while wiring PhotoIonizationPseudostates).
+    wb = Bsplines.ykOnGrid(0, rhot, 1, rhoMtp, npoints, grid)
     for i = 1:npoints
-        for j = 1:npoints    rg = max( grid.r[i],  grid.r[j]);    wx[j] = rhot[j]/rg   end
-        wb[i] = RadialIntegrals.V0(wx, npoints, grid::Radial.Grid)
         wb[i] = wb[i] - (3 /(4*pi^2 * grid.r[i]^2) * rhot[i])^(1/3)
     end
     # Define the potential with regard to Z(r)
@@ -591,19 +592,16 @@ function Basics.computePotential(scField::Basics.CHField, grid::Radial.Grid, lev
               "potential is not defined for it -- the result would be identically zero and indistinguishable " *
               "from the bare nucleus. Build the level from a configuration carrying a core, e.g. " *
               "Configuration(\"[He] 2s\") rather than Configuration(\"1s^2 2s\").")
-    rhoc = zeros( npoints );    wx = zeros( npoints );    wb = zeros( npoints )
+    rhoc = zeros( npoints );    rhoMtp = 0
     # Compute the charge density of the core orbitals for the given level
     for  sh in basis.coreSubshells
         orb  = basis.orbitals[sh]
         occ  = Basics.computeMeanSubshellOccupation(sh, [level])    # (Basics.subshell_2j(sh) + 1.0)  for closed-shells
-        nrho = length(orb.P)
+        nrho = length(orb.P);    rhoMtp = max(rhoMtp, nrho)
         for    i = 1:nrho   rhoc[i] = rhoc[i] + occ * (orb.P[i]^2 + orb.Q[i]^2)    end
     end
-    # Define the integrant and take the integrals
-    for i = 1:npoints
-        for j = 1:npoints    rg = max( grid.r[i],  grid.r[j]);    wx[j] = rhoc[j]/rg   end
-        wb[i] = RadialIntegrals.V0(wx, npoints, grid::Radial.Grid)
-    end
+    # rhoc is EXACTLY zero past rhoMtp (item 7); see AaDFSField above for the ykOnGrid identity this uses.
+    wb = Bsplines.ykOnGrid(0, rhoc, 1, rhoMtp, npoints, grid)
     # Define the potential with regard to Z(r)
     for i = 1:npoints    wb[i] = - wb[i] * grid.r[i]   end
     wc = Radial.Potential("CoreHartree", wb, grid)
@@ -626,20 +624,19 @@ end
 """
 function Basics.computePotential(scField::Basics.DFSField, grid::Radial.Grid, level::Level)
     basis = level.basis;    npoints = grid.NoPoints
-    rhot = zeros( npoints );    wb = zeros( npoints );    wx = zeros( npoints )
+    rhot = zeros( npoints );    rhoMtp = 0
     # Compute the charge density of the core orbitals for the given level
     for  sh in basis.subshells
         orb  = basis.orbitals[sh]
         occ  = Basics.computeMeanSubshellOccupation(sh, [level])
-        nrho = length(orb.P)
+        nrho = length(orb.P);    rhoMtp = max(rhoMtp, nrho)
         for    i = 1:nrho   rhot[i] = rhot[i] + occ * (orb.P[i]^2 + orb.Q[i]^2)    end
     end
-    # Define the integrant and take the integrals
+    # rhot is EXACTLY zero past rhoMtp (item 7); see AaDFSField above for the ykOnGrid identity this uses.
     # println(">>>>> wy = $(scField.strength) * DFS potential");
     wy = scField.strength
+    wb = Bsplines.ykOnGrid(0, rhot, 1, rhoMtp, npoints, grid)
     for i = 1:npoints
-        for j = 1:npoints    rg = max( grid.r[i],  grid.r[j]);    wx[j] = rhot[j]/rg   end
-        wb[i] = RadialIntegrals.V0(wx, npoints, grid::Radial.Grid)
         wb[i] = wb[i] - (3 /(4*pi^2 * grid.r[i]^2) * rhot[i])^(1/3) * wy
     end
     # wb = 1.02 * wb
@@ -657,18 +654,17 @@ end
 """
 function Basics.computePotential(scField::Basics.DFSField, grid::Radial.Grid, basis::Basis)
     npoints = grid.NoPoints
-    rhot = zeros( npoints );    wb = zeros( npoints );    wx = zeros( npoints )
+    rhot = zeros( npoints );    rhoMtp = 0
     # Compute the charge density of the core orbitals for the given level
     for  sh in basis.subshells
         orb  = basis.orbitals[sh]
         occ  = Basics.computeMeanSubshellOccupation(sh, basis)
-        nrho = length(orb.P)
+        nrho = length(orb.P);    rhoMtp = max(rhoMtp, nrho)
         for    i = 1:nrho   rhot[i] = rhot[i] + occ * (orb.P[i]^2 + orb.Q[i]^2)    end
     end
-    # Define the integrant and take the integrals
+    # rhot is EXACTLY zero past rhoMtp (item 7); see AaDFSField above for the ykOnGrid identity this uses.
+    wb = Bsplines.ykOnGrid(0, rhot, 1, rhoMtp, npoints, grid)
     for i = 1:npoints
-        for j = 1:npoints    rg = max( grid.r[i],  grid.r[j]);    wx[j] = rhot[j]/rg   end
-        wb[i] = RadialIntegrals.V0(wx, npoints, grid::Radial.Grid)
         wb[i] = wb[i] - (3 /(4*pi^2 * grid.r[i]^2) * rhot[i])^(1/3)
     end
     # Define the potential with regard to Z(r)
@@ -725,18 +721,17 @@ end
 """
 function Basics.computePotential(scField::Basics.KSField, grid::Radial.Grid, level::Level)
     basis = level.basis;       npoints = grid.NoPoints
-    rhot = zeros( npoints );   wb = zeros( npoints );   wx = zeros( npoints )
+    rhot = zeros( npoints );   rhoMtp = 0
     # Compute the charge density of the core orbitals for the given level
     for  sh in basis.subshells
         orb  = basis.orbitals[sh]
         occ  = Basics.computeMeanSubshellOccupation(sh, [level])
-        nrho = length(orb.P)
+        nrho = length(orb.P);    rhoMtp = max(rhoMtp, nrho)
         for    i = 1:nrho   rhot[i] = rhot[i] + occ * (orb.P[i]^2 + orb.Q[i]^2)    end
     end
-    # Define the integrant and take the integrals (without alpha)
+    # rhot is EXACTLY zero past rhoMtp (item 7); see AaDFSField above for the ykOnGrid identity this uses.
+    wb = Bsplines.ykOnGrid(0, rhot, 1, rhoMtp, npoints, grid)
     for i = 1:npoints
-        for j = 1:npoints    rg = max( grid.r[i],  grid.r[j]);    wx[j] = rhot[j]/rg   end
-        wb[i] = RadialIntegrals.V0(wx, npoints, grid::Radial.Grid)
         wb[i] = wb[i] - 2 / (3grid.r[i]) * (81 /(32 * pi^2) * grid.r[i] * rhot[i])^(1/3)
     end
     # Define the potential with regard to Z(r)
