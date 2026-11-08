@@ -774,7 +774,7 @@ function  computeSphericalAmplitudes(comp::StrongField.Computation)
                 eta = (-1)^(lp+1)
                 kappa = eta*(lp+1/2)-1/2
             
-                nrContinuum  = Continuum.gridConsistency(epsilonp, comp.grid)
+                nrContinuum  = Continuum.gridConsistency(epsilonp, comp.grid; minEnergy=epsilonp)
                 contSettings = Continuum.Settings(false, comp.grid.NoPoints)
 
                 newiLevel = Basics.generateLevelWithSymmetryReducedBasis(comp.initialLevel, comp.initialLevel.basis.subshells)
