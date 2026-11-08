@@ -418,6 +418,35 @@ end
 const GBL_CONTINUUM_GRID_NOTE_SHOWN = Ref(false)
 
 """
+`Basics.shellTurningPointMax(occupations::Dict{Shell,Int64}, Z::Float64, tailFactor::Float64)`
+    ... finds the shell in occupations whose classical turning point plus exponential tail needs the LARGEST
+        box, under Slater screening by every shell in occupations (including itself). This is the per-shell
+        loop `Basics.recommendedGrid(occupations,Z;...)` always ran inline; factored out so a caller that must
+        judge SEVERAL physically distinct occupation sets (one per reference configuration, see
+        `Basics.recommendedGrid(configs,nm;...)`) can call it once per set and combine the results itself,
+        rather than merge the sets first and call this only once -- merging first is wrong whenever two
+        configurations occupy the SAME shell with DIFFERENT electrons (occupying it at different times, never
+        together), since the merge then counts electrons that no one physical state actually has at once; see
+        that method's own docstring for the measured size of the error this causes.
+        A `(rMax::Float64, outer::Shell, ZeffOuter::Float64)` tuple is returned.
+"""
+function Basics.shellTurningPointMax(occupations::Dict{Shell,Int64}, Z::Float64, tailFactor::Float64)
+    NoElectrons = sum( values(occupations) )
+    rMax = 0.;   outer = first(keys(occupations));   ZeffOuter = Z
+    for  (sh, occ)  in occupations
+        if  occ <= 0    continue    end
+        n = sh.n;   l = sh.l
+        # the charge felt at the orbital's own maximum, but never less than the charge felt at infinity
+        Zeff = max( Z - NoElectrons + 1., Z - Basics.slaterScreening(sh, occupations), 1.0 )
+        wa   = (n*n/Zeff) * (1.0 + sqrt( max(0., 1.0 - l*(l+1)/(n*n)) ))  +  tailFactor * n / Zeff
+        if  wa > rMax   rMax = wa;   outer = sh;   ZeffOuter = Zeff    end
+    end
+
+    return( rMax, outer, ZeffOuter )
+end
+
+
+"""
 `Basics.recommendedGrid(occupations::Dict{Shell,Int64}, Z::Float64; tailFactor::Float64=16., rbox::Union{Nothing,Float64}=nothing,
                         rnt::Float64=2.0e-6, h::Float64=5.0e-2, hp::Union{Nothing,Float64}=nothing, printout::Bool=false)`  
     ... builds a radial grid whose box is matched to the orbitals that will actually occupy it, which is what Rule 12
@@ -435,16 +464,8 @@ function Basics.recommendedGrid(occupations::Dict{Shell,Int64}, Z::Float64;
                                           "could be matched to.  Pass the shells that the orbitals will occupy.")   end
     if  Z <= 0.                     error("Basics.recommendedGrid(): Z = $Z must be positive.")                      end
 
+    rMax, outer, ZeffOuter = Basics.shellTurningPointMax(occupations, Z, tailFactor)
     NoElectrons = sum( values(occupations) )
-    rMax = 0.;   outer = first(keys(occupations));   ZeffOuter = Z
-    for  (sh, occ)  in occupations
-        if  occ <= 0    continue    end
-        n = sh.n;   l = sh.l
-        # the charge felt at the orbital's own maximum, but never less than the charge felt at infinity
-        Zeff = max( Z - NoElectrons + 1., Z - Basics.slaterScreening(sh, occupations), 1.0 )
-        wa   = (n*n/Zeff) * (1.0 + sqrt( max(0., 1.0 - l*(l+1)/(n*n)) ))  +  tailFactor * n / Zeff
-        if  wa > rMax   rMax = wa;   outer = sh;   ZeffOuter = Zeff    end
-    end
 
     if  isnothing(rbox)     rboxx = rMax                   else    rboxx = rbox     end
     if  rboxx <= 0.         error("Basics.recommendedGrid(): rbox = $rboxx must be positive.")   end
@@ -589,10 +610,22 @@ end
     ... derives a radial grid that is matched to the orbitals which the given configurations require, so that the
         grid need not be chosen by hand; a grid::Radial.Grid is returned.
 
-        Every shell occurring in any of the configurations is taken into account with its LARGEST occupation across
-        them, since a correlation configuration may reach further out than the reference one and must still be
-        representable.  Where the configurations differ, that slightly overcounts the screening and so errs towards
-        a larger box; the floor `Zeff >= Z - NoElectrons + 1` bounds how far it can go.
+        EACH CONFIGURATION IS JUDGED ON ITS OWN OCCUPATIONS, not on a merge of all of them. Two configurations
+        never both occupy a correlating shell AT ONCE -- an electron promoted to 4s in one reference and to 4f
+        in another are the SAME electron in two different states, not two electrons present together -- so
+        merging their occupations by shell (the per-shell MAXIMUM across configs, tried first and found wrong
+        08-Nov-2026, priority item 11) invents a configuration with more electrons than any real one has. That
+        inflates every merged shell's apparent electron count, floors its `Zeff` at `Z - NoElectrons + 1` for
+        ALL of them alike, and the box then comes from whichever shell has the lowest `l` at that SHARED floor
+        -- not from the shell that is actually hardest to represent. Measured on O I (`example-Ac.jl` branch
+        4, six references, one correlating 3d): the merge floors 3s, 3p AND 3d alike at `Zeff = 1.0` and lets
+        3s "win" (`wa = 66.0`) over the 3d that actually triggers the box-too-small warning (`wa = 62.2`),
+        because `Basics.slaterScreening`'s s/p rule screens an n-1 shell at 0.85 while its d/f rule screens
+        the SAME shell at the full 1.00 -- a genuine physical difference the merge erases by crediting every
+        n = 3 shell with the same, too-generous screening from the OTHER n = 3 shells that are never actually
+        present together. Evaluating each configuration on its own true occupations restores that difference
+        (3d alone: `Zeff = 1.0`, `wa = 62.2`; 3s alone: `Zeff = 1.75`, `wa = 37.7`) and correctly identifies 3d
+        as the limiting shell.
 
     + configs      ::Array{Configuration,1}  ... configurations whose shells are to be representable on the grid.
     + nm           ::Nuclear.Model           ... nuclear model, which supplies the charge Z.
@@ -602,14 +635,17 @@ function Basics.recommendedGrid(configs::Array{Configuration,1}, nm::Nuclear.Mod
                                 h::Float64=5.0e-2, hp::Union{Nothing,Float64}=nothing, printout::Bool=false)
     if  length(configs) == 0    error("Basics.recommendedGrid(): no configuration is given, so there is nothing " *
                                       "the box could be matched to.")     end
-    occupations = Dict{Shell,Int64}()
+    Z = nm.Z
+    rMaxBest = -1.;   occBest = Dict{Shell,Int64}()
     for  conf in configs
-        for  (sh, occ)  in conf.shells
-            if  occ > 0     occupations[sh] = max( get(occupations, sh, 0), occ )    end
-        end
+        occ = Dict{Shell,Int64}()
+        for  (sh, o)  in conf.shells    if  o > 0    occ[sh] = o    end    end
+        isempty(occ)   &&   continue
+        wa, _, _ = Basics.shellTurningPointMax(occ, Z, tailFactor)
+        if  wa > rMaxBest    rMaxBest = wa;   occBest = occ    end
     end
 
-    return( Basics.recommendedGrid(occupations, nm.Z, tailFactor=tailFactor, rbox=rbox,
+    return( Basics.recommendedGrid(occBest, Z, tailFactor=tailFactor, rbox=rbox,
                                    rnt=rnt, h=h, hp=hp, printout=printout) )
 end
 

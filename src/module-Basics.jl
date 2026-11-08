@@ -124,6 +124,7 @@ function selectLevel                                            end
 function selectLevelPair                                        end
 function selectLevelTriple                                      end
 function selectSymmetry                                         end
+function shellTurningPointMax                                   end
 function shiftTotalEnergies                                     end
 function slaterScreening                                        end
 function sortByEnergy                                           end
