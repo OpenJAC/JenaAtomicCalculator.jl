@@ -401,8 +401,9 @@ function computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm
     Defaults.setStandardSubshellList(Basics.generate(OrderedSubshellList(), finalMultiplet.levels[1].basis,
                                                      initialMultiplet.levels[1].basis); printout=false)
     if  settings.printBefore    ElectronCapture.displayLines(stdout, lines)    end
-    maxEnergy   = 0.;   for  line in lines   maxEnergy = max(maxEnergy, line.electronEnergy)   end
-    nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
+    maxEnergy   = 0.;          for  line in lines   maxEnergy = max(maxEnergy, line.electronEnergy)   end
+    minEnergy   = maxEnergy;   for  line in lines   minEnergy = min(minEnergy, line.electronEnergy)   end
+    nrContinuum = Continuum.gridConsistency(maxEnergy, grid; minEnergy=minEnergy)
     newLines    = ElectronCapture.Line[]
     # Built ONCE for all lines: both depend only on (nm, grid), so rebuilding them per partial wave is pure repetition.
     nuclearPot  = Nuclear.nuclearPotential(nm, grid)
