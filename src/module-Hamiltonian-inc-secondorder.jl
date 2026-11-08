@@ -777,6 +777,7 @@ function secondOrderShapeCrossingCorrection(pMp::Multiplet, qMp::Multiplet, refC
     end
 
     deltaE = zeros(length(targetLevels))
+    anatomy = Dict{Int64,Tuple{Int64,Float64,Int64,Float64,Float64,Float64}}()   # see the block that fills it
     ratioThreshold = 0.4   # |coupling/dd| above this is folded rather than summed, item 5 -- see the module docstring
     nFolded = 0;    worstRatio = 0.0;    worstDenominator = Inf
     for  (j, i)  in  enumerate(targetLevels)
@@ -800,6 +801,64 @@ function secondOrderShapeCrossingCorrection(pMp::Multiplet, qMp::Multiplet, refC
         if  !isempty(flaggedIdx)
             nFolded += length(flaggedIdx)
             deltaE[j] += foldNearDegenerateQCluster(ePLevel, hqq[flaggedIdx], coupling[i,flaggedIdx])
+        end
+        # THE ANATOMY OF THE SUM, so that a blowup cannot arrive silently.  A per-term ratio test says whether
+        # any ONE denominator is dangerous;  it cannot say whether the TOTAL is made of a few large terms or of
+        # thousands of moderate ones, and those two call for opposite remedies.  So the share carried by the
+        # largest terms and the number of terms needed to reach nine tenths of the total are recorded here:  a
+        # handful of terms carrying most of it is an outlier problem, which foldNearDegenerateQCluster exists
+        # for;  a tail in which no term matters much and the count does the work is a VOLUME effect, which no
+        # reclassification of individual terms can reach.
+        if  !isempty(unflaggedIdx)
+            terms = sort!( [ -coupling[i,s]^2 / (hqq[s] - ePLevel)  for s in unflaggedIdx ],
+                           by = abs, rev = true )
+            tot   = sum(abs, terms)
+            n90   = 0;    acc = 0.0
+            for  t  in  terms
+                acc += abs(t);    n90 += 1
+                acc >= 0.9 * tot   &&   break
+            end
+            # AND THE DOMINANT TERM'S OWN COUPLING AND DENOMINATOR, because the two shapes of outlier call
+            # for opposite remedies and only these two numbers separate them:  a SMALL denominator is a
+            # near-degeneracy, which folding repairs;  a LARGE coupling at an ordinary denominator is a state
+            # that does not belong in a perturbative Q space at all, and no denominator treatment reaches it.
+            top  = argmax( [ abs(-coupling[i,s]^2 / (hqq[s] - ePLevel))  for s in unflaggedIdx ] )
+            sTop = unflaggedIdx[top]
+            dds  = sort( [ abs(hqq[s] - ePLevel)  for s in unflaggedIdx ] )   # Statistics is not imported here,
+            ddMed = dds[ (length(dds)+1) >> 1 ]                                   # so the median is taken directly
+            anatomy[j] = (length(terms), abs(terms[1])/tot, n90, coupling[i,sTop], hqq[sTop] - ePLevel, ddMed)
+        end
+    end
+
+    # AND THE GUARD THAT THE TI III CASE ASKED FOR (challenge S34):  a second-order correction LARGER THAN THE
+    # SPAN OF THE LEVELS IT CORRECTS is a breakdown of the expansion whatever its individual terms look like,
+    # because the quantity being corrected has become smaller than its own correction.  Measured on Ti III
+    # 3d^2 -> 4d: deltaE between -386 and -537 mHa against a computed term span of a few tens of mHa, so some
+    # twenty times over -- and nothing printed a word about it.  The span is taken over the TARGET levels, the
+    # same ones deltaE is reported for, so the comparison needs nothing from outside this function.
+    if  length(targetLevels) > 1
+        eTargets = [ pMp.levels[i].energy  for i in targetLevels ]
+        span     = maximum(eTargets) - minimum(eTargets)
+        worst    = maximum(abs, deltaE)
+        if  span > 0.0  &&  worst > span
+            @warn("Hamiltonian.secondOrderShapeCrossingCorrection(): the second-order correction reaches " *
+                  "$(round(worst*1000, digits=2)) mHa while the target levels span only " *
+                  "$(round(span*1000, digits=2)) mHa, i.e. a factor of $(round(worst/span, digits=1)).  A " *
+                  "correction larger than the structure it corrects is NOT a usable number:  the expansion " *
+                  "has broken down, and no choice of denominator floor or fold repairs that.  The anatomy " *
+                  "below says which kind of breakdown it is.  See challenge S34.")
+            for  (j, i)  in  enumerate(targetLevels)
+                haskey(anatomy, j) || continue
+                (nT, topShare, n90, cTop, ddTop, ddMed) = anatomy[j]
+                @info("   level $i (J = $(pMp.levels[i].J)):  deltaE = " *
+                      "$(round(deltaE[j]*1000, digits=2)) mHa from $nT terms;  the largest carries " *
+                      "$(round(topShare*100, digits=2)) % and $n90 terms are needed for 90 %;  that " *
+                      "largest term has coupling $(round(cTop, digits=5)) Ha over a denominator of " *
+                      "$(round(ddTop, digits=5)) Ha (median |dd| = $(round(ddMed, digits=4)) Ha) -- " *
+                      (n90 > 0.05*nT ? "a VOLUME effect, so truncating or shifting the whole sum is the only " *
+                                       "lever;  reclassifying individual terms cannot reach it"
+                                     : "an OUTLIER effect, which foldNearDegenerateQCluster is the mechanism for"))
+            end
         end
     end
     if  nFolded > 0
