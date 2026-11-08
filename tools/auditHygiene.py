@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 """Measure the Rule 15 code-hygiene criteria over src/.  READ-ONLY -- it changes nothing.
 
-    usage:   python3 tools/auditHygiene.py [--json out.json] [--files]
+    usage:   python3 tools/auditHygiene.py [--json out.json] [--files] [--sample [N]]
+
+    `--sample` PRINTS N FLAGGED LINES PER ACTIONABLE CATEGORY, with their file and line number, so that the
+    one step this file exists to enforce -- READ A SAMPLE BEFORE BELIEVING THE COUNT -- is a single command
+    rather than a script written afresh each time.  It was added 08-Nov-2026 after twenty of this project's
+    hygiene detectors were found to be wrong, EVERY ONE of them over-reporting, and after each was caught the
+    same way: by reading a handful of what it flagged.  Default N is 3.
 
 WHY THIS FILE EXISTS AT ALL.  Five separate hygiene detectors were written against this
 codebase and FIVE OF THEM LIED, each by a factor between three and fifty, and each in a way
@@ -387,6 +393,13 @@ ROWS = [("funcs",           "function definitions"),
         ("bare",            "`function name(` definitions")]
 
 
+def actionable(key):
+    """True for a row a pass would ACT on, as against a total or a deliberately kept form.  Only these are
+    worth sampling;  printing three of the 324 kept separators teaches nobody anything."""
+    return key in {"standalone2", "appended2", "emptyHash", "sep1", "sep0", "longProse", "eqNothing",
+                   "indentedTop", "noDoc", "sigMismatch", "docFamily", "noSigInDoc", "untyped"}
+
+
 def main():
     want  = "--files" in sys.argv
     jpath = sys.argv[sys.argv.index("--json")+1] if "--json" in sys.argv else None
@@ -411,6 +424,26 @@ def main():
             top = sorted(((per[f].get(key, 0), f) for f in files), reverse=True)[:6]
             print("   %-46s %s" % (label, ", ".join("%s %d" % (f.replace("module-", "").replace(".jl", ""), n)
                                                     for n, f in top if n)))
+    if "--sample" in sys.argv:
+        i = sys.argv.index("--sample")
+        n = int(sys.argv[i+1]) if i+1 < len(sys.argv) and sys.argv[i+1].isdigit() else 3
+        print("\n" + "-" * 78)
+        print("   A SAMPLE OF WHAT EACH ACTIONABLE COUNT FLAGGED -- read these before acting on the number.")
+        for key, label in ROWS:
+            if not key or not actionable(key) or not tot[key]:  continue
+            print("\n   %s  (%d in %d files)" % (label.strip(), tot[key],
+                                                  sum(1 for f in files if per[f].get(key))))
+            shown = 0
+            for f in files:
+                for ln in allSites[f].get(key, []):
+                    if shown >= n:  break
+                    L = open(os.path.join(SRC, f), encoding="utf-8", errors="replace").read().split("\n")
+                    text = L[ln-1].strip() if 0 < ln <= len(L) else "<out of range>"
+                    print("      %-44s %s" % ("%s:%d" % (f.replace("module-", ""), ln), text[:88]))
+                    shown += 1
+                if shown >= n:  break
+            if shown == 0:  print("      (this count records no sites -- see note 15)")
+
     if jpath:
         json.dump({"totals": dict(tot), "perFile": per, "sites": allSites}, open(jpath, "w"), indent=0)
         print("\n   per-file counts and line numbers written to %s" % jpath)
