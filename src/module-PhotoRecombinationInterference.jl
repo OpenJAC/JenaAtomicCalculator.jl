@@ -463,8 +463,9 @@ function computePathways(finalMultiplet::Multiplet, intermediateMultiplet::Multi
                                                                  settings)
     pathways = PhotoRecombinationInterference.determinePathways(finalMultiplet, intermediateMultiplet, initialMultiplet, settings)
     if  settings.printBefore    PhotoRecombinationInterference.displayPathways(stdout, pathways, widths)    end
-    maxEnergy = 0.;    for  pathway in pathways   maxEnergy = max(maxEnergy, pathway.electronEnergy)   end
-    nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
+    maxEnergy = 0.;          for  pathway in pathways   maxEnergy = max(maxEnergy, pathway.electronEnergy)   end
+    minEnergy = maxEnergy;   for  pathway in pathways   minEnergy = min(minEnergy, pathway.electronEnergy)   end
+    nrContinuum = Continuum.gridConsistency(maxEnergy, grid; minEnergy=minEnergy)
 
     newPathways = PhotoRecombinationInterference.Pathway[]
     for  pathway in pathways
