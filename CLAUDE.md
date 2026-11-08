@@ -39,11 +39,30 @@ A mechanical replacement that shortens or lengthens the test expression will bre
 - **Keyword copy-constructor variables**: append `x` to the parameter name (e.g. `Z` → `Zx`)
 
 ### Comment style
-- `#` — inline explanatory note on a code line
-- `##` — section separator or explanatory block comment (used liberally)
-- `###` — inline option list (lists the valid alternatives for a setting)
+
+**ONLY `#` IS A COMMENT MARKER -- the maintainer's ruling, 08-Nov-2026, and it replaces what this section said
+before.** A comment uses a single `#` whether it stands on its own line or is appended to a statement. The older
+scheme gave `##` and `###` separate meanings, and the result was a contradiction between this section and Rule 15.6
+that stood open for two days and blocked 702 lines; one marker cannot be misread.
+
+- `#` — a comment, standalone or appended to a code line
 - `#== ... ==#` — large disabled code block (with a reason written on the opening line)
+- `#####...` — an optical separator between blocks of a file; see Rule 15.7, and leave these alone
 - Never use `##x` — those were dead-code markers and have been removed
+
+**THE RULING COST NO CODE CHANGE, WHICH IS WHY IT COULD BE TAKEN FREELY.** Measured when it was made: standalone
+`##` lines stood at **ZERO** -- the comment pass of 07-Nov-2026 had already converted all 702 of them -- and
+appended `##` on a real code line at **ONE**. A figure carried in a note from before that pass said 702 were still
+waiting, and it was stale; **re-measure before quoting any count in this file.**
+
+**THE ONE REASONED EXCEPTION: a `##` ROW INDEX IN A TRANSCRIBED DATA TABLE STAYS.** `module-LSjj-inc.jl` and three
+siblings carry **21275** lines of the form
+
+    LS_jj_me( LS_jj_qn(1, 4, 4, 3, 1, 1, 2, 5, 2, 4), -1,  2,  7), ## 1
+
+where the `## n` numbers the row of a published transformation table. That is part of the table's layout rather
+than a remark about a statement, nothing reads it as prose, and converting 21275 lines would change not one
+character of meaning. The exception is narrow on purpose: it is a NUMBER ONLY, in a `const` data array.
 
 ### Indentation and spacing
 - 4-space indentation throughout
@@ -338,7 +357,22 @@ reader finding what they expect where they expect it.
    description attached to it.
 4. Each docstring opens with the signature -- `` `Module.functionName(argument::Type, ...)` `` -- character
    for character as the `function` line below it, then a line starting with `...` that says what the function
-   is **good for**, and it makes the **return value explicit**: "a `value::Type` is returned".
+   is **good for**.
+
+   **THE RETURN VALUE IS STATED AS OFTEN AS IT HELPS A READER UNDERSTAND THE METHOD, AND NOT AS A QUOTA** -- the
+   maintainer's ruling, 08-Nov-2026, which relaxes the earlier flat requirement. It may be left unsaid where it
+   already follows from the method's own NAME: `displayResults`, `isViolated`, `computeDiracEnergy` and every
+   `Base.show` need no sentence telling a reader what comes back. State it where the name does not settle it, and
+   that is most of the interesting cases: where the type is not obvious (`a shellList::Array{Shell,1}`), where
+   several types are possible, where a method returns `nothing` by design, where a `display=true` keyword means
+   the value is a side effect of a printout, or where two methods of one name return DIFFERENT things.
+
+   **SO THERE IS NO COUNT TO DRIVE TO ZERO HERE, and a detector must not report one as a defect.** Before the
+   ruling, 519 docstrings were given a return sentence on the flat reading and 132 remained; those 132 are a
+   JUDGEMENT each, and a sweep that mechanically appends "a value is returned" to a method called
+   `displayResults` has made the file longer and no clearer. What a tool may usefully report is the narrower
+   question: a docstring that names a return TYPE which disagrees with the code -- that is a defect, and
+   `Basics.extractNonrelativisticShellList` carried it in two of four docstrings until 08-Nov-2026.
 5. **140 characters is the line width to USE, not merely a ceiling not to exceed.** It applies to docstrings,
    comments and code alike. Prose that wraps at 100 or 110 wastes a third of the line and reads worse for it, so
    a paragraph is re-flowed to fill the width; a sentence that fits on one line is never split; and a wrapped
@@ -349,32 +383,56 @@ reader finding what they expect where they expect it.
    the `...` is ordinary prose that must run to 140 before wrapping, with any continuation indented to the same
    column as the `...`. A one-line description broken over two lines is precisely what this rule exists to stop.
 
-   Only two things keep their own layout, because there the line breaks carry meaning: the keyword list in a
-   copy-constructor docstring, and indented example or code blocks.
+   **WHAT MAY NOT BE RE-FLOWED, measured over the 167 over-long prose lines of 08-Nov-2026.** The line breaks
+   carry meaning in five places, and a mechanical wrap damages every one of them:
+
+   - the keyword list in a copy-constructor docstring, whose columns are the point;
+   - indented example or code blocks;
+   - **a commented-out line of CODE** -- `#  newLine = AutoIonization.Line(line.initialLevel, ...)` is disabled
+     code, not prose, and wrapping it makes it unusable as the thing it is kept for;
+   - **a formula or an ASCII-art expression**, where the alignment IS the notation -- the 3j recursion relation
+     at `module-RacahAlgebra.jl:1247` spans well past 140 and must;
+   - a line long only because it carries a URL, which cannot be broken.
+
+   **AND THE OVER-LONG LINES SPLIT THREE WAYS, which is what makes the pass tractable.** Of those 167: **68** are
+   a backticked header carrying its own description on the SAME line, and the fix is to move the description to
+   its own `...` line rather than to wrap the signature; **66** are plain docstring prose, which simply wraps;
+   **17** are argument-table rows, where only the text after the `...` moves. The remaining **16** are the
+   exclusions above. A re-flow is verified by comparing the **word sequence** before and after -- it must be
+   identical, since a re-flow may change only where the line breaks fall -- and that check is the whole
+   difference between re-flowing and rewriting.
 
 **Comments**
 
-6. **A comment line that STANDS ON ITS OWN starts with a single `#`.** Never `##`, `###` or deeper.
-   **A comment APPENDED TO A CODE LINE may keep its `##`** -- amended 28-Aug-2026 on the maintainer's
-   instruction. The doubled hash is doing work there: it marks the text as an aside to the statement it sits on,
-   and converting it buys nothing.
-   **What to do with an appended comment instead is to READ IT.** Ask whether it is instructive -- whether it
+6. **EVERY COMMENT USES A SINGLE `#`, standalone or appended** -- the maintainer's ruling of 08-Nov-2026, which
+   REPLACES the 28-Aug amendment that let an appended comment keep its `##`. See the *Comment style* section
+   above for the ruling, its one reasoned exception (a `## n` row index in a transcribed data table), and the
+   measurement that made it free: zero standalone `##` lines remained, and one appended one.
+   **What to do with an appended comment is still to READ IT FIRST.** Ask whether it is instructive -- whether it
    tells a reader something the code does not already say. If it does not, DELETE IT rather than reformat it.
-   `n = n + 1    ## increment n` is noise whichever hash it uses.
-7. **A `#####...#####` rule that is nothing but hashes is an OPTICAL SEPARATOR and is KEPT.** JAC uses it,
-   usually two lines of 129 hashes together, to divide a file into blocks, and that is worth having. What must
-   go is a `#####` line that CARRIES TEXT -- `### The display section ####...` -- or a banner block whose
-   delimiters enclose comment lines: if such a block says something real it belongs in a docstring, and if it
-   only labels the code below it, the code should be findable without it. A detector for this rule must
-   therefore test whether the line contains anything besides `#` and whitespace, and must not simply count
-   `#####`. Getting this backwards deletes exactly the separators the maintainer wants: on 15-Aug-2026 a
-   hygiene pass removed 22 pure separators and zero text-carrying banners.
-   **AMENDED 28-Aug-2026: a SHORT, INSTRUCTIVE label inside a separator MAY STAY.** The maintainer's own
-   example is `####### Radiative Recombination ####...`, and such a line earns its place -- it tells a reader
-   scanning the file which block they have reached, which is exactly what these rules are for. The test is
-   therefore NOT "does the line carry text" but "does the text help someone find their way". A one- or
-   two-word section name inside a separator: KEEP. A sentence, a paragraph, or a delimiter block enclosing
-   comment lines: that belongs in a docstring, and goes.
+   `n = n + 1    # increment n` is noise whichever hash it uses, and re-marking noise is not hygiene.
+7. **EVERY `#####...` OPTICAL SEPARATOR IS KEPT, UNTOUCHED, WHATEVER IT CARRIES** -- the maintainer's ruling of
+   08-Nov-2026: "In the code, we have many places with 2x or 3x `#########...` lines, which I find good ... but
+   which are hard to formalize in a strict sense. I would simply keep these optical separators of different
+   code-blocks within a single src file untouched."
+
+   So there is nothing to decide and nothing to count. One line of hashes or three, pure hashes or a label
+   between them, a label of two words or of ten -- `##### King-plot helpers #####` and
+   `#####  Second-order treatment of a SHAPE-CROSSING Q space (AtomicState.RasStep.shapedTo)  #####` alike --
+   all stay. They are what lets a reader scan a 5000-line file, which is the only thing these rules are for.
+
+   **THE HISTORY IS KEPT BECAUSE THIS CLAUSE HAS BEEN WRONG TWICE IN BOTH DIRECTIONS.** The first version said a
+   separator carrying TEXT must go, and a pass acting on it removed 22 pure separators and zero text-carrying
+   banners on 15-Aug-2026 -- it had the test backwards. The 28-Aug amendment then allowed "a one- or two-word
+   section name" and no more, which still left a detector flagging three perfectly good labels on 08-Nov-2026,
+   because a useful section name is often six words. The lesson is that the length of a label was never the
+   right variable, and the ruling above removes the variable altogether.
+
+   **WHAT A DETECTOR MAY STILL REPORT is one narrow shape: a separator block whose delimiters ENCLOSE A
+   PARAGRAPH OF PROSE** -- several comment lines of explanation fenced between two hash rules. That is a
+   docstring written in the wrong place, and it is worth moving. A separator with a LABEL between its rules is
+   not that, and must not be reported as that; the old `textBanner` counter conflated the two and is retired.
+
 8. **No empty `#` lines.** A blank line separates blocks of code better than a bare comment marker.
 9. Comments are for a reader who knows Julia and atomic physics but not this file's history. **Remove
    historical remarks that can no longer be checked** -- references to code that has since been deleted, to
@@ -947,17 +1005,18 @@ The acting counterpart of `/audit`, which only reports. One module per invocatio
 1. Capture a **behaviour baseline** first: run one real case through the module and save its printed output.
    Without this the pass cannot be verified, so it is not optional.
 2. Reorder: structs and their methods first, then the remaining methods alphabetically, two blank lines apart.
-3. Fix comments, per Rule 15.6-15.8 AS AMENDED 28-Aug-2026: a standalone `##` becomes `#`, but an APPENDED
-   `##` on a code line STAYS -- and is instead read, and DELETED outright if it is not instructive; pure
-   hash-only separators are KEPT, and so is a separator carrying a SHORT section label such as
-   `####### Radiative Recombination ####`; only a separator carrying a sentence or enclosing a comment block
-   goes; empty `#` lines go. Then **re-flow docstring prose and
-   comment blocks to USE the 140-column width** (Rule 15.5) -- filling the line, not just staying under it --
-   including the descriptions in the `+ field ::Type ... text` tables, and leaving only copy-constructor keyword
-   lists and indented examples alone. A re-flow is verified by
-   comparing the **word sequence** before and after: it must be identical, since a re-flow may change only where
-   the line breaks fall. That check is what separates re-flowing from rewriting.
-4. Give every method its own docstring with signature, purpose and explicit return type; **remove historical
+3. Fix comments, per Rule 15.6-15.8 AS RULED 08-Nov-2026: **every comment takes a single `#`**, standalone or
+   appended, the sole exception being a `## n` row index in a transcribed data table; **every `#####` separator
+   is left untouched whatever it carries**; empty `#` lines go. An appended comment is READ before it is
+   touched, and deleted outright if it is not instructive. Then **re-flow docstring prose and comment blocks to
+   USE the 140-column width** (Rule 15.5) -- filling the line, not just staying under it -- including the
+   descriptions in the `+ field ::Type ... text` tables. **Five things are NOT re-flowed**: copy-constructor
+   keyword lists, indented examples, commented-out CODE, a formula or ASCII-art expression, and a line long only
+   because of a URL. A re-flow is verified by comparing the **word sequence** before and after: it must be
+   identical, since a re-flow may change only where the line breaks fall. That check is what separates
+   re-flowing from rewriting.
+4. Give every method its own docstring with signature and purpose, stating the return value where the method's
+   NAME does not already settle it (Rule 15.4 as ruled 08-Nov-2026); **remove historical
    remarks that can no longer be checked**. Two shapes are worth grepping for, because both are left behind by
    a retirement and both survive as text that no longer says anything: a docstring that describes itself --
    `... as Module.thisSameFunction, but ...`, which was a real contrast only while the other version existed --

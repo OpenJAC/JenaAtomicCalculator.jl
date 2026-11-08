@@ -54,7 +54,13 @@ reading a sample of what it changes.
    14. A GENERIC `function name end` DECLARATION HAS NO BODY and therefore no return value and no
        signature of its own;  `module-Basics.jl` holds 103 of them, some with a docstring.  They
        were excluded from the missing-docstring count and not from the others.
-   15. AN APPENDED `##` IN A DATA TABLE IS A ROW INDEX.  `module-LSjj-inc.jl` alone carries
+   15. THE MAINTAINER'S RULINGS OF 08-Nov-2026 CHANGED WHAT IS A DEFECT HERE, and two counters moved:
+       `textBanner` is RETIRED, because every `#####` separator is now kept untouched whatever it carries --
+       the old test flagged three good section labels;  and `noReturnStated` is a JUDGEMENT rather than a
+       defect, since a return value may be left unsaid where the method's NAME settles it, so there is no
+       count to drive to zero.  An appended `##` is now a defect like a standalone one, with the single
+       exception in note 16.
+   16. AN APPENDED `##` IN A DATA TABLE IS A ROW INDEX.  `module-LSjj-inc.jl` alone carries
        20541 of them, numbering the jj-LS coefficient rows against the published tables.
        They are reported separately from ordinary appended comments and are never swept.
 """
@@ -341,6 +347,7 @@ ROWS = [("funcs",           "function definitions"),
         ("funcDocs",        "docstrings attached to a function"),
         ("", ""),
         ("standalone2",     "standalone `##` comment lines        -> `#`"),
+        ("appended2",       "appended `##` on a code line        -> `#`"),
         ("emptyHash",       "empty `#` lines                      -> a blank line"),
         ("sep1",            "definitions with only 1 blank line   -> 2"),
         ("sep0",            "definitions with no blank line above"),
@@ -348,24 +355,28 @@ ROWS = [("funcs",           "function definitions"),
         ("longProse",       "docstring/comment lines over 140     -> re-flow"),
         ("eqNothing",       "`== nothing` guards                  -> `isnothing`"),
         ("indentedTop",     "top-level functions not at column 1"),
-        ("textBanner",      "`#####` separators carrying a sentence"),
+        ## `textBanner` IS RETIRED, 08-Nov-2026:  the maintainer keeps EVERY `#####` separator untouched,
+        ## whatever it carries, so there is nothing here to report.  It is counted below, with the other
+        ## things that are kept, purely so the number does not look lost.  What WOULD be worth reporting is
+        ## the narrow shape Rule 15.7 now names -- a separator block ENCLOSING A PARAGRAPH of prose -- and
+        ## that is a different test from "the line carries text", which flagged three good labels.
         ("inDisabledBlock",  "   comment lines inside `#= ... =#`, kept"),
         ("", ""),
         ("noDoc",           "functions with no docstring"),
         ("noDocTrivial",    "   also: trivial Base.* methods (exempt)"),
         ("noDocNested",     "   also: nested local helpers (exempt)"),
-        ("noReturnStated",  "docstrings not stating the return value"),
+        ("noReturnStated",  "   docstrings not stating a return value (JUDGEMENT, not a defect)"),
         ("sigMismatch",     "docstring signatures disagreeing with the code"),
         ("docFamily",       "docstrings carrying more than one header"),
         ("noSigInDoc",      "docstrings carrying no signature at all"),
         ("untyped",         "functions with an argument lacking a type"),
         ("", ""),
+        ("textBanner",      "`#####` separators carrying a label (kept, Rule 15.7)"),
         ("nestedFunc",      "nested helper functions (correctly indented)"),
         ("hashRule",        "pure `#####` separators (kept)"),
         ("longCode",        "code lines over 140 (alignment, not prose)"),
         ("longData",        "data-table lines over 140 (kept)"),
-        ("appended2",       "appended `##` on a code line (kept by Rule 15.6)"),
-        ("appended2Data",   "   of those, row indices in a data table"),
+        ("appended2Data",   "appended `##` row indices in a data table (kept, the one exception)"),
         ("indentOdd",       "indents not a multiple of 4 (see note 4)"),
         ("qualified",       "`function Module.name(` definitions"),
         ("bare",            "`function name(` definitions")]
