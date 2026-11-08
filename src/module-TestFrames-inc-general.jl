@@ -4331,21 +4331,54 @@ function testModule_Distribution(; short::Bool=true)
             if printTest   info(iostream, "$sb; the occupation at E = $en is $wa, must be $wb")   end
         end
     end
-    # (8) AND THE ABSOLUTE PREFACTOR, which is the one assertion in this test that takes a position on an open
-    #     question: this method gives 2/(2 pi)^3 per state, the spin-degenerate value, while
-    #     electronEnergyDistribution carries twice the matching density of states. The disagreement is recorded in
-    #     that module's own docstring and is the maintainer's to settle; if it is settled in favour of the energy
-    #     form, THIS is the line to change, and nothing else here moves.
+    # (8) the absolute prefactor of the velocity form: 2/(2 pi)^3 per state, the spin-degenerate value, which
+    #     is 1/2 of that at the chemical potential since the occupation is exactly 1/2 there.
     if  abs(f(0.5) * 4pi^3 - 0.5) > 1.0e-10
         success = false
         if printTest   info(iostream, "the Fermi-Dirac velocity prefactor gives $(f(0.5) * 4pi^3) at the " *
                                       "chemical potential, must be 1/2 for the spin-degenerate 2/(2 pi)^3")   end
     end
+    # (9) THE TWO FERMI-DIRAC FORMS ARE ONE DISTRIBUTION, by the same Jacobian that ties the Maxwell pair in (3).
+    #     This is what caught the spin double-count fixed on 08-Nov-2026: the energy form carried
+    #     2^(3/2)/pi^2 sqrt(E) where the velocity form implies sqrt(2)/pi^2 sqrt(E), so this check read 2.0.
+    for  en  in  [0.1, 0.3, 0.9]
+        v  = sqrt(2*en)
+        wa = Distribution.electronEnergyDistribution(fd, en);    wb = 4pi * v * f(en)
+        if  abs(wa/wb - 1.0) > 1.0e-10
+            success = false
+            if printTest   info(iostream, "the Fermi-Dirac energy and velocity forms differ by $(wa/wb) at " *
+                                          "E = $en; they must agree through dE/dv = v")   end
+        end
+    end
+    # (10) AND THE CHECK THAT NEEDS NEITHER OF THEM: in the NON-DEGENERATE limit a Fermi-Dirac gas becomes a
+    #      Maxwell one times the electron density n = 2 (T/2 pi)^(3/2) exp(mu/T). That ties the two distribution
+    #      families together, fixes the Fermi-Dirac prefactor from outside this module's own algebra, and at the
+    #      same time asserts what distinguishes them -- the Maxwell forms are normalised to ONE and the
+    #      Fermi-Dirac forms are absolute densities. It is the one check here that no internal consistency could
+    #      have satisfied, and it too read 2.0 before the correction.
+    #      THE TOLERANCE IS THE DEGENERACY PARAMETER ITSELF, not a fixed number.  The limit is reached only as
+    #      mu/T -> -infinity, and the leading correction to it is exp(mu/T);  at mu/T = -12 the ratios sit at
+    #      0.999994, which a 1e-8 tolerance rejected on the first attempt for no reason but the physics.  Writing
+    #      the bound as a few times exp(mu/T) keeps the check meaningful -- it is still violated by five orders of
+    #      magnitude if the prefactor is wrong by a factor of two -- and makes it independent of T and mu.
+    muC = -0.6;    fdC = Distribution.ElectronFermiDirac(T, muC);    nC = 2 * (T/(2pi))^1.5 * exp(muC/T)
+    for  v  in  [0.1, 0.25, 0.4]
+        wa = Distribution.electronVelocityDistribution(fdC, v)
+        wb = Distribution.electronVelocityDistribution(d, v) * nC
+        if  abs(wa/wb - 1.0) > 10 * exp(muC/T)
+            success = false
+            if printTest   info(iostream, "at mu/T = $(muC/T) the Fermi-Dirac velocity form is $(wa/wb) times " *
+                                          "Maxwell x n at v = $v; the non-degenerate limit allows a departure " *
+                                          "of order exp(mu/T) = $(exp(muC/T))")   end
+        end
+    end
 
     println(iostream, "Distribution: the Maxwell energy and velocity forms each integrate to 1, the mean energy " *
                       "is (3/2) kT, the two forms agree through the Jacobian, Planck reaches its Rayleigh-Jeans " *
                       "limit, the dilute, vacuum and power-law fields follow Planck and their own window " *
-                      "exactly, and the Fermi-Dirac velocity form is the Fermi step. No approved data is used.")
+                      "exactly, the Fermi-Dirac velocity form is the Fermi step, its two forms agree through the " *
+                      "same Jacobian, and a non-degenerate Fermi-Dirac gas is Maxwell times the electron " *
+                      "density. No approved data is used.")
     Defaults.setDefaults("print summary: close", "")
     testPrint("testModule_Distribution()::", success)
     return( success )

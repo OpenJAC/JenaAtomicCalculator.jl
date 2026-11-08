@@ -278,12 +278,25 @@ end
 
 """
 `Distribution.electronEnergyDistribution(dist::Distribution.ElectronFermiDirac, energy::Float64)`  
-    ... to provide the Fermi-Dirac electron energy distribution of given temperature at electron energy.
-        A value::Float64 is returned. 
+    ... to provide the Fermi-Dirac electron energy distribution at the given energy, i.e. the spin-degenerate
+        free-electron density of states sqrt(2 E)/pi^2 times the Fermi occupation of that energy.  A
+        value::Float64 is returned, with the dimension of a number density per unit energy.
+
+        THIS IS AN ABSOLUTE DENSITY AND NOT A PROBABILITY, which is the one thing to know before using it:  it
+        integrates to the electron number density n, whereas the two ElectronMaxwell methods of the same names
+        integrate to ONE.  The two families are therefore not interchangeable, and the relation between them is
+        f_FD -> f_Maxwell * n in the non-degenerate limit, which `TestFrames.testModule_Distribution` asserts.
+        A caller wanting a rate coefficient <sigma v> from a degenerate distribution must divide by n itself.
+
+        The prefactor was 2^(3/2)/pi^2 until 08-Nov-2026, i.e. twice this, and so counted the two spin states
+        once too often.  Four independent checks agreed on the factor and none of them on the old value:  the
+        Jacobian against this module's own velocity form, the textbook density of states
+        (2m)^(3/2) sqrt(E) / (2 pi^2 hbar^3), the T -> 0 density (2 mu)^(3/2)/(3 pi^2), and the non-degenerate
+        limit above.  Nothing in JAC constructs an ElectronFermiDirac, so no published number moves.
 """
 function  electronEnergyDistribution(dist::Distribution.ElectronFermiDirac, energy::Float64)
     wa = (energy - dist.muChem) / dist.T
-    fe = 2.0^1.5 / (1*pi^2) * sqrt(energy) / (exp(wa) + 1.0)
+    fe = sqrt(2.0) / (1*pi^2) * sqrt(energy) / (exp(wa) + 1.0)
     return( fe )
 end
 
@@ -293,13 +306,11 @@ end
     ... to provide the Fermi-Dirac velocity distribution of given temperature at electron velocity, with regard to d^3 v,
         i.e. 2/(2 pi)^3 times the Fermi occupation of the state of that speed.  A value::Float64 is returned.
 
-        AND THE TWO FERMI-DIRAC FORMS OF THIS MODULE DISAGREE BY A FACTOR OF TWO, which is recorded here rather than
-        corrected because nothing in JAC constructs an ElectronFermiDirac and so no number moves either way.  Taken
-        through the Jacobian f_E(E) dE = f_v(v) 4 pi v^2 dv at E = v^2/2, this method gives sqrt(2 E)/pi^2 per unit
-        energy, which is the spin-degenerate free-electron density of states; electronEnergyDistribution above carries
-        2^(3/2)/pi^2 sqrt(E), i.e. twice that, and so counts the two spin states once too often.  The prefactor here
-        is the one that matches the textbook, but which of the two is MEANT is the maintainer's to say, so neither has
-        been changed.
+        LIKE ITS ENERGY PARTNER THIS IS AN ABSOLUTE DENSITY, not a probability:  integrated over d^3 v it gives the
+        electron number density n, while the two ElectronMaxwell methods integrate to ONE.  Taken through the
+        Jacobian f_E(E) dE = f_v(v) 4 pi v^2 dv at E = v^2/2 it yields sqrt(2 E)/pi^2 per unit energy, which is the
+        spin-degenerate free-electron density of states, and that agreement with electronEnergyDistribution above
+        was established on 08-Nov-2026 by correcting THAT method, which had carried twice this weight.
 """
 function  electronVelocityDistribution(dist::Distribution.ElectronFermiDirac, velocity::Float64)
     wa = (velocity^2 / 2.0 - dist.muChem) / dist.T
