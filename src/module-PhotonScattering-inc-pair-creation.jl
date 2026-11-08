@@ -85,8 +85,9 @@ function computePairCreationLines(finalMultiplet::Multiplet, initialMultiplet::M
 
     lines = PhotonScattering.determinePairCreationLines(finalMultiplet, initialMultiplet, settings)
     if  settings.printBefore    PhotonScattering.displayPairCreationLines(stdout, lines)    end
-    maxEnergy = 0.;   for  line in lines   maxEnergy = max(maxEnergy, line.particleEnergy)   end
-    nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
+    maxEnergy = 0.;          for  line in lines   maxEnergy = max(maxEnergy, line.particleEnergy)   end
+    minEnergy = maxEnergy;   for  line in lines   minEnergy = min(minEnergy, line.particleEnergy)   end
+    nrContinuum = Continuum.gridConsistency(maxEnergy, grid; minEnergy=minEnergy)
     nucPot      = Nuclear.nuclearPotential(nm, grid)
     newLines    = PhotonScattering.Line[]
     for  line in lines
