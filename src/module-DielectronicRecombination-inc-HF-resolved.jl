@@ -375,8 +375,9 @@ function  computeHfCaptureLines(finalMultiplet::Multiplet, intermediateMultiplet
                                                                     initialMultiplet, settings)
     ePhotonLines  = DielectronicRecombination.determinePhotonLines( finalMultiplet, intermediateMultiplet,
                                                                     initialMultiplet, settings)
-    maxEnergy = 0.;   for cLine in eCaptureLines   maxEnergy = max(maxEnergy, cLine.electronEnergy)   end
-    nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
+    maxEnergy = 0.;          for cLine in eCaptureLines   maxEnergy = max(maxEnergy, cLine.electronEnergy)   end
+    minEnergy = maxEnergy;   for cLine in eCaptureLines   minEnergy = min(minEnergy, cLine.electronEnergy)   end
+    nrContinuum = Continuum.gridConsistency(maxEnergy, grid; minEnergy=minEnergy)
     newEPhotonLines = Vector{DielectronicRecombination.PhotonLine}(undef, length(ePhotonLines))
     @threads for  p in eachindex(ePhotonLines)
         newEPhotonLines[p] = DielectronicRecombination.computePhotonAmplitudes(ePhotonLines[p], grid)
@@ -420,8 +421,9 @@ function  computeHfCaptureLines(finalMultiplet::Multiplet, intermediateMultiplet
     end
     newHfCapture   = Vector{DielectronicRecombination.HfCaptureLine}(undef, length(hfCaptureLines))
     if  settings.hfDrivenCapture
-        maxHfEnergy = 0.;   for hl in hfCaptureLines   maxHfEnergy = max(maxHfEnergy, hl.electronEnergy)   end
-        nrHfContinuum = Continuum.gridConsistency(maxHfEnergy, grid)
+        maxHfEnergy = 0.;            for hl in hfCaptureLines   maxHfEnergy = max(maxHfEnergy, hl.electronEnergy)   end
+        minHfEnergy = maxHfEnergy;   for hl in hfCaptureLines   minHfEnergy = min(minHfEnergy, hl.electronEnergy)   end
+        nrHfContinuum = Continuum.gridConsistency(maxHfEnergy, grid; minEnergy=minHfEnergy)
         nucPot = Nuclear.nuclearPotential(nm, grid);    prims = Bsplines.generatePrimitives(grid)
         @threads for  c in eachindex(hfCaptureLines)
             newHfCapture[c] = DielectronicRecombination.computeHfDrivenCaptureAmplitudes(hfCaptureLines[c], nm, grid,
