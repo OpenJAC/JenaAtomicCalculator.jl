@@ -32,7 +32,7 @@ function computeSteps(scheme::Cascade.DielectronicRecombinationScheme, comp::Cas
             end
         
             # Generate potential for continuum orbitals for this step
-            nrContinuum  = Continuum.gridConsistency(meanEn + 0.1, comp.grid)
+            nrContinuum  = Continuum.gridConsistency(meanEn + 0.1, comp.grid; minEnergy=meanEn)
             contSettings = Continuum.Settings(false, nrContinuum);   
             npot         = Nuclear.nuclearPotential(comp.nuclearModel, comp.grid)
             # wp1 = compute("radial potential: core-Hartree", grid, wLevel)
