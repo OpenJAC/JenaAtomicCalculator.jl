@@ -1091,6 +1091,18 @@ function photorecombinationPlasmaAlpha(eDist::Distribution.AbstractElectronDistr
                                        iConf::Configuration, fConf::Configuration;
                                        approx::Empirical.AbstractEmpiricalApproximation=ScaledHydrogenic(), printout::Bool=false,
                                        data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())
+    # <sigma v> IS ONLY A RATE COEFFICIENT IF f INTEGRATES TO ONE, and `eDist` is dispatched on the ABSTRACT
+    # type, so this function cannot tell from its own signature.  An ElectronFermiDirac integrates to the
+    # electron density n instead, and passing one would return a rate PER UNIT VOLUME -- too large by n, which
+    # is no sort of number a reader would catch by eye.  Refusing is the honest answer rather than dividing by
+    # n here, because only the degenerate type carries n at all;  supporting degenerate plasmas properly is a
+    # separate piece of work.  See priority item 15.
+    Distribution.isNormalizedToOne(eDist)  ||
+        error("Empirical.photorecombinationPlasmaAlpha(): the electron distribution $(typeof(eDist)) is " *
+              "an ABSOLUTE number density integrating to the electron density n, not a probability density " *
+              "integrating to one, so the integral below would give a rate PER UNIT VOLUME and not a rate " *
+              "coefficient.  Pass a Distribution.ElectronMaxwell, or divide the result by n yourself.")
+
     # The threshold energy is needed only to place the emitted photon, i.e. only for the stimulated term. A vacuum
     # field carries no photons and, hence, works for every approximation.
     isVacuum = typeof(pDist)  == Distribution.PhotonVacuumField
@@ -1674,6 +1686,18 @@ function impactExcitationPlasmaAlpha(eDist::Distribution.AbstractElectronDistrib
                                      approx::Empirical.VanRegemorter1962=Empirical.VanRegemorter1962(), printout::Bool=false,
                                      aSource::Empirical.AbstractEmpiricalApproximation=Empirical.ScaledHydrogenic(),
                                      data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())
+    # <sigma v> IS ONLY A RATE COEFFICIENT IF f INTEGRATES TO ONE, and `eDist` is dispatched on the ABSTRACT
+    # type, so this function cannot tell from its own signature.  An ElectronFermiDirac integrates to the
+    # electron density n instead, and passing one would return a rate PER UNIT VOLUME -- too large by n, which
+    # is no sort of number a reader would catch by eye.  Refusing is the honest answer rather than dividing by
+    # n here, because only the degenerate type carries n at all;  supporting degenerate plasmas properly is a
+    # separate piece of work.  See priority item 15.
+    Distribution.isNormalizedToOne(eDist)  ||
+        error("Empirical.impactExcitationPlasmaAlpha(): the electron distribution $(typeof(eDist)) is " *
+              "an ABSOLUTE number density integrating to the electron density n, not a probability density " *
+              "integrating to one, so the integral below would give a rate PER UNIT VOLUME and not a rate " *
+              "coefficient.  Pass a Distribution.ElectronMaxwell, or divide the result by n yourself.")
+
     alpha = 0.
     # The EIE cross section of an ion is finite at threshold; the mesh therefore starts at the threshold, so that
     # the Gauss-Legendre quadrature does not straddle this step, and follows the electron temperature.
@@ -1819,6 +1843,18 @@ function forbiddenExcitationPlasmaAlpha(eDist::Distribution.AbstractElectronDist
                                         approx::Empirical.ConstantCollisionStrength=Empirical.ConstantCollisionStrength(),
                                         printout::Bool=false,
                                         data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())
+    # <sigma v> IS ONLY A RATE COEFFICIENT IF f INTEGRATES TO ONE, and `eDist` is dispatched on the ABSTRACT
+    # type, so this function cannot tell from its own signature.  An ElectronFermiDirac integrates to the
+    # electron density n instead, and passing one would return a rate PER UNIT VOLUME -- too large by n, which
+    # is no sort of number a reader would catch by eye.  Refusing is the honest answer rather than dividing by
+    # n here, because only the degenerate type carries n at all;  supporting degenerate plasmas properly is a
+    # separate piece of work.  See priority item 15.
+    Distribution.isNormalizedToOne(eDist)  ||
+        error("Empirical.forbiddenExcitationPlasmaAlpha(): the electron distribution $(typeof(eDist)) is " *
+              "an ABSOLUTE number density integrating to the electron density n, not a probability density " *
+              "integrating to one, so the integral below would give a rate PER UNIT VOLUME and not a rate " *
+              "coefficient.  Pass a Distribution.ElectronMaxwell, or divide the result by n yourself.")
+
     alpha = 0.
     Z = Defaults.getDefaults("nuclear: charge");    iShell = fShell = Shell(0,0);    diff = 0
     wa = Basics.extractFromConfigurations(Basics.OccupationDifference(), iConf, fConf)
@@ -1991,6 +2027,18 @@ function impactIonizationPlasmaAlpha(eDist::Distribution.AbstractElectronDistrib
                                      approx::Empirical.AbstractEmpiricalApproximation=Lotz1967(), printout::Bool=false,
                                      pSource::Empirical.AbstractEmpiricalApproximation=Empirical.ScaledHydrogenic(),
                                      data::PeriodicTable.AbstractEnergyData=PeriodicTable.XrayDataBooklet())
+    # <sigma v> IS ONLY A RATE COEFFICIENT IF f INTEGRATES TO ONE, and `eDist` is dispatched on the ABSTRACT
+    # type, so this function cannot tell from its own signature.  An ElectronFermiDirac integrates to the
+    # electron density n instead, and passing one would return a rate PER UNIT VOLUME -- too large by n, which
+    # is no sort of number a reader would catch by eye.  Refusing is the honest answer rather than dividing by
+    # n here, because only the degenerate type carries n at all;  supporting degenerate plasmas properly is a
+    # separate piece of work.  See priority item 15.
+    Distribution.isNormalizedToOne(eDist)  ||
+        error("Empirical.impactIonizationPlasmaAlpha(): the electron distribution $(typeof(eDist)) is " *
+              "an ABSOLUTE number density integrating to the electron density n, not a probability density " *
+              "integrating to one, so the integral below would give a rate PER UNIT VOLUME and not a rate " *
+              "coefficient.  Pass a Distribution.ElectronMaxwell, or divide the result by n yourself.")
+
     if  typeof(approx) != Empirical.Lotz1967
         error("The EII plasma rate coefficient is presently supported only for approx = Lotz1967().")
     end

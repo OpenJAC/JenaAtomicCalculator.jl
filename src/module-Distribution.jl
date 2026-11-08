@@ -271,6 +271,48 @@ function  electronVelocityDistribution(dist::Distribution.ElectronMaxwell, veloc
 end
 
 
+"""
+`Distribution.isNormalizedToOne(dist::Distribution.AbstractElectronDistribution)`  
+    ... states whether the distribution's own `electronEnergyDistribution` and `electronVelocityDistribution` integrate to ONE,
+        i.e. whether it is a probability density, as against an ABSOLUTE number density integrating to the electron density n.
+        A value::Bool is returned.
+
+        WHY THIS IS A TRAIT AND NOT A REMARK IN A DOCSTRING.  The two families of this module answer differently --
+        `ElectronMaxwell` integrates to one, `ElectronFermiDirac` to n -- and a caller that forms a rate coefficient
+        `<sigma v> = int sigma(E) v(E) f(E) dE` is correct only for the first.  A careful note had already been written at both
+        methods and could not protect anything, because the caller is dispatched on the ABSTRACT type and cannot read a
+        docstring;  the same reasoning Rule 18 of the coding conventions gives for carrying an operator's kind in its type.
+
+        **THE ABSTRACT FALLBACK RAISES BY DESIGN.**  A new electron distribution must declare which it is, and a type that
+        forgets to gets an error naming itself rather than being silently treated as a probability density.
+"""
+function isNormalizedToOne(dist::Distribution.AbstractElectronDistribution)
+    error("Distribution.isNormalizedToOne(): $(typeof(dist)) does not declare whether it integrates to ONE (a probability " *
+          "density) or to the electron density n (an absolute density).  Add a method of this function for it;  a caller " *
+          "that forms a rate coefficient needs the answer and must not guess it.")
+end
+
+
+"""
+`Distribution.isNormalizedToOne(dist::Distribution.ElectronMaxwell)`  
+    ... a Maxwell-Boltzmann distribution is a probability density;  true is returned.  Both of its methods integrate to one,
+        which `TestFrames.testModule_Distribution` asserts directly.
+"""
+function isNormalizedToOne(dist::Distribution.ElectronMaxwell)
+    return( true )
+end
+
+
+"""
+`Distribution.isNormalizedToOne(dist::Distribution.ElectronFermiDirac)`  
+    ... a Fermi-Dirac distribution as implemented here is an ABSOLUTE density -- the spin-degenerate density of states times
+        the Fermi occupation -- and integrates to the electron density n rather than to one;  false is returned.
+"""
+function isNormalizedToOne(dist::Distribution.ElectronFermiDirac)
+    return( false )
+end
+
+
 #################################################################################################################################
 #################################################################################################################################
 

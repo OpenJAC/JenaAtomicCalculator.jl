@@ -4373,12 +4373,35 @@ function testModule_Distribution(; short::Bool=true)
         end
     end
 
+    # (11) THE NORMALISATION TRAIT, which is what protects a rate coefficient from a distribution that is not a
+    #      probability density. The two families answer differently and a caller dispatched on the abstract type
+    #      cannot tell them apart, so the answer has to live in the type -- and an UNDECLARED type must raise
+    #      rather than be guessed at, or the trait buys nothing the docstring did not already fail to buy.
+    if  !Distribution.isNormalizedToOne(Distribution.ElectronMaxwell(T))
+        success = false
+        if printTest   info(iostream, "ElectronMaxwell must declare itself normalised to one")   end
+    end
+    if  Distribution.isNormalizedToOne(Distribution.ElectronFermiDirac(T, 0.5))
+        success = false
+        if printTest   info(iostream, "ElectronFermiDirac integrates to the electron density n, not to one")   end
+    end
+    raised = false
+    try    Distribution.isNormalizedToOne(Distribution.ElectronBiMaxwell(T, 2T))
+    catch            # `catch raised = true` does NOT work:  Julia binds the exception to the name after
+        raised = true   # `catch`, so that reads as `catch raised` followed by a stray `= true`
+    end
+    if  !raised
+        success = false
+        if printTest   info(iostream, "a distribution that declares no normalisation must RAISE, not default")   end
+    end
+
     println(iostream, "Distribution: the Maxwell energy and velocity forms each integrate to 1, the mean energy " *
                       "is (3/2) kT, the two forms agree through the Jacobian, Planck reaches its Rayleigh-Jeans " *
                       "limit, the dilute, vacuum and power-law fields follow Planck and their own window " *
                       "exactly, the Fermi-Dirac velocity form is the Fermi step, its two forms agree through the " *
                       "same Jacobian, and a non-degenerate Fermi-Dirac gas is Maxwell times the electron " *
-                      "density. No approved data is used.")
+                      "density; and the normalisation trait answers for both families and refuses an " *
+                      "undeclared one. No approved data is used.")
     Defaults.setDefaults("print summary: close", "")
     testPrint("testModule_Distribution()::", success)
     return( success )
