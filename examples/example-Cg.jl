@@ -44,6 +44,12 @@ if  false
     wb = perform(wa)
     #
 elseif  false
+    # Last visit:  08-Nov-2026 (TIMED OUT at 500 s -- an overnight sweep cap; this branch's own "Grid check"
+    #                            warning at startup already flags its box as 10.1 a.u. against a comfortable
+    #                            20.2 a.u. for 4s_1/2, and the run then cycles through many continuum
+    #                            channels each hitting the normalization-uncertainty warning -- plausibly
+    #                            related, not re-measured to confirm; the box-widening fix is NOT attempted
+    #                            here, since it needs a baseline run to verify against first)
     # Last visit:  07-Nov-2026
     # Last successful:  31-Jul-2026
     # Branch b: Ca (Z=20) K-shell hole, "1s 2s^2 2p^6 3s^2 3p^6 4s^2" (19 electrons; neutral Ca [Ar]4s^2

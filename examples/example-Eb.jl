@@ -4,6 +4,7 @@ println("Eb) Test of the PhotoExcitationFluores module with ASF from an internal
 setDefaults("print summary: open", "zzz-PhotoExcitationFluores.sum")
 
 if  true
+    # Last visit:  08-Nov-2026 (RAISED AS DESIGNED -- PhotoExcitationFluores is PARKED, 31-Aug-2026)
     # Last successful:  unknown ...
     # 1s photoexcitation of Li-like carbon
     asfSettings   = AsfSettings(AsfSettings(), scField=Basics.HSField())  # not used

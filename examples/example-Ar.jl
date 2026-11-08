@@ -173,6 +173,7 @@ elseif  false
     println(">> step 3 : $(length(ls)) levels, lowest = $(ls[1].energy) Ha  -- EXPECTED -459.93426153 Ha")
 
 elseif  true
+    # Last visit:  08-Nov-2026 (TIMED OUT at 500 s)
     # Last visit:  07-Nov-2026   (TIMED OUT at 500 s)
     # Last visit:  20-Oct-2026 (TIMED OUT at 500 s)
     # Last successful:  13-Sep-2026 -- the table this branch prints, against NIST ASD 5.12.  Coulomb+Breit(0.):
@@ -630,6 +631,9 @@ elseif  false
     #
 
 elseif  false
+    # Last visit:  08-Nov-2026 (TIMED OUT at 500 s -- an overnight sweep's own cap; this branch's own
+    #                            comment below already measures it at 980 s by hand, so this is expected,
+    #                            not a regression)
     # Last visit:  04-Nov-2026
     #
     # i) Ti III 1s^2 2s^2 2p^6 3s^2 3p^6 3d^2 -- THE FULL GROUND TERM on a d^2 CONFIGURATION, same

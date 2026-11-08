@@ -128,6 +128,7 @@ if  true
     setDefaults("print summary: close", "")
     #
 elseif  false
+    # Last visit:  08-Nov-2026 (TIMED OUT at 500 s)
     # Last visit:  07-Nov-2026   (TIMED OUT at 500 s)
     # Last visit:      07-Aug-2026
     # Last successful: 07-Aug-2026 ... the Bethe slope reproduced to 0.8%; see below.

@@ -76,9 +76,11 @@ elseif true
     wa       = RacahAlgebra.evaluate(leftCsq, rightCsq)
     #
 elseif true
+    # Last visit:  08-Nov-2026 (TIMED OUT at 500 s, zero output -- RacahAlgebra.evaluate() prints nothing
+    #                            until it returns, consistent with a long symbolic recoupling, not a hang)
     # Last visit:  18-Oct-2026 (TIMED OUT at 500 s)
     # Last successful:  unknown ...
-    # Compute 
+    # Compute
     leftCsq  = RacahAlgebra.Csq( RacahAlgebra.Csq( RacahAlgebra.Csq(j1,j2,j9),j3,j10), 
                                  RacahAlgebra.Csq( RacahAlgebra.Csq( RacahAlgebra.Csq(j4,j5,j11),j6,j12), RacahAlgebra.Csq(j7,j8,j13),j14), j15)
     rightCsq = RacahAlgebra.Csq( RacahAlgebra.Csq( RacahAlgebra.Csq(j1,j4,j16), j7, j17), 

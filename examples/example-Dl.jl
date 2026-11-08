@@ -338,6 +338,8 @@ elseif  false
     # consistency, and alpha(T) here has not been compared with any published rate.
     #
 elseif  false
+    # Last visit:  08-Nov-2026 (TIMED OUT at 500 s -- an overnight sweep cap; this branch's own REPORT below
+    #                            already measured 13:38 (818 s) by hand, so this is expected, not a regression)
     # Last visit:  04-Aug-2026
     # --- Branch d: Na-like Mg II (Z=12), 3s --> 3p. The original intent of this file, on the current API, plus a
     #     CROSS-MODULE self-consistency test that none of the other branches can do.

@@ -6,6 +6,11 @@ setDefaults("method: continuum, Galerkin")
 setDefaults("method: normalization, pure sine")   ## setDefaults("method: normalization, pure Coulomb")    setDefaults("method: normalization, pure sine")
 
 if  true
+    # Last visit:  08-Nov-2026 (RAISED -- Continuum.normalizeOrbitalPureSine() STOPs on the lambda=2 Debye run:
+    #                            the newly-opened 2s channel sits only 0.6136 Ha above its screened threshold,
+    #                            a near-threshold continuum electron the register's own section D already
+    #                            covers as "no box cures this" -- but no PRIOR visit recorded hitting it on
+    #                            THIS branch; filed as a new item for someone to compare against 15-Oct)
     # Last visit:  20-Oct-2026
     # Last successful:  15-Oct-2026
     # REWRITTEN 31-Aug-2026. It drove the retired PlasmaShift module -- PlasmaShift.PhotoSettings passed to an

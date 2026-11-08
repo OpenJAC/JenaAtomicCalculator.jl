@@ -314,6 +314,7 @@ elseif  false
         haskey(wb, k)  &&  println(">> step $i : lowest level = $(sort(wb[k].levels, by = l -> l.energy)[1].energy) Ha")
     end    #
 elseif  false
+    # Last visit:  08-Nov-2026 (TIMED OUT at 500 s)
     # Last visit:  07-Nov-2026   (TIMED OUT at 500 s)
     # Last visit:  15-Sep-2026
     # Last successful:  15-Sep-2026 -- numbers below, produced by the run this branch performs.

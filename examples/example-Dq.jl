@@ -71,6 +71,8 @@ if  true
     setDefaults("print summary: close", "")
     #
 elseif  false
+    # Last visit:  08-Nov-2026 (TIMED OUT at 500 s -- an overnight sweep cap; this branch's own comment below
+    #                            already says the two SCF passes alone cost ~800 s each, so this is expected)
     # Last visit:  22-Oct-2026   ## alpha_K = 9.602494e-02 against the measured 0.0945(22), ratio 1.016
     # Last successful:  unknown ...
     # Branch b: 207Pb, K-shell M4 alpha_K vs. Raman et al., Phys. Rev. C 66, 044312 (2002), Table VII /
@@ -196,6 +198,9 @@ elseif  false
     setDefaults("print summary: close", "")
     #
 elseif  false
+    # Last visit:  08-Nov-2026 (TIMED OUT at 500 s -- an overnight sweep cap; this branch runs SIX separate
+    #                            SCF+IC passes for its grid-refinement study, same heavy-Z82-SCF family as
+    #                            branch b above, so this is expected)
     # Last visit:  23-Oct-2026   ## alpha_K(119Sn M4) = 1530.73, 1529.73, 1519.26 for hp=3.0e-3, 1.5e-3,
     #   1.0e-3 at rbox=20; 1558.37, 1530.73, 1524.03 for rbox=15, 20, 30 at hp=3.0e-3; guard test raised
     # Last successful:  unknown ...

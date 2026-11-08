@@ -242,6 +242,7 @@ elseif  false
     perform(wd)
     #
 elseif  false
+    # Last visit:  08-Nov-2026 (RAISED -- same guard, box too small for a 1449 Ha capture channel; see priority item 9, CLOSED)
     # Last visit:  07-Nov-2026   (RAISED -- see priority item 9)
     # Last visit:  20-Oct-2026
     # --- Branch e: K-LL DR of He-like W72+ (Z=74) -- the Tu et al. benchmark, and the first case with a WIDE
@@ -499,6 +500,7 @@ elseif  false
     perform(wf)
     #
 elseif  false
+    # Last visit:  08-Nov-2026 (TIMED OUT at 500 s)
     # Last visit:  20-Oct-2026 (TIMED OUT at 500 s)
     # --- Branch g: DR of H-like C5+ (Z=6) into He-like C4+ with the core excited to 2p and the electron captured
     #     into a RYDBERG shell -- the validation vehicle for the RydbergTailCorrection's n-scaling.

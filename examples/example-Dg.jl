@@ -5,6 +5,8 @@ setDefaults("print summary: open", "zzz-RayleighCompton.sum")
 setDefaults("unit: energy", "eV")
 
 if  false
+    # Last visit:      08-Nov-2026 (RAISED AS DESIGNED -- RayleighCompton is PARKED PROVISIONALLY and says so
+    #                                 explicitly; do not repair without the maintainer's endorsement)
     # Last visit:      21-Aug-2026
     # Last successful:  unknown ... BLOCKED by a defect in src/module-RayleighCompton.jl itself, see below.
     #

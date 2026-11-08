@@ -125,6 +125,7 @@ if  true
     setDefaults("print summary: close", "")
     #
 elseif  false
+    # Last visit:  08-Nov-2026 (TIMED OUT at 500 s)
     # Last visit:  07-Nov-2026   (TIMED OUT at 500 s)
     # Last visit:      08-Aug-2026
     # Last successful: 08-Aug-2026 ... ~51 min for the three caps.  Summed Omega over the 1s 2s 2p levels, one
