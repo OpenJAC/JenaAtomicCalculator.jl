@@ -14,7 +14,9 @@ function computeContinuumOrbitals(scheme::Cascade.RadiativeRecombinationScheme, 
     maxFreeElectronEnergy_au  = Defaults.convertUnits("energy: to atomic", scheme.maxFreeElectronEnergy)
     enGrid       = Radial.GridGL(Radial.GridGaussLegendreFinite(), 0.0, maxFreeElectronEnergy_au, scheme.NoFreeElectronEnergies, printout=false)
     maxKappa     = maximum(scheme.lValues) + 1
-    nrContinuum  = Continuum.gridConsistency(maximum(enGrid.t) + 0.1, comp.grid)
+    # item 9b: minEnergy is the Gauss-Legendre grid's own lowest node, not 0.0 -- a sine convention would warn
+    # (never refuse) near threshold here, since no finite box holds one wavelength at E -> 0.
+    nrContinuum  = Continuum.gridConsistency(maximum(enGrid.t) + 0.1, comp.grid; minEnergy=minimum(enGrid.t))
     contSettings = Continuum.Settings(false, nrContinuum);   
     npot         = Nuclear.nuclearPotential(comp.nuclearModel, comp.grid)
     # wp1 = compute("radial potential: core-Hartree", grid, wLevel)
