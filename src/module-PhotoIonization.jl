@@ -718,8 +718,9 @@ function computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm
     println("")
     lines = PhotoIonization.determineLines(finalMultiplet, initialMultiplet, settings)
     if  settings.printBefore    PhotoIonization.displayLines(stdout, lines)    end
-    maxEnergy = 0.;   for  line in lines   maxEnergy = max(maxEnergy, line.electronEnergy)   end
-    nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
+    maxEnergy = 0.;          for  line in lines   maxEnergy = max(maxEnergy, line.electronEnergy)   end
+    minEnergy = maxEnergy;   for  line in lines   minEnergy = min(minEnergy, line.electronEnergy)   end
+    nrContinuum = Continuum.gridConsistency(maxEnergy, grid; minEnergy=minEnergy)
     nuclearPot = Nuclear.nuclearPotential(nm, grid)
     primitives = Bsplines.generatePrimitives(grid)
     newLines = Vector{PhotoIonization.Line}(undef, length(lines))
@@ -754,9 +755,11 @@ function  computeLinesCascade(finalMultiplet::Multiplet, initialMultiplet::Multi
                                                      initialMultiplet.levels[1].basis); printout=false)
     # Display all selected lines before the computations start if  settings.printBefore    PhotoIonization.displayLines(stdout, lines)
     # end Determine maximum energy and check for consistency of the grid
-    maxEnergy = 0.;   for  en in settings.photonEnergies     maxEnergy = max(maxEnergy, Defaults.convertUnits("energy: to atomic", en))   end
-                      for  en in settings.electronEnergies   maxEnergy = max(maxEnergy, Defaults.convertUnits("energy: to atomic", en))   end
-    nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
+    maxEnergy = 0.;          for  en in settings.photonEnergies     maxEnergy = max(maxEnergy, Defaults.convertUnits("energy: to atomic", en))   end
+                             for  en in settings.electronEnergies   maxEnergy = max(maxEnergy, Defaults.convertUnits("energy: to atomic", en))   end
+    minEnergy = maxEnergy;   for  en in settings.photonEnergies     minEnergy = min(minEnergy, Defaults.convertUnits("energy: to atomic", en))   end
+                             for  en in settings.electronEnergies   minEnergy = min(minEnergy, Defaults.convertUnits("energy: to atomic", en))   end
+    nrContinuum = Continuum.gridConsistency(maxEnergy, grid; minEnergy=minEnergy)
     # Calculate all amplitudes and requested properties Constants of the whole computation; see the note in computeLines above.
     nuclearPot = Nuclear.nuclearPotential(nm, grid)
     primitives = Bsplines.generatePrimitives(grid)
