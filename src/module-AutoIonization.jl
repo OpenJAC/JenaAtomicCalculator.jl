@@ -598,8 +598,9 @@ function computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm
     Defaults.setStandardSubshellList(Basics.generate(OrderedSubshellList(), finalMultiplet.levels[1].basis,
                                                      initialMultiplet.levels[1].basis); printout=false)
     if  settings.printBefore    AutoIonization.displayLines(stdout, lines)    end
-    maxEnergy = 0.;   for  line in lines   maxEnergy = max(maxEnergy, line.electronEnergy)   end
-    nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
+    maxEnergy = 0.;          for  line in lines   maxEnergy = max(maxEnergy, line.electronEnergy)   end
+    minEnergy = maxEnergy;   for  line in lines   minEnergy = min(minEnergy, line.electronEnergy)   end
+    nrContinuum = Continuum.gridConsistency(maxEnergy, grid; minEnergy=minEnergy)
     # Both are constants of the whole computation and are READ-ONLY below, so they are shared safely.
     nuclearPot = Nuclear.nuclearPotential(nm, grid)
     primitives = Bsplines.generatePrimitives(grid)
@@ -638,8 +639,9 @@ function  computeLinesCascade(finalMultiplet::Multiplet, initialMultiplet::Multi
                                                      initialMultiplet.levels[1].basis); printout=false)
     # Display all selected lines before the computations start if  settings.printBefore    AutoIonization.displayLines(stdout, lines)    end
     # Determine maximum energy and check for consistency of the grid
-    maxEnergy = 0.;   for  line in lines   maxEnergy = max(maxEnergy, line.electronEnergy)   end
-    nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
+    maxEnergy = 0.;          for  line in lines   maxEnergy = max(maxEnergy, line.electronEnergy)   end
+    minEnergy = maxEnergy;   for  line in lines   minEnergy = min(minEnergy, line.electronEnergy)   end
+    nrContinuum = Continuum.gridConsistency(maxEnergy, grid; minEnergy=minEnergy)
     # Calculate all amplitudes and requested properties Threaded as computeLines is; see the note there.
     newLines = Vector{AutoIonization.Line}(undef, length(lines))
     doPrint  = printout  &&  Threads.nthreads() == 1
@@ -740,8 +742,9 @@ function  computeLinesPlasma(finalMultiplet::Multiplet, initialMultiplet::Multip
     # Display all selected lines before the computations start
     if  settings.printBefore    AutoIonization.displayLines(stdout, lines)    end
     # Determine maximum energy and check for consistency of the grid
-    maxEnergy = 0.;   for  line in lines   maxEnergy = max(maxEnergy, line.electronEnergy)   end
-    nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
+    maxEnergy = 0.;          for  line in lines   maxEnergy = max(maxEnergy, line.electronEnergy)   end
+    minEnergy = maxEnergy;   for  line in lines   minEnergy = min(minEnergy, line.electronEnergy)   end
+    nrContinuum = Continuum.gridConsistency(maxEnergy, grid; minEnergy=minEnergy)
     # Calculate all amplitudes and requested properties
     newLines = AutoIonization.Line[]
     for  line in lines
