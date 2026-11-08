@@ -23,7 +23,7 @@ end
 
 
 """
-Basics.readCslFileGrasp92(filename::String)`  
+`Basics.readCslFileGrasp92(filename::String)`  
     ... reads in the CSF list from a Grasp92 .csl / GRASP18 .c file; a basis::Basis is returned.
 """
 function Basics.readCslFileGrasp92(filename::String)
@@ -417,6 +417,17 @@ end
 # the whole state; the worst a race can do is print it twice.
 const GBL_CONTINUUM_GRID_NOTE_SHOWN = Ref(false)
 
+"""
+`Basics.recommendedGrid(occupations::Dict{Shell,Int64}, Z::Float64; tailFactor::Float64=16., rbox::Union{Nothing,Float64}=nothing,
+                        rnt::Float64=2.0e-6, h::Float64=5.0e-2, hp::Union{Nothing,Float64}=nothing, printout::Bool=false)`  
+    ... builds a radial grid whose box is matched to the orbitals that will actually occupy it, which is what Rule 12
+        of the coding conventions asks for:  a box far too WIDE starves the B-spline basis exactly as badly as one too
+        narrow, since the number of splines is fixed and a box wider than the orbitals spends them on empty space.
+        Each shell's outer turning point is evaluated at the charge IT feels -- Slater screening, floored at the
+        charge seen at infinity -- and the widest shell sets the box, plus `tailFactor` n / Z_eff for the exponential
+        tail beyond that point.  `rbox` overrides the whole estimate.  A grid::Radial.Grid is returned;  an empty
+        occupation list or a non-positive Z raises, since neither leaves anything for the box to be matched to.
+"""
 function Basics.recommendedGrid(occupations::Dict{Shell,Int64}, Z::Float64;
                                 tailFactor::Float64=16., rbox::Union{Nothing,Float64}=nothing, rnt::Float64=2.0e-6,
                                 h::Float64=5.0e-2, hp::Union{Nothing,Float64}=nothing, printout::Bool=false)

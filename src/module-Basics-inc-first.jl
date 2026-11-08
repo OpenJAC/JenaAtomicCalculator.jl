@@ -543,8 +543,8 @@ end
 
 
 """
-`Basics.shellSplitIntoSubshells(sh::Shell)'  ... to convert a non-relativistic shell into a list of Subshell[..]
-        An Array{Subshell,1} is returned.
+`Basics.shellSplitIntoSubshells(sh::Shell)`  
+    ... to convert a non-relativistic shell into a list of its relativistic subshells;  an Array{Subshell,1} is returned.
 """
 function shellSplitIntoSubshells(sh::Shell)
     subshells = Subshell[]
@@ -557,7 +557,7 @@ end
 
 
 """
-`Basics.shellSplitOccupation(sh::Shell, occ::Int64)'  
+`Basics.shellSplitOccupation(sh::Shell, occ::Int64)`  
     ... to split the occupation of a shell into proper subshell occupations; an  Array{Dict{Basics.Subshell,Int64},1} is returned.
 """
 function shellSplitOccupation(sh::Shell, occ::Int64)

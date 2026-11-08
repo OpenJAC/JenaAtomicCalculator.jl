@@ -237,7 +237,7 @@ end
 
 
 """
-+ (p1List::Array{Float64,1}, p2List::Array{Float64,1}, grid::Radial.Grid)`  
+`RadialIntegrals.overlap(p1List::Array{Float64,1}, p2List::Array{Float64,1}, grid::Radial.Grid)`  
     ... computes the (radial) overlap integral of two (non-relativistic) radial orbital functions <p1|p2>  as defined on grid.
         A value::Float64 is returned.
 """
@@ -486,7 +486,7 @@ end
 
 
 """
-+ (k::Int64, p1List::Array{Float64,1}, p2List::Array{Float64,1}, grid::Radial.Grid)`
+`RadialIntegrals.rkDiagonal(k::Int64, p1List::Array{Float64,1}, p2List::Array{Float64,1}, grid::Radial.Grid)`  
     ... computes this integral for two non-relativistic orbitals:   < r^k >_ab = int_0^\\infty  dr  [P_a P_b]  r^k
         A value::Float64 is returned.
 """

@@ -377,9 +377,12 @@ struct  RasSettings
 end
 
 
-# `AtomicState.RasSettings(levelsScf, scfRoute, accuracyScf, eeInteractionCI, levelSelectionCI)`
-#     ... the five-argument form every caller written before 06-Oct-2026 uses;  it keeps the freezing policy that was
-#         the only one available then, so no existing computation changes.
+"""
+`AtomicState.RasSettings(levelsScf::Array{Int64,1}, scfRoute::Basics.AbstractScfRoute, accuracyScf::Float64,
+                         eeInteractionCI::AbstractEeInteraction, levelSelectionCI::LevelSelection)`  
+    ... the five-argument form every caller written before 06-Oct-2026 uses;  it keeps the freezing policy that was
+        the only one available then, so no existing computation changes.
+"""
 function RasSettings(levelsScf::Array{Int64,1}, scfRoute::Basics.AbstractScfRoute, accuracyScf::Float64,
                      eeInteractionCI::AbstractEeInteraction, levelSelectionCI::LevelSelection)
     RasSettings(levelsScf, scfRoute, accuracyScf, eeInteractionCI, levelSelectionCI, :previousLayersFrozen)
@@ -817,9 +820,14 @@ function Base.show(io::IO, verdict::RasStoppingVerdict)
 end
 
 
-# A shell already present anywhere in the ladder -- core, reference-valence or an earlier layer -- is never
-# proposed again by any shell policy. Not exported: this is plumbing shared by every concrete policy below,
-# not something a caller constructs or inspects on its own.
+"""
+`AtomicState.collectLadderShells(coreShells::Array{Shell,1}, fromShells::Array{Shell,1}, layersSoFar::Array{RasLayer,1})`  
+    ... gathers every shell that the RAS ladder has already used -- the core, the reference valence, and the new
+        shells of each layer built so far -- so that a shell policy can exclude them from what it proposes next.  A
+        shells::Array{Shell,1} is returned, with duplicates removed and the order of first appearance kept.  This is
+        plumbing shared by every concrete shell policy rather than something a caller builds or inspects, and it is
+        therefore not exported;  a shell present anywhere in the ladder is never proposed a second time by any policy.
+"""
 function collectLadderShells(coreShells::Array{Shell,1}, fromShells::Array{Shell,1}, layersSoFar::Array{RasLayer,1})
     used = vcat(deepcopy(coreShells), deepcopy(fromShells))
     for layer in layersSoFar    append!(used, layer.newShells)    end

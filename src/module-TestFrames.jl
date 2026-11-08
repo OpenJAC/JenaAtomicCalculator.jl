@@ -37,6 +37,13 @@ function testCompareLines(oldLine::String, newLine::String; rtol::Float64=1.0e-6
 end
 
 
+"""
+`TestFrames.testCompareFiles(fold::String, fnew::String, sa::String, noLines::Int64; rtol::Float64=1.0e-6)`  
+    ... compares a newly written summary file against its approved counterpart.  The marker line sa is located in each
+        file and the noLines lines that follow it are compared token by token through `testCompareLines`, so that
+        numbers agree within rtol while everything else must agree exactly.  A success::Bool is returned, and each
+        disagreeing pair of lines is printed when the test stream is open.
+"""
 function testCompareFiles(fold::String, fnew::String, sa::String, noLines::Int64; rtol::Float64=1.0e-6)
     success = true
     printTest, iostream = Defaults.getDefaults("test flag/stream")
@@ -209,6 +216,11 @@ function info(stream::IO, sa::String)
 end
 
 
+"""
+`TestFrames.testPrint(sa::String, success::Bool)`  
+    ... writes one line of the suite's own report -- the test's name padded to a fixed column, then [OK] or [Fail] --
+        to the test stream.  Nothing is returned.
+"""
 function testPrint(sa::String, success::Bool)
     printTest, iostream = Defaults.getDefaults("test flag/stream")
     ok(succ) =  succ ? "[OK]" : "[Fail]"

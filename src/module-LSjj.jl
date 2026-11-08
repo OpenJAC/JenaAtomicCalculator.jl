@@ -229,7 +229,7 @@ end
 
 
 """
-`LSjj.expandLevelsIntoLS(multiplet::Multiplet, settings::ManyElectron.LSjjSettings)  
+`LSjj.expandLevelsIntoLS(multiplet::Multiplet, settings::ManyElectron.LSjjSettings)`  
     ... expand and print all (selected) levels from the multiplet into their LS representation, i.e. the composition table a
         spectroscopist reads. The whole transformation happens ONLY on request: settings.makeIt is false by default, and this
         function then returns at once, so nothing is computed and nothing is printed unless it is asked for.

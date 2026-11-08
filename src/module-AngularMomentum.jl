@@ -244,9 +244,7 @@ end
 
 
 """
-`AngularMomentum.ChengI
-
-+ (kapa::Int64, ma::AngularM64, kapb::Int64, mb::AngularM64, L::AngularJ64, M::AngularM64)` 
+`AngularMomentum.ChengI(kapa::Int64, ma::AngularM64, kapb::Int64, mb::AngularM64, L::AngularJ64, M::AngularM64)`  
     ... evaluates the angular I (kappa m, kappa' m', LM) integral as defined by Cheng, NATO summerschool (198x), 
         Eq. (A4.5), and including the full magnetic (orientational) dependence. A value::Float64 is returned.
 """
@@ -266,7 +264,7 @@ end
 
 
 """
-+ (kapa::Int64, kapb::Int64, L::AngularJ64)` 
+`AngularMomentum.ChengI(kapa::Int64, kapb::Int64, L::AngularJ64)`  
     ... evaluates the same angular I (kappa m, kappa' m', LM) integral but without the magnetic (orientational) dependence. 
         A value::Float64 is returned.
 """

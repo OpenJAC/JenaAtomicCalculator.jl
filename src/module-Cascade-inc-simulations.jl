@@ -25,6 +25,13 @@
 asResults(x) = x isa Basics.PerformResults ? x : Basics.PerformResults(x)
 
 
+"""
+`Cascade.addLevels(levelsA::Array{Cascade.Level,1}, levelsB::Array{Cascade.Level,1})`  
+    ... merges two lists of cascade levels into one.  A level that occurs in both keeps its identity and gains the
+        parents and daughters of its counterpart, so that the decay paths recorded in the two lists are UNIONED rather
+        than one overwriting the other;  a level occurring in only one list is carried over unchanged.  A
+        levels::Array{Cascade.Level,1} is returned, and the counts of modified and newly appended levels are printed.
+"""
 function  addLevels(levelsA::Array{Cascade.Level,1}, levelsB::Array{Cascade.Level,1})
     nA = length(levelsA);   nB = length(levelsB);    nmod = 0;    nnew = 0;    newlevels = Cascade.Level[];  appendedB = falses(nB)
     

@@ -2594,7 +2594,9 @@ struct     DFSField             <:  AbstractScField
 end
 
 
-# `Basics.DFSField()`  ... defines the default strength=1.0
+"""
+`Basics.DFSField()`  ... defines the default strength=1.0
+"""
 function DFSField()
     DFSField(1.0)
 end
@@ -2676,7 +2678,9 @@ struct     MeanFieldRoute       <:  AbstractScfRoute
 end
 
 
-# `Basics.MeanFieldRoute()`  ... defines the default budget
+"""
+`Basics.MeanFieldRoute()`  ... defines the default budget
+"""
 function MeanFieldRoute()
     MeanFieldRoute(24)
 end
@@ -2693,7 +2697,9 @@ struct     AverageLevelRoute    <:  AbstractScfRoute
 end
 
 
-# `Basics.AverageLevelRoute()`  ... defines the default budget
+"""
+`Basics.AverageLevelRoute()`  ... defines the default budget
+"""
 function AverageLevelRoute()
     AverageLevelRoute(24)
 end
@@ -2795,21 +2801,27 @@ struct     RotationRoute        <:  AbstractScfRoute
 end
 
 
-# `Basics.RotationRoute(maxIterations::Int64, nVirtual::Int64, stepping::Symbol)`
-#     ... the three-argument form used before 07-Oct-2026;  it leaves the increment test OFF, so `maxIterations`
-#         decides where the run stops exactly as it did then.
+"""
+`Basics.RotationRoute(maxIterations::Int64, nVirtual::Int64, stepping::Symbol)`  
+    ... the three-argument form used before 07-Oct-2026;  it leaves the increment test OFF, so `maxIterations`
+        decides where the run stops exactly as it did then.
+"""
 function RotationRoute(maxIterations::Int64, nVirtual::Int64, stepping::Symbol)
     RotationRoute(maxIterations, nVirtual, stepping, 0.0)
 end
 
 
-# `Basics.RotationRoute()`  ... defines the values the rotation solver has used since 27-Aug-2026
+"""
+`Basics.RotationRoute()`  ... defines the values the rotation solver has used since 27-Aug-2026
+"""
 function RotationRoute()
     RotationRoute(24, 16, :curvature)
 end
 
 
-# `Basics.RotationRoute(maxIterations::Int64)`  ... sets the budget and keeps the standard step space and stepping
+"""
+`Basics.RotationRoute(maxIterations::Int64)`  ... sets the budget and keeps the standard step space and stepping
+"""
 function RotationRoute(maxIterations::Int64)
     RotationRoute(maxIterations, 16, :curvature)
 end
@@ -2839,13 +2851,17 @@ struct     FockRoute            <:  AbstractScfRoute
 end
 
 
-# `Basics.FockRoute()`  ... defines the default budget, with the off-diagonal terms kept out of the 1/occ scaling
+"""
+`Basics.FockRoute()`  ... defines the default budget, with the off-diagonal terms kept out of the 1/occ scaling
+"""
 function FockRoute()
     FockRoute(40, true)
 end
 
 
-# `Basics.FockRoute(maxIterations::Int64)`  ... sets the budget and keeps the off-diagonal terms unscaled
+"""
+`Basics.FockRoute(maxIterations::Int64)`  ... sets the budget and keeps the off-diagonal terms unscaled
+"""
 function FockRoute(maxIterations::Int64)
     FockRoute(maxIterations, true)
 end
@@ -2862,7 +2878,9 @@ struct     NewtonRoute          <:  AbstractScfRoute
 end
 
 
-# `Basics.NewtonRoute()`  ... defines the default budget
+"""
+`Basics.NewtonRoute()`  ... defines the default budget
+"""
 function NewtonRoute()
     NewtonRoute(20)
 end
@@ -2931,13 +2949,17 @@ struct     StabilizedFockRoute  <:  AbstractScfRoute
 end
 
 
-# `Basics.StabilizedFockRoute()`  ... both mechanisms on, with a correlation cut of half an electron
+"""
+`Basics.StabilizedFockRoute()`  ... both mechanisms on, with a correlation cut of half an electron
+"""
 function StabilizedFockRoute()
     StabilizedFockRoute(40, true, 0.5)
 end
 
 
-# `Basics.StabilizedFockRoute(maxIterations::Int64)`  ... sets the budget and keeps both mechanisms
+"""
+`Basics.StabilizedFockRoute(maxIterations::Int64)`  ... sets the budget and keeps both mechanisms
+"""
 function StabilizedFockRoute(maxIterations::Int64)
     StabilizedFockRoute(maxIterations, true, 0.5)
 end
@@ -2977,6 +2999,13 @@ incrementTolerance(route::RotationRoute)     = route.incrementTolerance
 """
 function standardRoute end
 
+"""
+`Basics.standardRoute(scField::AbstractScField, maxIterations::Int64)`  
+    ... selects the SCF route that matches the given mean field's own procedure, so that a caller who has chosen a
+        field need not also know which solver belongs to it;  the iteration budget is passed straight through.  A
+        route::Basics.AbstractScfRoute is returned -- a MeanFieldRoute, an AverageLevelRoute or a RotationRoute --
+        and an AutomaticRoute for any field whose procedure is none of those three.
+"""
 function standardRoute(scField::AbstractScField, maxIterations::Int64)
     proc = Basics.scfProcedure(scField)
     if       proc == :meanFieldIteration    return( MeanFieldRoute(maxIterations)    )
@@ -3149,28 +3178,36 @@ struct     SecondOrder          <:  AbstractQTreatment
 end
 
 
-# `Basics.SecondOrder()`  ... the calibrated starting point; see the caveat in the docstring above
+"""
+`Basics.SecondOrder()`  ... the calibrated starting point; see the caveat in the docstring above
+"""
 function SecondOrder()
     SecondOrder(1.0e-4, 1.0e-12, 1.0e-2, DiagonalCSFPerturbation())
 end
 
 
-# `Basics.SecondOrder(promoteAbove::Float64)`  ... sets the promotion threshold and keeps the default floor
+"""
+`Basics.SecondOrder(promoteAbove::Float64)`  ... sets the promotion threshold and keeps the default floor
+"""
 function SecondOrder(promoteAbove::Float64)
     SecondOrder(promoteAbove, 1.0e-12, 1.0e-2, DiagonalCSFPerturbation())
 end
 
 
-# `Basics.SecondOrder(promoteAbove::Float64, discardBelow::Float64)`  ... keeps the default justification bound,
-#   which is deliberately NOT tied to promoteAbove -- see the docstring above.
+"""
+`Basics.SecondOrder(promoteAbove::Float64, discardBelow::Float64)`  ... keeps the default justification bound,
+      which is deliberately NOT tied to promoteAbove -- see the docstring above.
+"""
 function SecondOrder(promoteAbove::Float64, discardBelow::Float64)
     SecondOrder(promoteAbove, discardBelow, 1.0e-2, DiagonalCSFPerturbation())
 end
 
 
-# `Basics.SecondOrder(promoteAbove::Float64, discardBelow::Float64, justifyBelow::Float64)`  ... the three-threshold
-#   form every caller before this field existed could reach directly, via Julia's own default constructor; kept as
-#   an explicit method now that a fourth field means that default no longer matches three positional arguments.
+"""
+`Basics.SecondOrder(promoteAbove::Float64, discardBelow::Float64, justifyBelow::Float64)`  ... the three-threshold
+      form every caller before this field existed could reach directly, via Julia's own default constructor; kept as
+      an explicit method now that a fourth field means that default no longer matches three positional arguments.
+"""
 function SecondOrder(promoteAbove::Float64, discardBelow::Float64, justifyBelow::Float64)
     SecondOrder(promoteAbove, discardBelow, justifyBelow, DiagonalCSFPerturbation())
 end

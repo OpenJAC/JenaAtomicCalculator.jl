@@ -780,7 +780,9 @@ end
 
 """
 `MultipolePolarizibility.computeAmplitudesProperties(outcome::MultipolePolarizibility.Outcome, gMultiplet::Multiplet,
-                                                        grid::Radial.Grid, settings::MultipolePolarizibility.Settings)
+                                       nm::Nuclear.Model, grid::Radial.Grid,
+                                       primitives::Union{Nothing,Bsplines.Primitives},
+                                       settings::MultipolePolarizibility.Settings)`  
     ... to compute the static scalar/tensor E1 polarizabilities for a given level; an outcome::MultipolePolarizibility.Outcome is
         returned for which alpha0/alpha2/contributions are now evaluated explicitly. If E1 is not among
         settings.multipoles (or gMultiplet is empty), alpha0=alpha2=0. is returned without further computation.

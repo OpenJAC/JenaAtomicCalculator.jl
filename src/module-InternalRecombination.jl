@@ -176,7 +176,7 @@ end
 
 """
 `InternalRecombination.amplitude(operator::AbstractEeInteraction, finalLevel::Level, rydbergLevel::Level, grid::Radial.Grid; 
-                                    display::Bool=true, printout::Bool=false)
+                    display::Bool=true, printout::Bool=false)`  
     ... to compute the internal-recombination amplitude  
     
                 <alpha_f J_f || V^(e-e) || (alpha_i J_i, n kappa) J_t>

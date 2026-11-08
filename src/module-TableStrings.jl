@@ -359,7 +359,8 @@ end
 
 
 """
-`TableStrings.twoPhotonGaugeTupels(n::Int64, mpList::Array{Tuple{AngularJ64, Basics.EmMultipole, LevelSymmetry, Basics.EmMultipole, Basics.EmGauge},1})
+`TableStrings.twoPhotonGaugeTupels(n::Int64,
+                   mpList::Array{Tuple{AngularJ64, Basics.EmMultipole, LevelSymmetry, Basics.EmMultipole, Basics.EmGauge},1})`  
     ... a string of tupels (K-rank, multipole_1, Jsym, multipole_2, gauge) is returned.
 """
 function  twoPhotonGaugeTupels(n::Int64, mpList::Array{Tuple{AngularJ64, Basics.EmMultipole, LevelSymmetry, Basics.EmMultipole, Basics.EmGauge},1}) 
@@ -378,7 +379,8 @@ end
 
 
 """
-`TableStrings.twoPhotonGaugeTupels(n::Int64, mpList::Array{Tuple{String, Basics.EmMultipole, LevelSymmetry, Basics.EmMultipole, Basics.EmGauge},1})
+`TableStrings.twoPhotonGaugeTupels(n::Int64,
+                   mpList::Array{Tuple{String, Basics.EmMultipole, LevelSymmetry, Basics.EmMultipole, Basics.EmGauge},1})`  
     ... a string of tupels (Sik, multipole_1, Jsym, multipole_2, gauge) is returned.
 """
 function  twoPhotonGaugeTupels(n::Int64, mpList::Array{Tuple{String, Basics.EmMultipole, LevelSymmetry, Basics.EmMultipole, Basics.EmGauge},1}) 

@@ -75,7 +75,7 @@ end
 
 """
 `Hamiltonian.performCI(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings; printout::Bool=false,
-                       writeSummary::Bool=true)
+                   writeSummary::Bool=true)`  
     ... Computes and diagonalizes the Hamiltonian matrix for all CSF in the given basis. It also assigns the
         mixing coefficients to the individual levels. The individual contributions from the Breit or diagonal interaction as well as
         from QED to this matrix are controlled by the settings. A  multiplet::Multiplet  is returned.
@@ -274,7 +274,7 @@ end
 
 """
 `Hamiltonian.setupMatrix(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings,
-                          cache::InteractionStrength.XLCache; printout::Bool=false)
+                      cache::InteractionStrength.XLCache; printout::Bool=false)`  
     ... Set-up (computes) the Hamiltonian matrix for all CSF with symmetry sym in the given basis. The individual contributions
         from the Breit or diagonal interaction as well as from QED to this matrix are controlled by the settings.
         A  matrix::Arrays{Float64,2}  is returned.
@@ -352,7 +352,7 @@ end
 
 
 """
-`Hamiltonian.performCIKinkAware(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings; printout::Bool=false)
+`Hamiltonian.performCIKinkAware(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings; printout::Bool=false)`  
     ... computes and diagonalizes the same CI Hamiltonian matrix as performCI, but via setupMatrixKinkAware (kink-aware
         two-electron Slater integral) instead of setupMatrix. Isolated from performCI; reached from
         SelfConsistent.performSCF when settings.scField = Basics.ALField(), and directly from
@@ -472,7 +472,7 @@ end
 
 """
 `Hamiltonian.setupMatrixKinkAware(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::Radial.Grid,
-                                   settings::AsfSettings, cache::InteractionStrength.XLCache; printout::Bool=false)
+                               settings::AsfSettings, cache::InteractionStrength.XLCache; printout::Bool=false)`  
     ... sets up the same Hamiltonian matrix as setupMatrix, but using InteractionStrength.XL_CoulombKinkAware (kink-aware)
         instead of InteractionStrength.XL_Coulomb for the Coulomb two-electron contributions. The Breit contribution
         (XL_Breit) and the QED contribution are left untouched -- this bug is specific to the Coulomb Slater

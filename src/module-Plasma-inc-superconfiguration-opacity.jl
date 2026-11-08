@@ -1,14 +1,17 @@
 # Functions and methods for scheme::Plasma.SuperConfigurationOpacityScheme computations.
 
-# THIS FILE DOES NOT `using ..SuperConfigurations` AT MODULE TOP LEVEL, unlike most sibling -inc- files'
-# dependencies. `SuperConfigurations` is included in JenaAtomicCalculator.jl AFTER module-Plasma.jl -- it
-# depends on BasicsAZ.meanEnergyInClosedForm, and BasicsAZ is deliberately included near the very end of
-# JenaAtomicCalculator.jl, after Cascade/ForPedestrians/RacahAlgebra and more, since its own docstring says
-# it "contains methods from the Basics module but with reference to many other modules" -- so moving it (or
-# SuperConfigurations) earlier to let Plasma `using` it directly risks breaking dependencies this session
-# has not audited. `superConfigurationsModule(...)` below resolves the sibling module by RUNTIME reflection
-# instead, which only runs when `perform` is actually CALLED -- by which point every module has long since
-# been included -- so no existing include order needs to change.
+"""
+`Plasma.superConfigurationsModule()`  
+    ... resolves the sibling `SuperConfigurations` module at RUNTIME and returns it as a mod::Module.
+
+        WHY BY REFLECTION RATHER THAN BY `using`:  this file deliberately does not `using ..SuperConfigurations` at
+        module top level, unlike most sibling `-inc-` files.  `SuperConfigurations` is included in
+        `JenaAtomicCalculator.jl` AFTER `module-Plasma.jl`, because it depends on `BasicsAZ.meanEnergyInClosedForm` and
+        `BasicsAZ` is deliberately included near the very end -- its own docstring says it "contains methods from the
+        Basics module but with reference to many other modules".  Moving either module earlier to permit a direct
+        `using` would risk an include order nothing has audited.  This lookup runs only when `perform` is actually
+        CALLED, by which point every module has long since been included, so no include order has to change.
+"""
 function  superConfigurationsModule()
     return( getfield(parentmodule(@__MODULE__), :SuperConfigurations) )
 end

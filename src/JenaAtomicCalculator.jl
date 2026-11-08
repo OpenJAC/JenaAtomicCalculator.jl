@@ -391,6 +391,13 @@ function detectPerformanceCoreCount(nCpu::Int64)
 end
 
 
+"""
+`JenaAtomicCalculator.__init__()`  
+    ... Julia's module-load hook, which runs once when the package is loaded and NOT when it is precompiled.  It
+        initialises the two summary/test output streams to `stdout` -- they are globals precisely because an
+        `IOStream` cannot be baked into a precompiled image -- prints the welcome banner, and reports the threading
+        environment the session was started in.  Nothing is returned.
+"""
 function __init__()
     # The following variables need to be initialized at runtime to enable precompilation
     global JAC_SUMMARY_IOSTREAM = stdout

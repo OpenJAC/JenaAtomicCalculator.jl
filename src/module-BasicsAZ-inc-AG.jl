@@ -584,7 +584,13 @@ end
 #    if  q == -1  return( 1. )   else   return( 0. )                end
 #end
 
-#---NEW VERSIONS:---
+"""
+`Basics.determinePolarizationVector(q::Int64, kind::Basics.LinearPolarization; star::Bool)`  
+    ... returns the spherical component u_q of the polarization vector of linearly polarized light, where the two circular components enter
+        with equal weight.  With star = true the component of the CONJUGATE vector is returned instead, which is what an outgoing photon
+        needs;  `star` is a keyword with no default, so every caller states which of the two it means.  A value::Float64 is returned, and
+        zero for any q outside the components this polarization carries.
+"""
 function Basics.determinePolarizationVector(q::Int64, kind::Basics.LinearPolarization; star::Bool)
     if  star == false
         if      q == 1   return( -1/sqrt(2.) )
@@ -600,6 +606,13 @@ function Basics.determinePolarizationVector(q::Int64, kind::Basics.LinearPolariz
 end
 
 
+"""
+`Basics.determinePolarizationVector(q::Int64, kind::Basics.LeftCircular; star::Bool)`  
+    ... returns the spherical component u_q of the polarization vector of left-circularly polarized light, which carries the single
+        component q = +1.  With star = true the component of the CONJUGATE vector is returned instead, which is what an outgoing photon
+        needs;  `star` is a keyword with no default, so every caller states which of the two it means.  A value::Float64 is returned, and
+        zero for any q outside the components this polarization carries.
+"""
 function Basics.determinePolarizationVector(q::Int64, kind::Basics.LeftCircular; star::Bool)
     if  star == false
         if  q == 1   return( -1. )   else   return( 0. )                end
@@ -609,6 +622,13 @@ function Basics.determinePolarizationVector(q::Int64, kind::Basics.LeftCircular;
 end
 
 
+"""
+`Basics.determinePolarizationVector(q::Int64, kind::Basics.RightCircular; star::Bool)`  
+    ... returns the spherical component u_q of the polarization vector of right-circularly polarized light, which carries the single
+        component q = -1.  With star = true the component of the CONJUGATE vector is returned instead, which is what an outgoing photon
+        needs;  `star` is a keyword with no default, so every caller states which of the two it means.  A value::Float64 is returned, and
+        zero for any q outside the components this polarization carries.
+"""
 function Basics.determinePolarizationVector(q::Int64, kind::Basics.RightCircular; star::Bool)
     if  star == false
         if  q == -1  return( 1. )   else   return( 0. )                end
@@ -618,6 +638,13 @@ function Basics.determinePolarizationVector(q::Int64, kind::Basics.RightCircular
 end
 
 
+"""
+`Basics.determinePolarizationVector(q::Int64, kind::Basics.LeftElliptical; star::Bool)`  
+    ... returns the spherical component u_q of the polarization vector of left-elliptically polarized light of the ellipticity carried by
+        kind, which interpolates between the linear and the left-circular case.  With star = true the component of the CONJUGATE vector is
+        returned instead, which is what an outgoing photon needs;  `star` is a keyword with no default, so every caller states which of the
+        two it means.  A value::Float64 is returned, and zero for any q outside the components this polarization carries.
+"""
 function Basics.determinePolarizationVector(q::Int64, kind::Basics.LeftElliptical; star::Bool)
     epsilon = kind.ellipticity
     if  star == false
@@ -628,6 +655,13 @@ function Basics.determinePolarizationVector(q::Int64, kind::Basics.LeftElliptica
 end
 
 
+"""
+`Basics.determinePolarizationVector(q::Int64, kind::Basics.RightElliptical; star::Bool)`  
+    ... returns the spherical component u_q of the polarization vector of right-elliptically polarized light of the ellipticity carried by
+        kind, which interpolates between the linear and the right-circular case.  With star = true the component of the CONJUGATE vector is
+        returned instead, which is what an outgoing photon needs;  `star` is a keyword with no default, so every caller states which of the
+        two it means.  A value::Float64 is returned, and zero for any q outside the components this polarization carries.
+"""
 function Basics.determinePolarizationVector(q::Int64, kind::Basics.RightElliptical; star::Bool)
     epsilon = kind.ellipticity
     if  star == false
@@ -1189,9 +1223,9 @@ end
 
 
 """
-`Basics.extractNonrelativisticShellList(subshells::Array{Subshell,1})  
+`Basics.extractNonrelativisticShellList(subshells::Array{Subshell,1})`  
     ... extract a nonrelativistic shell list from the given subshell list; the shells appear in the same order
-        as the corresponding subshells. A shellList::Array{Subshell,1} is returned.
+        as the corresponding subshells. A shellList::Array{Shell,1} is returned.
 """
 function Basics.extractNonrelativisticShellList(subshells::Array{Subshell,1}) 
     shellList = Shell[]
@@ -1206,9 +1240,9 @@ end
 
 
 """
-`Basics.extractNonrelativisticShellList(confs::Array{Configuration,1})  
+`Basics.extractNonrelativisticShellList(confs::Array{Configuration,1})`  
     ... extract a nonrelativistic shell list from the given configuration list; the shells are not ordered. 
-        A shellList::Array{Subshell,1} is returned.
+        A shellList::Array{Shell,1} is returned.
 """
 function Basics.extractNonrelativisticShellList(confs::Array{Configuration,1}) 
     shellList = Shell[]
@@ -1224,7 +1258,7 @@ end
 
 
 """
-`Basics.extractNonrelativisticShellList(multiplet::Multiplet)  
+`Basics.extractNonrelativisticShellList(multiplet::Multiplet)`  
     ... extract a nonrelativistic shell list from the given multiplet; however, the shells are not ordered. 
         A shellList::Array{Shell,1} is returned.
 """
@@ -1243,7 +1277,7 @@ end
 
 
 """
-`Basics.extractNonrelativisticShellList(multiplets::Array{Multiplet,1})  
+`Basics.extractNonrelativisticShellList(multiplets::Array{Multiplet,1})`  
     ... extract a nonrelativistic shell list from the given list of multiplets; however, the shells are not ordered. 
         A shellList::Array{Shell,1} is returned.
 """

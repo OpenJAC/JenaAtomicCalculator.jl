@@ -198,7 +198,7 @@ end
 
 
 """
-Basics.merge(bases::Array{Basis,1})`  
+`Basics.merge(bases::Array{Basis,1})`  
     ... to merge two (or more) atomic bases into a single basis::Basis. This method assumes the same number of electrons in all basis and 
         that the subshell lists are the same or can be made 'consistent' to each other. Two bases have a consistent subshell list if all 
         subshells, that appear in any of the two lists appear always in the same sequence (if they are not missing at all). In the merged 

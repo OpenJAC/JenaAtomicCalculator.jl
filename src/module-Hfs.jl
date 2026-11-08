@@ -422,7 +422,7 @@ end
 
 """
 `Hfs.computeAmplitudesProperties(outcome::Hfs.Outcome, nm::Nuclear.Model, grid::Radial.Grid, settings::Hfs.Settings, 
-                                 im::Hfs.InteractionMatrix) 
+                                      im::Hfs.InteractionMatrix)`  
     ... to compute all amplitudes and properties of for a given level; an outcome::Hfs.Outcome is returned for which the amplitudes and
         properties are evaluated explicitly.
 """

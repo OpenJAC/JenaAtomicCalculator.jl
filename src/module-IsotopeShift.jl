@@ -358,8 +358,8 @@ end
 
 
 """
-`IsotopeShift.computeAmplitudesProperties(outcome::IsotopeShift.Outcome, nm::Nuclear.Model, grid::Radial.Grid, 
-                                            settings::IsotopeShift.Settings) 
+`IsotopeShift.computeAmplitudesProperties(outcome::IsotopeShift.Outcome, nm::Nuclear.Model, grid::Radial.Grid,
+                                          settings::IsotopeShift.Settings)`  
     ... to compute all amplitudes and properties for a given level; an outcome::IsotopeShift.Outcome is returned for 
         which the amplitudes and properties are now evaluated explicitly.
 """
