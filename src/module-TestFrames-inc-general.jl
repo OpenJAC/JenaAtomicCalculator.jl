@@ -3158,17 +3158,25 @@ function testModule_BiOrthogonal(; short::Bool=true)
     # factorization and would satisfy the identity below for free, so the size of the blocks is part of the test.
     configs = [Configuration("1s^2 2s^2"), Configuration("1s^2 2s 2p"), Configuration("1s^2 2s 3s"),
                Configuration("1s^2 2s 3p")]
+    # ONE grid, shared by BOTH bases -- item 16, found 08-Nov-2026 while fixing Basics.recommendedGrid's own
+    # multi-reference defect (priority item 11): that fix correctly makes the box Z-DEPENDENT, which exposed
+    # this test calling recommendedGrid separately per Z and keeping only ONE of the two results, so the
+    # overlapMatrix below compared orbitals against a quadrature grid the higher-Z basis was never tabulated
+    # on. Built from the LARGER of the two per-Z estimates, not a fixed choice, since nothing here guarantees
+    # which of two arbitrary Z values needs more room for the SAME configuration list.
+    gridA, gridB = Basics.recommendedGrid(configs, Nuclear.Model(4., PointNucleus())),
+                   Basics.recommendedGrid(configs, Nuclear.Model(5., PointNucleus()))
+    grid = gridA.r[end] >= gridB.r[end] ? gridA : gridB
     multipletOf = function(Z::Float64)
-        nm   = Nuclear.Model(Z, PointNucleus())
-        grid = Basics.recommendedGrid(configs, nm)
-        wb   = redirect_stdout(devnull) do
+        nm = Nuclear.Model(Z, PointNucleus())
+        wb = redirect_stdout(devnull) do
             perform( Atomic.Computation(Atomic.Computation(); name = "Z=$Z", grid = grid, nuclearModel = nm,
                                         configs = configs); output = true )
         end
-        return( (wb[ResultKeys.Multiplet], grid) )
+        return( wb[ResultKeys.Multiplet] )
     end
-    leftMp,  grid  = multipletOf(4.)
-    rightMp, _     = multipletOf(5.)
+    leftMp         = multipletOf(4.)
+    rightMp        = multipletOf(5.)
     leftBasis      = leftMp.levels[1].basis
     rightBasis     = rightMp.levels[1].basis
     overlapMatrix  = function(basA::Basis, lList::Array{Subshell,1}, basB::Basis, rList::Array{Subshell,1})
