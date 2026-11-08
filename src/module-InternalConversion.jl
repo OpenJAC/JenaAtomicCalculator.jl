@@ -641,8 +641,9 @@ function computeLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet, nm
     println("")
     lines = InternalConversion.determineLines(finalMultiplet, initialMultiplet, settings)
     if  settings.printBefore    InternalConversion.displayLines(stdout, lines)    end
-    maxEnergy = 0.;   for line in lines   maxEnergy = max(maxEnergy, line.electronEnergy)   end
-    nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
+    maxEnergy = 0.;          for line in lines   maxEnergy = max(maxEnergy, line.electronEnergy)   end
+    minEnergy = maxEnergy;   for line in lines   minEnergy = min(minEnergy, line.electronEnergy)   end
+    nrContinuum = Continuum.gridConsistency(maxEnergy, grid; minEnergy=minEnergy)
     newLines = InternalConversion.Line[]
     for  line in lines
         push!(newLines, InternalConversion.computeAmplitudesProperties(line, nm, grid, nrContinuum, settings))
