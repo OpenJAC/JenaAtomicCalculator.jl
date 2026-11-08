@@ -37,7 +37,7 @@ function computeSteps(scheme::Cascade.StepwiseDecayScheme, comp::Cascade.Computa
             else
                 previousMeanEn = meanEn;    cOrbitals = Dict{Subshell, Orbital}();    cPhases = Dict{Subshell, Float64}()
                 for kappa = -step.settings.maxKappa-1:step.settings.maxKappa        if   kappa == 0     continue    end
-                    sh           = Subshell(101, kappa);     nrContinuum = Continuum.gridConsistency(meanEn, comp.grid)
+                    sh           = Subshell(101, kappa);     nrContinuum = Continuum.gridConsistency(meanEn, comp.grid; minEnergy=meanEn)
                     contSettings = Continuum.Settings(false, nrContinuum);   
                     npot         = Nuclear.nuclearPotential(comp.nuclearModel, comp.grid)
                     # wp1 = compute("radial potential: core-Hartree", grid, wLevel)
@@ -168,7 +168,7 @@ function computeStepAugerAverageSCA(step::Cascade.Step, comp::Cascade.Computatio
     #else
         previousMeanEn = meanEn;    cOrbitals = Dict{Subshell, Orbital}();    cPhases = Dict{Subshell, Float64}()
         for kappa = -step.settings.maxKappa-1:step.settings.maxKappa        if   kappa == 0     continue    end
-            sh           = Subshell(101, kappa);     nrContinuum = Continuum.gridConsistency(meanEn, comp.grid)
+            sh           = Subshell(101, kappa);     nrContinuum = Continuum.gridConsistency(meanEn, comp.grid; minEnergy=meanEn)
             contSettings = Continuum.Settings(false, nrContinuum);   
             npot         = Nuclear.nuclearPotential(comp.nuclearModel, comp.grid)
             ## wp1 = compute("radial potential: core-Hartree", grid, wLevel)
