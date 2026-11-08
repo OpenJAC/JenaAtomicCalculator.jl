@@ -294,8 +294,9 @@ function  computeCaptureLines(finalMultiplet::Multiplet, intermediateMultiplet::
         DielectronicRecombination.displayPhotonLines(stdout, photonLines)
     end
     # Determine the maximum continuum energy and check the grid against it
-    maxEnergy = 0.;   for  cLine in captureLines   maxEnergy = max(maxEnergy, cLine.electronEnergy)   end
-    nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
+    maxEnergy = 0.;          for  cLine in captureLines   maxEnergy = max(maxEnergy, cLine.electronEnergy)   end
+    minEnergy = maxEnergy;   for  cLine in captureLines   minEnergy = min(minEnergy, cLine.electronEnergy)   end
+    nrContinuum = Continuum.gridConsistency(maxEnergy, grid; minEnergy=minEnergy)
     # Display-only, and the same for every line; set ONCE here rather than from inside the threaded loops below.
     Defaults.setStandardSubshellList(intermediateMultiplet.levels[1].basis.subshells; printout=false)
     # The photon side is computed FIRST: Gamma_r(m) is needed for every resonance strength, whether or not the
