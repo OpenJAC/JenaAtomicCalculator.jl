@@ -350,6 +350,26 @@ def audit(path):
         if   n == 0:  r["sep0"] += 1;  sites["sep0"].append(i+1)
         elif n == 1:  r["sep1"] += 1;  sites["sep1"].append(i+1)
         else:         r["sep2plus"] += 1
+    # ---------------------------------------------------------------- a docstring documenting a docstring
+    # THIS ONE IS A LOAD ERROR, not a style defect, and it is the only check here that is.  Julia's `@doc`
+    # validates its target when the module is EVALUATED, so two docstring blocks with nothing documentable
+    # between them raise "cannot document the following expression" at precompile -- and `Meta.parseall`
+    # cannot see it, because the file PARSES perfectly.  Added 08-Nov-2026, after a docstring pass created
+    # exactly this in two files and shipped it: the pass had been proven docstring-only by a strip-and-compare
+    # and clean by `parseall`, and both proofs were silent.  THE SUITE IS WHAT CAUGHT IT, which is why
+    # `/hygiene` step 6 asks for the suite and not for a parse.
+    #
+    # Both sites arose the same way: the function ALREADY had a docstring, which the missing-docstring count
+    # had not seen because something sat BETWEEN the docstring and the `function` line -- a commented-out
+    # signature in one file, 25 lines and another method in the other.  So this check also guards the
+    # `noDoc` count, which over-reports whenever a docstring is separated from what it documents.
+    closed = -1
+    for i, l in enumerate(L):
+        q = l.strip()
+        if opener[i] and q.startswith('"""'):
+            if closed >= 0 and all(not L[j].strip() for j in range(closed + 1, i)):
+                r["docOnDoc"] += 1;  sites["docOnDoc"].append(i + 1)
+        if doc[i] and not opener[i] and q.endswith('"""'):  closed = i
     return r, sites
 
 
@@ -373,6 +393,7 @@ ROWS = [("funcs",           "function definitions"),
         ## that is a different test from "the line carries text", which flagged three good labels.
         ("inDisabledBlock",  "   comment lines inside `#= ... =#`, kept"),
         ("", ""),
+        ("docOnDoc",        "A DOCSTRING DOCUMENTING A DOCSTRING -- A LOAD ERROR"),
         ("noDoc",           "functions with no docstring"),
         ("noDocTrivial",    "   also: trivial Base.* methods (exempt)"),
         ("noDocNested",     "   also: nested local helpers (exempt)"),
@@ -397,7 +418,7 @@ def actionable(key):
     """True for a row a pass would ACT on, as against a total or a deliberately kept form.  Only these are
     worth sampling;  printing three of the 324 kept separators teaches nobody anything."""
     return key in {"standalone2", "appended2", "emptyHash", "sep1", "sep0", "longProse", "eqNothing",
-                   "indentedTop", "noDoc", "sigMismatch", "docFamily", "noSigInDoc", "untyped"}
+                   "indentedTop", "noDoc", "sigMismatch", "docFamily", "noSigInDoc", "untyped", "docOnDoc"}
 
 
 def main():

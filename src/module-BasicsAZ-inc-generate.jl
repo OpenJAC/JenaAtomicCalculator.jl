@@ -1954,11 +1954,6 @@ end
 
 """
 `Basics.generateMeshCoordinates(mesh::Basics.AbstractMesh)`  
-    ... generates a list of coordinates for the given  (1D)mesh; a list::Array{Float64,1} is returned.
-        Note: No 'weights' for integration are returned in the present form ... though this could be done readily.
-"""
-"""
-`Basics.generateMeshCoordinates(mesh::Basics.AbstractMesh)`  
     ... generates the coordinates of the given mesh:  the Gauss-Legendre zeros mapped onto [a, b] for a GLegenreMesh,
         or NoPoints equally spaced points for a LinearMesh.  A coords::Array{Float64,1} is returned, and any other mesh
         type raises.  The Gauss-Legendre WEIGHTS are computed on the way and discarded, so a caller that needs them

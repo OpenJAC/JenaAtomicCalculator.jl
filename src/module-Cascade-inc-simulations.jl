@@ -2,16 +2,6 @@
 # Functions and methods for cascade simulations
 
 """
-`Cascade.addLevels(levelsA::Array{Cascade.Level,1}, levelsB::Array{Cascade.Level,1})` 
-    ... adds two sets of levels so that each levels occurs only 'once' in the list; in practice, however, this 'addition' requires also 
-        that the parent and daughter processes are added properly so that all information is later available for the simulations.
-        It is assumed here that all daughter and parent (processes) appear only once if levels from different data sets
-        (Cascade.DecayData, Cascade.PhotoIonData) are added to each other. A message is issued about the number of levels before and 
-        after this 'addition', and how many of the levels have been modified by this method. Note that all relative occucations are 
-        set to zero in this addition; a newlevels::Array{Cascade.Level,1} is returned.
-"""
-
-"""
 `Cascade.asResults(x)`
     ... presents a stored cascade result as a `Basics.PerformResults`, whichever form it arrived in; a
         `results::Basics.PerformResults` is returned.
@@ -29,8 +19,11 @@ asResults(x) = x isa Basics.PerformResults ? x : Basics.PerformResults(x)
 `Cascade.addLevels(levelsA::Array{Cascade.Level,1}, levelsB::Array{Cascade.Level,1})`  
     ... merges two lists of cascade levels into one.  A level that occurs in both keeps its identity and gains the
         parents and daughters of its counterpart, so that the decay paths recorded in the two lists are UNIONED rather
-        than one overwriting the other;  a level occurring in only one list is carried over unchanged.  A
+        than one overwriting the other;  a level occurring in only one list is carried over unchanged.  Every
+        relative occupation is set to ZERO in the merged list, so a caller that needs them must set them again.  A
         levels::Array{Cascade.Level,1} is returned, and the counts of modified and newly appended levels are printed.
+        It is assumed that each parent and each daughter process appears only once when levels from different data
+        sets -- a Cascade.DecayData and a Cascade.PhotoIonData -- are added to each other.
 """
 function  addLevels(levelsA::Array{Cascade.Level,1}, levelsB::Array{Cascade.Level,1})
     nA = length(levelsA);   nB = length(levelsB);    nmod = 0;    nnew = 0;    newlevels = Cascade.Level[];  appendedB = falses(nB)
