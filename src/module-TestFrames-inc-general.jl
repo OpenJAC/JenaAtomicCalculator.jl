@@ -4176,3 +4176,377 @@ function testMethod_ThomasReicheKuhn(; short::Bool=true)
     testPrint("testMethod_ThomasReicheKuhn()::", success)
     return( success )
 end
+
+
+"""
+`TestFrames.testModule_Math(; short::Bool=true)`  ... tests on module Math; a success::Bool is returned.
+"""
+function testModule_Math(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-Math-new.sum")
+    printstyled("\n\nTest the module  Math  ... \n", color=:cyan)
+    # Both quantities here have CLOSED FORMS that are independent of how they are computed, so nothing is compared
+    # against a re-typed copy of the implementation. Fornberg's finite-difference weights are fixed by the stencil
+    # alone: the interpolation row sums to 1, the first-derivative row sums to 0, the centred five-point row IS
+    # [1/12, -2/3, 0, 2/3, -1/12], and applied to a monomial it must return that monomial's derivative exactly for
+    # every degree the stencil can carry. polylogExp(x, s) is Li_s(-e^x), whose value at x = 0 is the Dirichlet eta
+    # function, so -ln 2, -pi^2/12 and -(3/4) zeta(3) are exact at s = 1, 2, 3.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+
+    # (1) the weights of the centred five-point stencil, by their two sum rules and by their exact values
+    c  = Math.finiteDifferenceWeights(0, 5; order=1)
+    w0 = c[1, :];    w1 = c[2, :]
+    if  abs(sum(w0) - 1.0) > 1.0e-12
+        success = false
+        if printTest   info(iostream, "the interpolation weights sum to $(sum(w0)), must be 1")   end
+    end
+    if  abs(sum(w1)) > 1.0e-12
+        success = false
+        if printTest   info(iostream, "the first-derivative weights sum to $(sum(w1)), must be 0")   end
+    end
+    exact = [1/12, -2/3, 0.0, 2/3, -1/12]
+    if  maximum(abs.(w1 - exact)) > 1.0e-12
+        success = false
+        if printTest   info(iostream, "the centred 5-point derivative weights are $w1, must be $exact")   end
+    end
+    # (2) exactness on every monomial the stencil can carry: d/dx x^k at x = 0 is 1 for k = 1 and 0 otherwise
+    x = collect(-2.0:2.0)
+    for  k = 0:4
+        wa = sum(w1 .* x.^k);    wb = (k == 1 ? 1.0 : 0.0)
+        if  abs(wa - wb) > 1.0e-11
+            success = false
+            if printTest   info(iostream, "the 5-point stencil gives d/dx x^$k = $wa at x=0, must be $wb")   end
+        end
+    end
+    # (3) polylogExp at x = 0 is the Dirichlet eta function, i.e. Li_s(-1) = -(1 - 2^(1-s)) zeta(s)
+    for  (s, wb, sb)  in  [(1, -log(2.0), "-ln 2"), (2, -pi^2/12, "-pi^2/12"),
+                           (3, -0.75 * 1.2020569031595943, "-(3/4) zeta(3)")]
+        wa = Math.polylogExp(0.0, s)
+        if  abs(wa - wb) > 1.0e-10 * max(1.0, abs(wb))
+            success = false
+            if printTest   info(iostream, "polylogExp(0, $s) = $wa, must be $sb = $wb")   end
+        end
+    end
+
+    println(iostream, "Math: the two sum rules and the exact values of the centred five-point finite-difference " *
+                      "weights, their exactness on every monomial the stencil carries, and polylogExp at x = 0 " *
+                      "against the Dirichlet eta function. No approved data is used.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_Math()::", success)
+    return( success )
+end
+
+
+"""
+`TestFrames.testModule_Distribution(; short::Bool=true)`  ... tests on module Distribution; a success::Bool is returned.
+"""
+function testModule_Distribution(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-Distribution-new.sum")
+    printstyled("\n\nTest the module  Distribution  ... \n", color=:cyan)
+    # A distribution is pinned by what it integrates to and by the limits it must reproduce, and both are absolute:
+    # the Maxwell energy and velocity forms each integrate to 1 and the energy form has mean (3/2) kT, so a wrong
+    # power of T or a missing factor cannot survive. The two Maxwell forms are then required to be ONE distribution
+    # by the Jacobian f_E(E) dE = f_v(v) 4 pi v^2 dv at E = v^2/2, which is the only check here that couples two
+    # methods and the only one a consistent error in both could not pass. Planck is checked against its own
+    # Rayleigh-Jeans limit, and the dilute and vacuum fields against Planck exactly.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    T  = 0.05;    dE = 1.0e-5;    dv = 1.0e-4
+    d  = Distribution.ElectronMaxwell(T)
+
+    # (1) the Maxwell energy distribution integrates to 1 and has mean (3/2) kT
+    En = collect(1.0e-8:dE:40T);    f = [Distribution.electronEnergyDistribution(d, e) for e in En]
+    nrm = sum(f) * dE;    mean = sum(f .* En) * dE
+    if  abs(nrm - 1.0) > 1.0e-3
+        success = false
+        if printTest   info(iostream, "the Maxwell energy distribution integrates to $nrm, must be 1")   end
+    end
+    if  abs(mean/T - 1.5) > 1.0e-2
+        success = false
+        if printTest   info(iostream, "the Maxwell mean energy is $(mean/T) kT, must be 1.5 kT")   end
+    end
+    # (2) the velocity form integrates to 1 over d^3 v
+    v  = collect(1.0e-8:dv:12*sqrt(T))
+    nrmv = sum([Distribution.electronVelocityDistribution(d, vv) for vv in v] .* 4pi .* v.^2) * dv
+    if  abs(nrmv - 1.0) > 1.0e-3
+        success = false
+        if printTest   info(iostream, "the Maxwell velocity distribution integrates to $nrmv, must be 1")   end
+    end
+    # (3) the two forms are one distribution: f_E(E) = f_v(v) 4 pi v^2 / (dE/dv) with E = v^2/2 and dE/dv = v
+    vv = 0.3
+    wa = Distribution.electronEnergyDistribution(d, vv^2/2)
+    wb = Distribution.electronVelocityDistribution(d, vv) * 4pi * vv^2 / vv
+    if  abs(wa/wb - 1.0) > 1.0e-10
+        success = false
+        if printTest   info(iostream, "the energy and velocity Maxwell forms differ by $(wa/wb) at v = $vv")   end
+    end
+    # (4) Planck tends to its Rayleigh-Jeans limit n -> omega T / (pi^2 c^3) as omega/T -> 0
+    cc = Defaults.getDefaults("speed of light: c");    om = 1.0e-6
+    wa = Distribution.photonNumberDensity(Distribution.PhotonPlanck(T), om)
+    wb = om * T / (pi^2 * cc^3)
+    if  abs(wa/wb - 1.0) > 1.0e-4
+        success = false
+        if printTest   info(iostream, "Planck at omega/T = $(om/T) gives $wa, Rayleigh-Jeans gives $wb")   end
+    end
+    # (5) the dilute field is exactly w times Planck, and the vacuum field is exactly zero
+    if  Distribution.photonNumberDensity(Distribution.PhotonDilute(T, 0.25), 0.1) !=
+        0.25 * Distribution.photonNumberDensity(Distribution.PhotonPlanck(T), 0.1)
+        success = false
+        if printTest   info(iostream, "the dilute photon field is not exactly w times Planck")   end
+    end
+    if  Distribution.photonNumberDensity(Distribution.PhotonVacuumField(T), 1.0) != 0.0
+        success = false
+        if printTest   info(iostream, "the vacuum photon field does not return exactly zero")   end
+    end
+    # (6) the power law vanishes outside its own window and follows omega^(-p) inside it
+    pl = Distribution.PhotonPowerLaw(T, 1.0, 2.0, 0.1, 1.0)
+    if  Distribution.photonNumberDensity(pl, 0.05) != 0.0  ||  Distribution.photonNumberDensity(pl, 2.0) != 0.0
+        success = false
+        if printTest   info(iostream, "the power-law field is non-zero outside [omegaMin, omegaMax]")   end
+    end
+    wa = Distribution.photonNumberDensity(pl, 0.4) / Distribution.photonNumberDensity(pl, 0.2)
+    wb = 2.0^(-2.0) * exp(-0.2/T)
+    if  abs(wa/wb - 1.0) > 1.0e-12
+        success = false
+        if printTest   info(iostream, "the power-law ratio between 0.4 and 0.2 is $wa, must be $wb")   end
+    end
+
+    # (7) the Fermi-Dirac velocity form is the Fermi step, and the step is what pins the TEMPERATURE in its
+    #     exponent. The SHAPE is asserted scale-free, as ratios, so that it holds whichever way the factor-of-two
+    #     question below is settled: with the energy difference left undivided the step is smeared over 1 Ha
+    #     whatever T is, and a point 10 kT below the chemical potential then sits at 0.5 occupation instead of 1.
+    fd = Distribution.ElectronFermiDirac(0.01, 0.5)
+    f = en -> Distribution.electronVelocityDistribution(fd, sqrt(2*en))
+    for  (en, wb, sb)  in  [(0.4, 1.0, "ten kT below the chemical potential the state is full"),
+                            (0.6, 0.0, "ten kT above the chemical potential the state is empty")]
+        wa = f(en) / f(0.5) / 2.0      ## f(muChem) is exactly half the full value, so this is the occupation
+        if  abs(wa - wb) > 1.0e-3
+            success = false
+            if printTest   info(iostream, "$sb; the occupation at E = $en is $wa, must be $wb")   end
+        end
+    end
+    # (8) AND THE ABSOLUTE PREFACTOR, which is the one assertion in this test that takes a position on an open
+    #     question: this method gives 2/(2 pi)^3 per state, the spin-degenerate value, while
+    #     electronEnergyDistribution carries twice the matching density of states. The disagreement is recorded in
+    #     that module's own docstring and is the maintainer's to settle; if it is settled in favour of the energy
+    #     form, THIS is the line to change, and nothing else here moves.
+    if  abs(f(0.5) * 4pi^3 - 0.5) > 1.0e-10
+        success = false
+        if printTest   info(iostream, "the Fermi-Dirac velocity prefactor gives $(f(0.5) * 4pi^3) at the " *
+                                      "chemical potential, must be 1/2 for the spin-degenerate 2/(2 pi)^3")   end
+    end
+
+    println(iostream, "Distribution: the Maxwell energy and velocity forms each integrate to 1, the mean energy " *
+                      "is (3/2) kT, the two forms agree through the Jacobian, Planck reaches its Rayleigh-Jeans " *
+                      "limit, the dilute, vacuum and power-law fields follow Planck and their own window " *
+                      "exactly, and the Fermi-Dirac velocity form is the Fermi step. No approved data is used.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_Distribution()::", success)
+    return( success )
+end
+
+
+"""
+`TestFrames.testModule_Beam(; short::Bool=true)`  ... tests on module Beam; a success::Bool is returned.
+"""
+function testModule_Beam(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-Beam-new.sum")
+    printstyled("\n\nTest the module  Beam  ... \n", color=:cyan)
+    # Every quantity here is a textbook closed form evaluated at the one argument that makes it exact, which is what
+    # keeps the test independent of the implementation: the Rayleigh range is k w_0^2 / 2, the waist is w_0 at the
+    # focus and w_0 sqrt(2) at z_R for ANY mode, and the Gouy phase is (2p + |l| + 1) pi/4 at z_R -- the one place
+    # where the radial index p changes the propagation, so a mode-independent Gouy phase would fail here and
+    # nowhere else. oamOf is then asserted on four beam types, since it is one method per type and a type whose
+    # method returns a neighbour's field cannot be seen any other way.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    lg = Beam.LaguerreGauss(2, 1, 0.4, 50.0);    zR = Beam.rayleighRange(lg)
+
+    # (1) the Rayleigh range, and the waist at the focus and at z_R
+    if  abs(zR - 0.4 * 50.0^2 / 2) > 1.0e-12
+        success = false
+        if printTest   info(iostream, "the Rayleigh range is $zR, must be k w_0^2 / 2 = $(0.4*50.0^2/2)")   end
+    end
+    if  abs(Beam.waistAt(lg, 0.0) - 50.0) > 1.0e-12
+        success = false
+        if printTest   info(iostream, "the waist at the focus is $(Beam.waistAt(lg, 0.0)), must be w_0 = 50")   end
+    end
+    if  abs(Beam.waistAt(lg, zR)/50.0 - sqrt(2.0)) > 1.0e-12
+        success = false
+        if printTest   info(iostream, "the waist at z_R is $(Beam.waistAt(lg, zR)/50.0) w_0, must be sqrt(2)")   end
+    end
+    # (2) the Gouy phase vanishes at the focus and is (2p + |l| + 1) pi/4 at z_R
+    if  abs(Beam.gouyPhase(lg, 0.0)) > 1.0e-14
+        success = false
+        if printTest   info(iostream, "the Gouy phase at the focus is $(Beam.gouyPhase(lg, 0.0)), must be 0")   end
+    end
+    wb = (2*lg.pRadial + abs(lg.lOAM) + 1) * pi/4
+    if  abs(Beam.gouyPhase(lg, zR) - wb) > 1.0e-12
+        success = false
+        if printTest   info(iostream, "the Gouy phase at z_R is $(Beam.gouyPhase(lg, zR)), must be $wb")   end
+    end
+    # (3) oamOf, one method per beam type
+    bb = Beam.BesselBeam(3, 0.2, 0.4);    bg = Beam.BesselGauss(-1, 0.2, 0.4, 50.0)
+    for  (beam, wb, sb)  in  [(Beam.PlaneWave(), 0, "a plane wave carries no OAM"),
+                              (bb, 3, "oamOf(BesselBeam) must return mOAM"),
+                              (bg, -1, "oamOf(BesselGauss) must return mOAM"),
+                              (lg, 2, "oamOf(LaguerreGauss) must return lOAM")]
+        if  Beam.oamOf(beam) != wb
+            success = false
+            if printTest   info(iostream, "$sb; got $(Beam.oamOf(beam)) instead of $wb")   end
+        end
+    end
+    # (4) the transverse momentum of a Bessel cone is k sin(theta)
+    if  abs(Beam.transverseMomentum(bb, 1.0) - sin(0.2)) > 1.0e-12
+        success = false
+        if printTest   info(iostream, "the transverse momentum is $(Beam.transverseMomentum(bb, 1.0)), " *
+                                      "must be k sin(theta) = $(sin(0.2))")   end
+    end
+
+    println(iostream, "Beam: the Rayleigh range, the waist at the focus and at z_R, the Gouy phase at both, the " *
+                      "orbital angular momentum of four beam types, and the transverse momentum of a Bessel " *
+                      "cone, each against its closed form. No approved data is used.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_Beam()::", success)
+    return( success )
+end
+
+
+"""
+`TestFrames.testModule_Pulse(; short::Bool=true)`  ... tests on module Pulse; a success::Bool is returned.
+"""
+function testModule_Pulse(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-Pulse-new.sum")
+    printstyled("\n\nTest the module  Pulse  ... \n", color=:cyan)
+    # The field amplitude is checked against the formula its own docstring states, A0 = sqrt(8 pi alpha I) / omega,
+    # and -- more usefully, since that one line could be read off the code -- against the two scaling laws it
+    # implies: A0 doubles when the intensity is quadrupled and halves when the frequency is doubled. The envelopes
+    # are then asserted to carry the cycle count they were given, which is what the pulse-shape integrals read.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    alpha = Defaults.getDefaults("alpha")
+
+    # (1) the field amplitude against its closed form
+    wa = Pulse.computeFieldAmplitude(1.0e-4, 0.5);    wb = sqrt(8pi * alpha * 1.0e-4) / 0.5
+    if  abs(wa - wb) > 1.0e-14 * max(1.0, abs(wb))
+        success = false
+        if printTest   info(iostream, "the field amplitude is $wa, must be sqrt(8 pi alpha I)/omega = $wb")   end
+    end
+    # (2) its two scaling laws: sqrt in the intensity, inverse in the frequency
+    if  abs(Pulse.computeFieldAmplitude(4.0e-4, 0.5) / wa - 2.0) > 1.0e-12
+        success = false
+        if printTest   info(iostream, "quadrupling the intensity scales A0 by " *
+                                      "$(Pulse.computeFieldAmplitude(4.0e-4, 0.5)/wa), must be 2")   end
+    end
+    if  abs(Pulse.computeFieldAmplitude(1.0e-4, 1.0) / wa - 0.5) > 1.0e-12
+        success = false
+        if printTest   info(iostream, "doubling the frequency scales A0 by " *
+                                      "$(Pulse.computeFieldAmplitude(1.0e-4, 1.0)/wa), must be 1/2")   end
+    end
+    # (3) each envelope carries the duration it was given, which is what the pulse-shape integrals read. The two
+    #     finite-cycle envelopes measure it in CYCLES and the Gaussian in its FWHM, so they are asserted apart.
+    for  env  in  [Pulse.RectangularEnvelope(8), Pulse.SinSquaredEnvelope(8)]
+        if  env.cycles != 8
+            success = false
+            if printTest   info(iostream, "$(typeof(env)) reports $(env.cycles) cycles, must be 8")   end
+        end
+    end
+    if  Pulse.GaussianEnvelope(12.5).fwhm != 12.5
+        success = false
+        if printTest   info(iostream, "a Gaussian envelope reports a FWHM of " *
+                                      "$(Pulse.GaussianEnvelope(12.5).fwhm), must be 12.5")   end
+    end
+
+    println(iostream, "Pulse: the field amplitude against sqrt(8 pi alpha I)/omega and against its scaling in " *
+                      "both arguments, and the duration carried by the two cycle-counted envelopes and by the " *
+                      "Gaussian. No approved data is used.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_Pulse()::", success)
+    return( success )
+end
+
+
+"""
+`TestFrames.testModule_AtomicFeatures(; short::Bool=true)`  ... tests on module AtomicFeatures; a success::Bool is returned.
+"""
+function testModule_AtomicFeatures(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-AtomicFeatures-new.sum")
+    printstyled("\n\nTest the module  AtomicFeatures  ... \n", color=:cyan)
+    # The occupation extractors are checked against configurations whose occupations are known by inspection, and
+    # against the one invariant that holds whatever the configuration is: the extracted occupations sum to the
+    # electron number. A shell the configuration does not mention must come back as zero rather than be dropped,
+    # since the feature vector is positional and a silently shortened row would misalign every column after it.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    shells = [Shell("1s"), Shell("2s"), Shell("2p"), Shell("3s"), Shell("3p"), Shell("3d")]
+
+    # (1) occupations known by inspection, including an empty shell and the electron-number sum
+    for  (sa, wb)  in  [("[Ne] 3s^2 3p^4", [2., 2., 6., 2., 4., 0.]), ("1s^2 2s^2", [2., 2., 0., 0., 0., 0.]),
+                        ("[Ar] 3d^5",      [2., 2., 6., 2., 6., 5.])]
+        conf = Configuration(sa);    wa = AtomicFeatures.extractShellOccupations(shells, conf)
+        if  length(wa) != length(shells)  ||  maximum(abs.(wa - wb)) > 1.0e-12
+            success = false
+            if printTest   info(iostream, "the occupations of $sa are $wa, must be $wb")   end
+        end
+        if  abs(sum(wa) - conf.NoElectrons) > 1.0e-12
+            success = false
+            if printTest   info(iostream, "the occupations of $sa sum to $(sum(wa)), must be " *
+                                          "$(conf.NoElectrons) electrons")   end
+        end
+    end
+
+    println(iostream, "AtomicFeatures: the shell occupations of three configurations known by inspection, an " *
+                      "unmentioned shell returned as zero rather than dropped, and the occupations summing to " *
+                      "the electron number. No approved data is used.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_AtomicFeatures()::", success)
+    return( success )
+end
+
+
+"""
+`TestFrames.testModule_MuonicAtom(; short::Bool=true)`  ... tests on module MuonicAtom; a success::Bool is returned.
+"""
+function testModule_MuonicAtom(; short::Bool=true)
+    Defaults.setDefaults("print summary: open", "test-MuonicAtom-new.sum")
+    printstyled("\n\nTest the module  MuonicAtom  ... \n", color=:cyan)
+    # THE ONE CHECK THAT MATTERS HERE IS THE MASS, and it is exact. For a point nucleus the Dirac binding energy is
+    # m c^2 [f(Z alpha) - 1], and Z alpha carries no mass at all, so the muonic energy is the electronic one times
+    # the muon-electron mass ratio EXACTLY -- at every Z, to the accuracy of the B-spline solve. A lepton mass that
+    # failed to reach the radial equation, or reached it in the wrong place, cannot give that ratio, and no other
+    # check available here would reveal it. The grid recipe is then checked for honouring its own 2.5 r_+, and the
+    # screening potential for the limit its docstring names: Zr -> 1 at electron distances, which is the classical
+    # statement that a muonic atom of charge Z behaves chemically like an ordinary atom of charge Z-1.
+    success = true;    printTest, iostream = Defaults.getDefaults("test flag/stream")
+    mass = Defaults.getDefaults("mass: muon")
+
+    # (1) the grid recipe. Radial.Grid rounds a requested rbox UP to its next knot, by up to a third at these
+    #     radii, so the box must reach 2.5 r_+ and not exceed it by more than one such step.
+    rPlus = (4.0/20.0) * (1.0 + sqrt(1.0 - 2/4)) / mass
+    grid  = MuonicAtom.recommendedGrid(20.0, 2)
+    if  !(2.5*rPlus <= grid.tL[end] <= 1.5 * 2.5*rPlus)
+        success = false
+        if printTest   info(iostream, "the recommended box is $(grid.tL[end]), must reach 2.5 r_+ = " *
+                                      "$(2.5*rPlus) without exceeding it by more than one knot")   end
+    end
+    # (2) THE MASS: the muonic 1s energy is the electronic one times the muon-electron mass ratio, exactly
+    nm   = Nuclear.Model(20.0, Nuclear.PointNucleus())
+    orbs = redirect_stdout(devnull) do;  MuonicAtom.computeOrbitals([Subshell("1s_1/2")], nm, grid)  end
+    eMu  = orbs[Subshell("1s_1/2")].energy
+    eEl  = Basics.computeDiracEnergy(Subshell("1s_1/2"), 20.0)
+    if  abs(eMu/eEl / mass - 1.0) > 1.0e-4
+        success = false
+        if printTest   info(iostream, "the muonic 1s energy is $(eMu/eEl) times the electronic one, must be " *
+                                      "the muon-electron mass ratio $mass")   end
+    end
+    # (3) the screening potential tends to one unit of charge at electron distances
+    pot = MuonicAtom.screeningPotential(orbs[Subshell("1s_1/2")], grid)
+    if  abs(pot.Zr[end] - 1.0) > 1.0e-3
+        success = false
+        if printTest   info(iostream, "the muon's screening potential gives Zr = $(pot.Zr[end]) at the outer " *
+                                      "grid point, must be 1")   end
+    end
+
+    println(iostream, "MuonicAtom: the muonic 1s energy against the electronic one times the muon-electron mass " *
+                      "ratio, which is exact for a point nucleus since Z alpha carries no mass; the grid recipe " *
+                      "against its own 2.5 r_+; and the screening potential against its one-unit-of-charge " *
+                      "limit. No approved data is used.")
+    Defaults.setDefaults("print summary: close", "")
+    testPrint("testModule_MuonicAtom()::", success)
+    return( success )
+end

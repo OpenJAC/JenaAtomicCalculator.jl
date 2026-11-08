@@ -290,12 +290,20 @@ end
 
 """
 `Distribution.electronVelocityDistribution(dist::Distribution.ElectronFermiDirac, velocity::Float64)`  
-    ... to provide the Fermi-Dirac velocity distribution of given temperature at electron velocity (with regard to d^3 v).
-        A value::Float64 is returned. 
+    ... to provide the Fermi-Dirac velocity distribution of given temperature at electron velocity, with regard to d^3 v,
+        i.e. 2/(2 pi)^3 times the Fermi occupation of the state of that speed.  A value::Float64 is returned.
+
+        AND THE TWO FERMI-DIRAC FORMS OF THIS MODULE DISAGREE BY A FACTOR OF TWO, which is recorded here rather than
+        corrected because nothing in JAC constructs an ElectronFermiDirac and so no number moves either way.  Taken
+        through the Jacobian f_E(E) dE = f_v(v) 4 pi v^2 dv at E = v^2/2, this method gives sqrt(2 E)/pi^2 per unit
+        energy, which is the spin-degenerate free-electron density of states; electronEnergyDistribution above carries
+        2^(3/2)/pi^2 sqrt(E), i.e. twice that, and so counts the two spin states once too often.  The prefactor here
+        is the one that matches the textbook, but which of the two is MEANT is the maintainer's to say, so neither has
+        been changed.
 """
 function  electronVelocityDistribution(dist::Distribution.ElectronFermiDirac, velocity::Float64)
-    wa = (velocity^2 / 2.0 - dist.muChem)
-    fe = 1.0 / (4 * pi^3) / ( epx(wa) + 1.0)
+    wa = (velocity^2 / 2.0 - dist.muChem) / dist.T
+    fe = 1.0 / (4 * pi^3) / ( exp(wa) + 1.0)
     return( fe )
 end
 

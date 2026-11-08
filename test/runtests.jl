@@ -68,6 +68,14 @@ end
                                                      ## complete eigenbasis of the SAME matrix -- a pure identity
         @test TestFrames.testModule_RandomPhase()    ## added 11-Oct-2026; the independent-particle limit adds no
                                                      ## physics of its own; the couplingEnabled guard fires
+        @test TestFrames.testModule_Math()           ## the six added 08-Nov-2026 are the cheap half of the test
+        @test TestFrames.testModule_Distribution()   ## census: six modules that carried no test of their own
+        @test TestFrames.testModule_Beam()           ## name and need neither an SCF nor a grid, so all six
+        @test TestFrames.testModule_Pulse()          ## together cost about two seconds.  Every check is a
+        @test TestFrames.testModule_AtomicFeatures() ## closed form, a sum rule or a limit, so none can pass on
+        @test TestFrames.testModule_MuonicAtom()     ## a stale stored reference -- and the muonic one is exact:
+                                                     ## Z alpha carries no mass, so for a point nucleus the muon
+                                                     ## 1s energy IS the electron's times the mass ratio
         @test TestFrames.testModule_matrixElementHminusE()  ## added 23-Oct-2026 (item 98); H - E must reproduce
                                                             ## V^(e-e) EXACTLY on a two-orbital difference and must
                                                             ## DIFFER on a same-kappa one-orbital one -- both
