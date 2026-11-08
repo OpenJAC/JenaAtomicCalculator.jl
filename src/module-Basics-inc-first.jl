@@ -680,6 +680,32 @@ bridgeSubshellDictKey(s::Subshell) = s
 bridgeSubshellDictKey(s::JLD2.ReconstructedStatic{:Subshell, FN, NT}) where {FN,NT} = Subshell(s.n, s.kappa)
 
 """
+`JLD2.rconvert(::Type{AbstractDict{Basics.Subshell,V}}, x)`  ... the companion bridge for a widened field such as
+    `ManyElectron.Basis.orbitals` (`Dict{Subshell,Orbital}` -> `AbstractDict{Subshell,Orbital}`, 08-Nov-2026,
+    priority item 14 -- PhotoIonizationPseudostates' lazy, on-demand-materializing orbital dict needs an
+    AbstractDict-typed field to carry it). JLD2 dispatches `rconvert`/`convert` on the FIELD's DECLARED type, so
+    widening that type bypasses every `Dict{Subshell,V}`-specific bridge above -- confirmed by the regression this
+    fixes: `testModule_Cascade_Simulation`'s saved-basis load failed with `MethodError: Cannot convert an object of
+    type JLD2.SerializedDict to an object of type AbstractDict{Subshell, Orbital}` the same day the field was
+    widened, suite run from `test/`. These three methods restore the same reconstruction for the abstract
+    declared type, in every shape JLD2 was observed to hand a stored dict: a bare `Vector`, a `Vector{<:Pair}`,
+    and a `JLD2.SerializedDict` (unwrapped via its own single field `kvvec`, which is exactly the same
+    pair-vector shape the other two methods already handle). A `Dict{Subshell,V}` is returned in every case --
+    itself a valid `AbstractDict{Subshell,V}`, so the struct constructor's field assignment succeeds.
+"""
+function JLD2.rconvert(::Type{AbstractDict{Subshell,V}}, x::Vector) where V
+    Dict{Subshell,V}(bridgeSubshellDictKey(p.first) => p.second   for p in x)
+end
+
+function JLD2.rconvert(::Type{AbstractDict{Subshell,V}}, x::Vector{<:Pair}) where V
+    Dict{Subshell,V}(bridgeSubshellDictKey(p.first) => p.second   for p in x)
+end
+
+function JLD2.rconvert(::Type{AbstractDict{Subshell,V}}, x::JLD2.SerializedDict) where V
+    JLD2.rconvert(AbstractDict{Subshell,V}, x.kvvec)
+end
+
+"""
 `Base.hash(sh::Basics.Shell, h::UInt)` and `Base.hash(sh::Basics.Subshell, h::UInt)`
     ... hash a shell or subshell from its quantum numbers alone, with a fixed seed. A value::UInt is returned.
 

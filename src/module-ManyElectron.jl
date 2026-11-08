@@ -580,16 +580,23 @@ end
     + subshells      ::Array{Subshell,1}         ... Explicitly given subshell list for this basis.
     + csfs           ::Array{CsfR,1}             ... List of CSF.	    
     + coreSubshells  ::Array{Subshell,1}         ... List of (one-electron) core orbitals.
-    + orbitals       ::Dict{Subshell, Orbital}   ... Dictionary of (one-electron) orbitals.
+    + orbitals       ::AbstractDict{Subshell, Orbital}   ... Dictionary of (one-electron) orbitals -- widened
+                                                   from the concrete Dict 08-Nov-2026 so that a caller with a
+                                                   genuinely large orbital set (PhotoIonizationPseudostates'
+                                                   pooled pseudostate ladders, priority item 14) can supply an
+                                                   AbstractDict that materializes an Orbital on getindex rather
+                                                   than holding every one resident at once; every existing
+                                                   caller still passes a plain Dict, which remains a valid
+                                                   AbstractDict, so nothing about an ordinary Basis changes.
 """
 struct  Basis
     isDefined	       ::Bool
-        NoElectrons	 ::Int64 
+        NoElectrons	 ::Int64
     subshells	       ::Array{Subshell,1}
-    csfs             ::Array{CsfR,1}	      
+    csfs             ::Array{CsfR,1}
         coreSubshells	 ::Array{Subshell,1}
-        orbitals	       ::Dict{Subshell, Orbital}
-end 
+        orbitals	       ::AbstractDict{Subshell, Orbital}
+end
 
 
 """

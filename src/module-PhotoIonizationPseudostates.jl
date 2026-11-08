@@ -554,6 +554,141 @@ end
 
 
 """
+`struct  PhotoIonizationPseudostates.KappaLadder`
+    ... one kappa's pseudostate ladder, held in the COMPACT B-spline coefficient representation
+        (`Bsplines.diagonalizeLocalMatrix[NearEnergy]`'s own output) rather than as materialized, full-grid
+        orbitals -- priority item 14. Each retained state costs one `(energy, vector)` pair of length
+        `nsL+nsS` (a few MB for the whole ladder) instead of four full-grid `Float64` arrays per orbital
+        (several GB for a resonance-matched box); an `Orbital` is produced from this only on demand, by
+        `LazyLadderOrbitals`'s own `getindex`.
+
+    + primitives ::Bsplines.Primitives                           ... the B-spline basis the vectors are expressed in.
+    + grid       ::Radial.Grid                                   ... the ladder grid (passed to `removeOccupiedComponent`).
+    + occupied   ::Dict{Subshell,Orbital}                        ... finalIonLevel's own orbitals, for the projection
+                                                                      every materialized state still needs.
+    + states     ::Dict{Subshell,Tuple{Float64,Vector{Float64}}} ... subshell -> (energy, B-spline coefficient vector).
+"""
+struct KappaLadder
+    primitives ::Bsplines.Primitives
+    grid       ::Radial.Grid
+    occupied   ::Dict{Subshell,Orbital}
+    states     ::Dict{Subshell,Tuple{Float64,Vector{Float64}}}
+end
+
+
+"""
+`struct  PhotoIonizationPseudostates.LazyLadderOrbitals  <:  AbstractDict{Subshell,Orbital}`
+    ... the `AbstractDict{Subshell,Orbital}` a `ManyElectron.Basis` can now carry (the field was widened from
+        a concrete `Dict` for exactly this, priority item 14) in place of a materialized orbital dict: `bound`
+        is looked up directly, any other subshell is materialized from its owning kappa's `KappaLadder` on
+        `getindex`. **The cache is BOUNDED (an LRU of `maxCache` entries), not merely a memo** -- a first
+        version cached without eviction and was MEASURED to defeat its own purpose: `Hamiltonian.setupMatrix`'s
+        loop over CSF pairs eventually touches very nearly every retained orbital, so an unbounded cache ends
+        up holding close to the same total the eager, pre-item-14 materialization did, just later in the run
+        -- the rbox~17000, two-kappa Fe K-LL case (item 8's own diagnosis case) still drove available memory
+        from 11.9 GB to under 1.5 GB over the ~135 s it took `performCI` to fill the cache, confirmed by a
+        live memory watch before this bound was added. `maxCache` is sized well above the handful of distinct
+        subshells `setupMatrix`'s own `coeff.a/b/c/d` touch within one CSF-pair's coefficient loop, and well
+        above the span needed to keep the OUTER loop index's orbital resident across its whole inner loop (it
+        is touched every iteration, so a true LRU -- refreshed on every hit, not merely on insertion -- never
+        evicts it as long as `maxCache` exceeds the inner-loop working set, which it does by construction).
+        Materializing an orbital is pure and deterministic, so a rare double-materialization race under
+        `cacheLock` (two tasks missing the cache at once) is wasted work, never a wrong answer. `keys`/
+        `length`/`iterate` enumerate subshells without forcing materialization; only `iterate`'s own values
+        do, and nothing performance-critical in this module or in `Hamiltonian`/`PhotoEmission` iterates a
+        `Basis.orbitals` dict -- both reach every orbital via `getindex`, confirmed by reading
+        `Hamiltonian.setupMatrix` and `PhotoEmission.amplitude` before this type was written.
+
+    + bound    ::Dict{Subshell,Orbital}               ... orbitals already materialized (e.g. the bound/initial level's own).
+    + ladders  ::Dict{Int64,KappaLadder}               ... kappa -> that kappa's compact pseudostate ladder.
+    + cache    ::Dict{Subshell,Orbital}                ... the bounded, materialized-on-demand orbital cache.
+    + order    ::Array{Subshell,1}                     ... `cache`'s LRU queue, oldest first; each key appears at most once.
+    + maxCache ::Int64                                 ... the LRU's capacity -- the ACTUAL memory bound this type enforces.
+    + cacheLock::ReentrantLock                         ... guards `cache`/`order` against the concurrent symmetry-block tasks.
+"""
+struct LazyLadderOrbitals <: AbstractDict{Subshell,Orbital}
+    bound     ::Dict{Subshell,Orbital}
+    ladders   ::Dict{Int64,KappaLadder}
+    cache     ::Dict{Subshell,Orbital}
+    order     ::Array{Subshell,1}
+    maxCache  ::Int64
+    cacheLock ::ReentrantLock
+end
+
+LazyLadderOrbitals(bound::Dict{Subshell,Orbital}, ladders::Dict{Int64,KappaLadder}; maxCache::Int64=64) =
+    LazyLadderOrbitals(bound, ladders, Dict{Subshell,Orbital}(), Subshell[], maxCache, ReentrantLock())
+
+
+"""
+`PhotoIonizationPseudostates.touchLruOrder!(d::PhotoIonizationPseudostates.LazyLadderOrbitals, sh::Subshell)`
+    ... marks sh most-recently-used in d's LRU queue (moving it to the end, inserting it if new) and evicts
+        the oldest entries past d.maxCache -- the caller must hold d.cacheLock. Nothing is returned.
+"""
+function touchLruOrder!(d::PhotoIonizationPseudostates.LazyLadderOrbitals, sh::Subshell)
+    idx = findfirst(==(sh), d.order)
+    idx === nothing   ||   deleteat!(d.order, idx)
+    push!(d.order, sh)
+    while  length(d.order) > d.maxCache
+        delete!( d.cache, popfirst!(d.order) )
+    end
+
+    return( nothing )
+end
+
+
+function Base.getindex(d::PhotoIonizationPseudostates.LazyLadderOrbitals, sh::Subshell)
+    haskey(d.bound, sh)   &&   return d.bound[sh]
+
+    cached = Base.@lock d.cacheLock begin
+        orb = get(d.cache, sh, nothing)
+        orb === nothing  ||  PhotoIonizationPseudostates.touchLruOrder!(d, sh)
+        orb
+    end
+    cached !== nothing   &&   return cached
+
+    haskey(d.ladders, sh.kappa)   ||
+        error("PhotoIonizationPseudostates.LazyLadderOrbitals: no ladder carries kappa = $(sh.kappa) ($sh).")
+    ladder = d.ladders[sh.kappa]
+    haskey(ladder.states, sh)   ||
+        error("PhotoIonizationPseudostates.LazyLadderOrbitals: subshell $sh is not one of kappa = $(sh.kappa)'s " *
+              "retained pseudostates.")
+    energy, vector = ladder.states[sh]
+    mtp            = ladder.primitives.grid.NoPoints
+    raw            = Bsplines.generateOrbitalFromPrimitives(sh, energy, mtp, vector, ladder.primitives)
+    orbital        = PhotoIonizationPseudostates.removeOccupiedComponent(raw, ladder.occupied, ladder.grid)
+
+    Base.@lock d.cacheLock begin
+        d.cache[sh] = orbital
+        PhotoIonizationPseudostates.touchLruOrder!(d, sh)
+    end
+
+    return( orbital )
+end
+
+Base.haskey(d::PhotoIonizationPseudostates.LazyLadderOrbitals, sh::Subshell) =
+    haskey(d.bound, sh)   ||   (haskey(d.ladders, sh.kappa)  &&  haskey(d.ladders[sh.kappa].states, sh))
+
+Base.keys(d::PhotoIonizationPseudostates.LazyLadderOrbitals) =
+    vcat( collect(keys(d.bound)), [sh  for ladder in values(d.ladders)  for sh in keys(ladder.states)] )
+
+Base.length(d::PhotoIonizationPseudostates.LazyLadderOrbitals) =
+    length(d.bound) + sum( length(ladder.states)  for ladder in values(d.ladders);  init = 0 )
+
+function Base.iterate(d::PhotoIonizationPseudostates.LazyLadderOrbitals)
+    ks = collect(keys(d))
+    isempty(ks)   &&   return( nothing )
+
+    return( ks[1] => d[ks[1]],  (ks, 2) )
+end
+
+function Base.iterate(d::PhotoIonizationPseudostates.LazyLadderOrbitals, (ks, i))
+    i > length(ks)   &&   return( nothing )
+
+    return( ks[i] => d[ks[i]],  (ks, i+1) )
+end
+
+
+"""
 `PhotoIonizationPseudostates.buildPseudostateLadder(kappa::Int64, finalIonLevel::Level, nm::Nuclear.Model,
                                                       grid::Radial.Grid, boundGrid::Radial.Grid,
                                                       settings::PhotoIonizationPseudostates.Settings)`
@@ -596,6 +731,13 @@ end
         than one dense diagonalization of the whole positive-energy branch -- this is what makes a box
         genuinely matched to a resonance's own width (rbox in the thousands, not capped near rbox~300 by a
         dense diagonalization's memory cost) practical.
+
+        A `ladder::PhotoIonizationPseudostates.KappaLadder` is returned -- the COMPACT (energy, B-spline
+        coefficient vector) form, not materialized orbitals; priority item 14 found every retained state
+        otherwise carrying four full-grid arrays regardless of its own physical extent, which is what made
+        pooling more than one kappa's ladder exhaust memory before `Hamiltonian.performCI` was even reached.
+        An actual `Orbital` (`removeOccupiedComponent` included) is produced only on demand, by
+        `LazyLadderOrbitals.getindex`.
 """
 function buildPseudostateLadder(kappa::Int64, finalIonLevel::Level, nm::Nuclear.Model, grid::Radial.Grid,
                                 boundGrid::Radial.Grid, settings::PhotoIonizationPseudostates.Settings)
@@ -642,15 +784,16 @@ function buildPseudostateLadder(kappa::Int64, finalIonLevel::Level, nm::Nuclear.
                                                                              settings.pseudostateWindow)
     end
 
-    ladder = Dict{Subshell,Orbital}()
-    mtp    = primitives.grid.NoPoints
+    # COMPACT storage only -- priority item 14. No orbital is materialized here; the (energy, vector) pair
+    # alone costs a few MB for the whole ladder, against several GB for the full-grid arrays this loop used
+    # to build eagerly for every one of up to a few hundred retained states.
+    states = Dict{Subshell,Tuple{Float64,Vector{Float64}}}()
     for  (k, (value, vector))  in  enumerate(zip(values, vectors))
-        sh  = Subshell(1000+k, kappa)
-        raw = Bsplines.generateOrbitalFromPrimitives(sh, value, mtp, vector, primitives)
-        ladder[sh] = PhotoIonizationPseudostates.removeOccupiedComponent(raw, finalIonLevel.basis.orbitals, grid)
+        sh          = Subshell(1000+k, kappa)
+        states[sh]  = (value, Vector{Float64}(vector))
     end
 
-    return( ladder )
+    return( PhotoIonizationPseudostates.KappaLadder(primitives, grid, finalIonLevel.basis.orbitals, states) )
 end
 
 
@@ -708,9 +851,12 @@ function computeSpectrum(initialLevel::Level, finalIonLevel::Level, kappas::Arra
     # ONE ladder PER kappa, kept separate here (not yet merged) so the CSF index range each kappa contributes to
     # combinedCsfs, below, can be recorded for weightByKappa -- Subshell(1000+k, kappa) never collides ACROSS
     # kappas, since kappa itself is part of a Subshell's identity, so merging the ladders themselves is safe.
-    laddersByKappa = Dict{Int64,Dict{Subshell,Orbital}}( kappa => PhotoIonizationPseudostates.buildPseudostateLadder(
-                                                          kappa, finalIonLevel, nm, ladderGrid, grid, settings) for kappa in kappas )
-    ladderAll = merge( values(laddersByKappa)... )
+    laddersByKappa = Dict{Int64,PhotoIonizationPseudostates.KappaLadder}(
+                         kappa => PhotoIonizationPseudostates.buildPseudostateLadder(
+                                      kappa, finalIonLevel, nm, ladderGrid, grid, settings) for kappa in kappas )
+    # ALL pseudostate subshells across every kappa, as plain Subshell labels -- cheap, since a KappaLadder's
+    # own `keys` never materializes the orbital behind a label (priority item 14).
+    ladderSubshells = vcat( [collect(keys(laddersByKappa[kappa].states))  for kappa in kappas]... )
 
     # The final ion's own DOMINANT CSF supplies the core occupation every pseudostate configuration shares.
     dominantIdx = argmax( abs.(finalIonLevel.mc) )
@@ -727,7 +873,7 @@ function computeSpectrum(initialLevel::Level, finalIonLevel::Level, kappas::Arra
     # MUST be in Base.isless(::Subshell,...)'s own canonical (n, then |kappa|, then kappa) order -- not a bare
     # vcat/Dict-key order -- since PhotoEmission.amplitude's own internal Basics.merge(...) produces exactly
     # that sorted order and then requires THIS list to appear, in order, as a subsequence of it.
-    extendedSubshells = Base.sort( vcat(initialLevel.basis.subshells, collect(keys(ladderAll))), lt=Base.isless )
+    extendedSubshells = Base.sort( vcat(initialLevel.basis.subshells, ladderSubshells), lt=Base.isless )
     paddedBasis       = ManyElectron.Basis(initialLevel.basis, extendedSubshells)
     boundCsfs         = CsfR[];   for  csf in paddedBasis.csfs
                                       LevelSymmetry(csf.J, csf.parity) == symmetry   &&   push!(boundCsfs, csf)   end
@@ -739,7 +885,7 @@ function computeSpectrum(initialLevel::Level, finalIonLevel::Level, kappas::Arra
     kappaRanges  = Dict{Int64,UnitRange{Int64}}()
     for  kappa  in  kappas
         pseudoRelConfs = ConfigurationR[]
-        for  sh  in  keys(laddersByKappa[kappa])
+        for  sh  in  keys(laddersByKappa[kappa].states)
             subshells = merge( coreOccupation, Dict(sh => 1) )
             push!( pseudoRelConfs, ConfigurationR(subshells, finalIonLevel.basis.NoElectrons + 1) )
         end
@@ -756,7 +902,9 @@ function computeSpectrum(initialLevel::Level, finalIonLevel::Level, kappas::Arra
         kappaRanges[kappa] = startIdx:length(combinedCsfs)
     end
 
-    combinedOrbitals  = merge(initialLevel.basis.orbitals, ladderAll)
+    # LAZY, not merged -- priority item 14. Materializing an Orbital happens only inside Hamiltonian.performCI
+    # and PhotoEmission.amplitude's own getindex calls below, one subshell at a time, cached across both.
+    combinedOrbitals  = PhotoIonizationPseudostates.LazyLadderOrbitals(initialLevel.basis.orbitals, laddersByKappa)
     coreSubshellList  = Subshell[]
     for  (k, sh)  in  enumerate(extendedSubshells)
         mocc = Basics.subshell_2j(sh) + 1;    isFilled = true
