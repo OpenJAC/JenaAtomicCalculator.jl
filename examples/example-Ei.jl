@@ -125,6 +125,19 @@ elseif false
     setDefaults("print summary: close", "")
     #
 elseif false
+    # Last visit:      08-Nov-2026 (FIXED, TWO BUGS, BOTH NEVER REACHED BEFORE TODAY. (1) The box was still
+    #                    the pre-item-51 rbox=90.0, never updated when branch b's own box was widened;
+    #                    `Bsplines.checkGridRepresentation` refused it outright for 6p/7p/8p before the
+    #                    resonance guard this branch exists to test was ever reached -- replaced with the SAME
+    #                    recommendedGrid construction branch b uses (box widens to ~259 a.u.). (2) Fixing (1)
+    #                    let the branch run far enough to hit a SECOND, previously-unreachable bug: the catch
+    #                    block's `split(...)[3]` assumed a multi-line error message, but this guard's own
+    #                    error(s::String) call is one line, so indexing [3] threw a BoundsError INSIDE the
+    #                    catch, crashing the branch right after printing "REFUSED, as it should be: " with
+    #                    nothing after it -- fixed to [1]. VERIFIED end to end, exit code 0: omega=0.35
+    #                    completes, sigma^(2) = 1.23522e+00 (Coulomb) / 1.28087e+00 (Babushkin) GM, 3 final
+    #                    waves; omega=0.375 correctly REFUSES and now prints the full message naming 2p_1/2
+    #                    and the -4.59e-6 denominator.)
     # Last visit:      16-Oct-2026 (RAISED -- see the sweep record)
     # Last successful: unknown ... ROUTE CHANGED 01-Sep-2026; see branch a.
     #
@@ -140,7 +153,11 @@ elseif false
     #   the denominator was 4.6e-6 -- "safe" by that test -- while inflating that one term by 2e5.  It is now
     #   relative to the photon energy, refusing at |denominator| < tolerance * omega with a default of 1e-3.
     setDefaults("print summary: open", "zzz-MultiPhotonIonization-Ei-resonance.sum")
-    grid = Radial.Grid(Radial.Grid(false); rnt=2.0e-6, h=5.0e-2, hp=1.0e-2, rbox=90.0)
+    # SAME construction as branch b (item 51): the pre-08-Nov rbox=90.0 failed Bsplines.checkGridRepresentation
+    # for 6p/7p/8p (needs ~255 a.u.) before this branch ever reached the resonance guard it exists to test.
+    gridWide = Basics.recommendedGrid(Dict(Shell(1,0)=>1, Shell(8,1)=>1), 1.0; printout=false)
+    grid     = Basics.recommendedGrid(Dict(Shell(1,0)=>1, Shell(8,1)=>1), 1.0;
+                                      rbox=gridWide.tL[end], hp=gridWide.tL[end]/3000, printout=false)
     nm   = Nuclear.Model(1.0, Nuclear.PointNucleus(), 0., 0., AngularJ64(0), 0., 0., 0.)
     scfN = Basics.NuclearField();    asfN = AsfSettings(AsfSettings(); scField=scfN, gridStopper=false)
     interConfs = [Configuration("$(n)p")  for n = 2:8]
@@ -157,7 +174,11 @@ elseif false
                                 finalConfigs   = [Configuration("1s^0")],  finalAsfSettings   = asfN,
                                 processSettings = mpiSettings)
         try     perform(wa)
-        catch e print("\n  >> REFUSED, as it should be: ");  println(split(sprint(showerror, e), "\n")[3])
+        # [3] assumed a multi-line, paragraph-style error message; this guard's own error(s::String) call is a
+        # single line, so split(...)[3] was a BoundsError waiting for whoever first got this branch running
+        # end to end (08-Nov-2026, once the box fix above let it reach this guard at all). [1] is the whole
+        # message here and names the subshell, which is what this branch's own REPORT above asks to see.
+        catch e print("\n  >> REFUSED, as it should be: ");  println(split(sprint(showerror, e), "\n")[1])
         end
     end
     setDefaults("print summary: close", "")
