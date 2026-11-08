@@ -129,7 +129,7 @@ function  crossSection2pOneElectron(polarization::Symbol, iOrbital::Orbital, ome
     sigma = 0.
     for  symf  in  finalSyms
         # the continuum orbital of this final symmetry, at the energy fixed by energy conservation
-        nrContinuum = Continuum.gridConsistency(epsilon, grid)
+        nrContinuum = Continuum.gridConsistency(epsilon, grid; minEnergy=epsilon)
         cSettings   = Continuum.Settings(false, nrContinuum)
         fOrbital, _ = Continuum.generateOrbitalLocalPotential(epsilon, Subshell(1001, symf), meanPot, cSettings)
         jf          = AngularMomentum.kappa_j(fOrbital.subshell.kappa)
