@@ -238,8 +238,9 @@ function  computeEvents(finalMultiplet::Multiplet, initialMultiplet::Multiplet, 
     events = ParticleScattering.determineEvents(finalMultiplet, initialMultiplet, settings)
     if  settings.printBefore    ParticleScattering.displayEvents(stdout, events)    end
     # Determine the maximum energy and check the consistency of the grid
-    maxEnergy = 0.;   for  event in events   maxEnergy = max(maxEnergy, event.impactEnergy)   end
-    nrContinuum = Continuum.gridConsistency(maxEnergy, grid)
+    maxEnergy = 0.;          for  event in events   maxEnergy = max(maxEnergy, event.impactEnergy)   end
+    minEnergy = maxEnergy;   for  event in events   minEnergy = min(minEnergy, event.impactEnergy)   end
+    nrContinuum = Continuum.gridConsistency(maxEnergy, grid; minEnergy=minEnergy)
     # The nuclear potential depends only on (nm, grid) and is built once for all events
     nucPot    = Nuclear.nuclearPotential(nm, grid)
     newEvents = ParticleScattering.Event[]
