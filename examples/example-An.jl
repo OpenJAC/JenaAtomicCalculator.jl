@@ -110,7 +110,12 @@ elseif  true
     println("     best match (allowing for the usual overall-sign ambiguity of an eigenvector) = $(min(diffPlus,diffMinus))")
     #
 elseif  false
-    # Last visit:  05-Nov-2026
+    # Last visit:  09-Nov-2026
+    # Last reproduced:  09-Nov-2026 (8 of 8 numbers of the REPORT table below)
+    # Last successful:  09-Nov-2026   M1 4.702e-04 /s and E2 Babushkin 2.621e-01 /s with term-dependent 2p
+    #   orbitals, against M1 4.030e-04 /s and E2 Babushkin 6.698e-02 /s with one shared set; E2 Coulomb is
+    #   structurally zero here and CF = 0.0008 on M1, so what is judged sound is the MECHANISM and the
+    #   qualitative term-sensitivity, not the absolute rates -- see the REPORT below.
     # Branch c: TERM-DEPENDENT orbitals (competition item 14's first test case). The SAME 2p shell of
     #   carbon-like 1s^2 2s^2 2p^2 is optimized SEPARATELY for two different LS terms of the SAME
     #   configuration: orbital set "D", an EOL field targeted (levelSelectionCI) on the ^1D_2 level alone,
@@ -140,15 +145,53 @@ elseif  false
     #     E2 Babushkin [1/s]       2.621e-01                    6.698e-02                    +291%  (~3.9x)
     #   Term-dependence is NOT a small correction here: the E2 rate (in either gauge) changes by a factor of
     #   several, which is itself a believable result for a p^2 forbidden line -- this exact class of
-    #   transition is a textbook example of strong correlation/term sensitivity. BUT the Babushkin/Coulomb
-    #   gauge ratio is enormous in BOTH cases (551 WITH, 167 WITHOUT) and the module's own quality flags both
-    #   read "CF critical" -- an uncorrelated single-configuration DHF calculation is known to be a poor
-    #   description of this kind of forbidden line, so the ABSOLUTE rates above are not to be trusted, only
-    #   the mechanism (independent EOL targets + BoundStatePair biorthogonalization, end to end, no new
-    #   src/ code) and the qualitative conclusion that term-dependence materially changes the computed rate.
-    #   `# Last successful` is deliberately left blank: this needs a human physics judgement (whether the
-    #   relative shift is itself believable, whether a correlated reference configuration would be a fairer
-    #   test), not a mechanical one -- see Rule 7.
+    #   transition is a textbook example of strong correlation/term sensitivity.
+    #
+    #   THE "GAUGE DISAGREEMENT" OF 551 AND 167 IS A NON-FINDING, and the first version of this report was
+    #   wrong to rest its caveat on it -- resolved 09-Nov-2026. It is not a defect in E2, not a correlation
+    #   effect and not a small-omega breakdown. The velocity (Coulomb) form of an ELECTRIC multipole vanishes
+    #   IDENTICALLY between two orbitals of the SAME subshell, because the prefactor (kapa-kapb) and the
+    #   integral I^-(a,a) die together; InteractionStrength.MabEmission's own docstring derives this. Both
+    #   levels of this line come from the ONE configuration 1s^2 2s^2 2p^2, so every one-body E2 contribution
+    #   is diagonal in 2p and the length form carries the whole amplitude. Measured directly on this run's
+    #   own orbitals at omega = 0.0583 Ha: the diagonal 2p_3/2 E2 element is Coulomb -0.0 EXACTLY against
+    #   Babushkin -3.6180e-08, and the single surviving off-diagonal pair 2p_1/2-2p_3/2 is itself suppressed
+    #   by 181 in amplitude (-1.9977e-10 against -3.6148e-08). 181^2 = 3.3e+04 accounts for the measured E2
+    #   rate ratio 2.621e-01/5.947e-06 = 4.4e+04, so the number is explained quantitatively and nothing is
+    #   left over. (The 551 and 167 quoted above are the ratios of the TOTAL rate, which mixes in the
+    #   gauge-invariant M1; that is a reporting defect in the quality table, fixed the same day.)
+    #   AND E2 ITSELF IS SOUND, including at small omega, which was the obvious alternative suspect: on
+    #   hydrogenic ions, where the Dirac orbitals are exact and gauge invariance must therefore be exact,
+    #   JAC's E2 3d->1s agrees between the gauges to 1e-5 at Z = 6 and Z = 20, and E2 3d->3s -- a transition
+    #   split only by the fine structure, omega = 6.6e-04 Ha at Z = 6, four orders of magnitude BELOW this
+    #   line's omega -- agrees to 3-7 % at Z = 6 and 0.2-0.6 % at Z = 20, on rates of 1e-28 and 1e-19.
+    #
+    #   WHAT DOES CONDEMN THE ABSOLUTE RATES IS THE CANCELLATION FACTOR, AND IT FALLS ON M1: CF = 0.0008 in
+    #   both gauges (0.0009 in the term-dependent run). That is the indicator lineQualitySummary's own
+    #   docstring says to assert on, and it is sixty times below Cowan's 0.05 "carries no information"
+    #   threshold -- the M1 amplitude is a residue of a near-cancellation, which is exactly what a
+    #   spin-forbidden 1D2 -> 3P2 line is in a coupling scheme where the two J = 2 states of 2p^2 are jj
+    #   components whose contributions almost annul. M1 dominates the physical line (the measured [C I]
+    #   9850 A total A is ~2e-04 /s, and this run's 4.03e-04 /s is within a factor of two of it -- which on
+    #   CF = 0.0008 is luck, not accuracy). E2 is the healthier of the two here, CF Babushkin = 0.4994.
+    #   So the conclusion of this branch is UNCHANGED but its reason is now the right one: the mechanism
+    #   (independent EOL targets + BoundStatePair biorthogonalization, end to end, no new src/ code) and the
+    #   qualitative term-sensitivity are what this case establishes, while the absolute rates are not to be
+    #   quoted -- because of CF on M1, not because the two gauges disagree.
+    #   AND THE SMALLNESS OF THOSE MATRIX ELEMENTS IS LONG-WAVELENGTH PHYSICS, NOT ROUND-OFF, which is the
+    #   question worth asking of a 3.6e-08 -- measured 09-Nov-2026. Note first WHICH quantity is which: the
+    #   -0.0 and -3.6180e-08 above are reduced one-electron matrix elements <a||O^(E2)||b> in atomic units,
+    #   while the 5.947e-06 and 2.621e-01 of the table are A-values in 1/s. For this line q = omega/c =
+    #   4.1732e-04 a.u., and with <r^2> = 4.5097 a.u.^2 for this 2p_3/2 the leading spherical Bessel function
+    #   is j_2(qr) ~ q^2 <r^2> / 15 = 5.235966e-08 -- which reproduces RadialIntegrals.GrantJL(2, q, 2p, 2p) =
+    #   5.235966e-08 to every printed digit, and times AngularMomentum.JohnsonI(-2, -2, 2) = -0.6909883 gives
+    #   the matrix element -3.617991e-08 exactly. So the magnitude is the (qr)^2 long-wavelength suppression
+    #   of a forbidden E2 at 1.56 eV and nothing else. It is also TRUSTWORTHY at that size: the length-form
+    #   integrand int j_2 (P^2 + Q^2) dr is POSITIVE-DEFINITE for a diagonal pair, so no near-equal numbers
+    #   are subtracted and the element carries full relative precision; and the Coulomb -0.0 is an exact
+    #   signed zero out of the vanishing (kapa - kapb) prefactor, not a 1e-20 residue that happened to print
+    #   as zero. That is why the structural-zero argument above rests on these numbers rather than merely
+    #   being consistent with them.
     grid = Radial.Grid(true)
     nm   = Nuclear.Model(6.)
     config = [Configuration("1s^2 2s^2 2p^2")]
