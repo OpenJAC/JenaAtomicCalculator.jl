@@ -104,6 +104,12 @@ Modules = [MultiPhotonIonization]
 Order   = [:type, :function]
 ```
 
+##  Photoionization with resonance (Fano) interference
+```@autodocs
+Modules = [PhotoIonizationInterference]
+Order   = [:type, :function]
+```
+
 ##  Photorecombination with RR-DR interference
 ```@autodocs
 Modules = [PhotoRecombinationInterference]

@@ -29,6 +29,12 @@ Modules = [Hfs]
 Order   = [:type, :function]
 ```
 
+##  Hyperfine Paschen-Back splittings
+```@autodocs
+Modules = [HfsPaschenBack]
+Order   = [:type, :function]
+```
+
 ##  Isotope shifts
 ```@autodocs
 Modules = [IsotopeShift]
@@ -81,6 +87,12 @@ Order   = [:type, :function]
 ##  Multipole polarizibilities
 ```@autodocs
 Modules = [MultipolePolarizibility]
+Order   = [:type, :function]
+```
+
+##  Long-range dispersion coefficients
+```@autodocs
+Modules = [DispersionCoefficient]
 Order   = [:type, :function]
 ```
 

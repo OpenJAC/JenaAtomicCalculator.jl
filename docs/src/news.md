@@ -6,6 +6,13 @@
 
 # 2026
 
+## Version 0.7.1
+
+* **The declared Julia requirement is corrected to 1.12.** 0.7.0 advertised `julia = "1.10, 1.12"`, but its
+    `SparseArrays` compat bound (added the same day as the Bsplines sparse shift-invert eigensolver) already
+    required the 1.12 stdlib, so installing on Julia 1.10 or 1.11 failed outright. `Project.toml` now states
+    what the package has actually required since 0.7.0; no source code changed. *(November'26)*
+
 ## Version 0.7.0
 
 !!! warning "Four breaking changes"

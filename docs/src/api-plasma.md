@@ -27,6 +27,27 @@ Pages   = ["module-Plasma-inc-superconfiguration-opacity.jl"]
 Order   = [:type, :function]
 ```
 
+## Super-configuration ionization balance
+```@autodocs
+Modules = [Plasma]
+Pages   = ["module-Plasma-inc-superconfiguration-ionization.jl"]
+Order   = [:type, :function]
+```
+
+## Super-configuration mixture opacities
+```@autodocs
+Modules = [Plasma]
+Pages   = ["module-Plasma-inc-superconfiguration-mixture.jl"]
+Order   = [:type, :function]
+```
+
+## Kinetic charge-balance populations
+```@autodocs
+Modules = [Plasma]
+Pages   = ["module-Plasma-inc-kinetic-charge-balance.jl"]
+Order   = [:type, :function]
+```
+
 ## Collisional-radiative level populations
 ```@autodocs
 Modules = [Plasma]
@@ -52,5 +73,11 @@ Order   = [:type, :function]
 ```@autodocs
 Modules = [Plasma]
 Pages   = ["module-Plasma-inc-satellite-diagnostic.jl"]
+Order   = [:type, :function]
+```
+
+##  Super-configurations: unresolved-level statistics
+```@autodocs
+Modules = [SuperConfigurations]
 Order   = [:type, :function]
 ```
