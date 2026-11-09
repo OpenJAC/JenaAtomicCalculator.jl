@@ -310,6 +310,25 @@ function setupMatrix(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::
     # completely ignores the lower one (confirmed: Symmetric([1 2 3; 999 5 6; 999 999 9]) == the honest
     # symmetric matrix, garbage lower-left included) -- so the lower triangle was always discarded even
     # before this change; no mirroring step is needed, only skipping the redundant r>s work.
+    # ITEM 17.  THE ANGULAR COEFFICIENTS ASK FOR THE SAME RADIAL INTEGRAL OVER AND OVER, and until 09-Nov-2026 every
+    # request re-indexed `basis.orbitals` BEFORE anything was evaluated, because those lookups are function ARGUMENTS.
+    # Measured on ordinary CI bases with `tools/probeCiCoefficientReuse.jl`: the average one-particle integral is asked
+    # for 12.0x (17 CSFs), 20.4x (27) and 71.9x (72), and the average two-particle one 6.2x, 12.1x and 67.5x -- and the
+    # ratio GROWS with the CSF count, since the DISTINCT integrals saturate with the SUBSHELL count while the
+    # coefficients grow as O(N^2).
+    #
+    # For an ordinary `Dict` of orbitals a repeated lookup is free, and only the integral was worth memoising -- which
+    # `InteractionStrength.XLCache` already did for the two-particle strengths.  But that cache is consulted INSIDE the
+    # callee, so with a LAZY orbital dictionary -- `PhotoIonizationPseudostates.LazyLadderOrbitals`, whose `getindex`
+    # re-materializes an orbital over an 850465-point grid on an LRU miss -- a cache HIT still paid the full
+    # materialization and then threw it away.  That is why enlarging the LRU could not have helped, and why the fix is
+    # an ORDERING one: the memos below are keyed on SUBSHELLS and are consulted BEFORE any orbital is touched, the
+    # lookups now sitting inside the `get!` closure so that they run only on a miss.  The one-particle integral had no
+    # memo at all, and at 71.9x reuse that cost every CI matrix in JAC, not only the pseudostate case.
+    i1Cache  = Dict{Tuple{Subshell,Subshell},Float64}()
+    qedCache = Dict{Tuple{Subshell,Subshell},Float64}()
+    i2Cache  = Dict{Tuple{Symbol,Int64,Subshell,Subshell,Subshell,Subshell},Float64}()
+
     matrix = zeros(Float64, n, n)
     for  r = 1:n
         for  s = r:n
@@ -324,22 +343,34 @@ function setupMatrix(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::
 
             me = 0.
             for  coeff in waG1
-                me = me + coeff.T * RadialIntegrals.GrantIab(basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid, potential)
+                wk = (coeff.a, coeff.b)
+                me = me + coeff.T * get!(i1Cache, wk) do
+                        RadialIntegrals.GrantIab(basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid, potential)
+                    end
                 if  settings.qedModel != NoneQed()
-                    me = me + InteractionStrengthQED.qedLocal(basis.orbitals[coeff.a], basis.orbitals[coeff.b], nm, settings.qedModel, meanPot, grid)
+                    me = me + get!(qedCache, wk) do
+                        InteractionStrengthQED.qedLocal(basis.orbitals[coeff.a], basis.orbitals[coeff.b], nm,
+                                                       settings.qedModel, meanPot, grid)
+                    end
                 end
             end
 
             for  coeff in waG2
                 if  typeof(settings.eeInteractionCI) in [DiagonalCoulomb, CoulombInteraction, CoulombBreit, CoulombGaunt]
-                    me = me + coeff.V * InteractionStrength.XL_Coulomb(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
-                                                                                 basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid, cache)
+                    wk = (:Coulomb, coeff.nu, coeff.a, coeff.b, coeff.c, coeff.d)
+                    me = me + coeff.V * get!(i2Cache, wk) do
+                            InteractionStrength.XL_Coulomb(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
+                                                                     basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid, cache)
+                        end
                 end
-                                                                                        
+
                 if      typeof(settings.eeInteractionCI) in [BreitInteraction, CoulombBreit, CoulombGaunt]
-                    me = me + coeff.V * InteractionStrength.XL_Breit(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
-                                                                               basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid,
-                                                                               settings.eeInteractionCI, cache)     
+                    wk = (:Breit, coeff.nu, coeff.a, coeff.b, coeff.c, coeff.d)
+                    me = me + coeff.V * get!(i2Cache, wk) do
+                            InteractionStrength.XL_Breit(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
+                                                                   basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid,
+                                                                   settings.eeInteractionCI, cache)
+                        end
                 end
             end
             matrix[r,s] = me
