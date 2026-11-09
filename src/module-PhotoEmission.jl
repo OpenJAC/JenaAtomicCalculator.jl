@@ -666,16 +666,62 @@ end
 
 
 """
+`PhotoEmission.multipoleGaugeRatio(line::PhotoEmission.Line, mp::EmMultipole)`
+    ... the Babushkin/Coulomb RATE ratio carried by the single multipole `mp` of `line`, i.e. |A_Bab|^2 / |A_Cou|^2 formed from that
+        multipole's OWN amplitude rather than from the line's total rate.  A `ratio::Float64` is returned, and it is `NaN` wherever no
+        gauge ratio exists -- which is the point of the function.
+
+        **A GAUGE RATIO BELONGS TO ONE ELECTRIC MULTIPOLE, AND UNTIL 09-Nov-2026 THIS QUANTITY WAS TAKEN FROM THE LINE'S TOTAL RATE.**
+        That is wrong in two ways at once and both were visible in the approved reference: of its 78 MAGNETIC-multipole rows, **52
+        carried a ratio other than 1.0000** -- a magnetic multipole has a single form and cannot have a gauge ratio at all -- and on a
+        mixed M1+E2 line the "ratio" mixed a gauge-INVARIANT contribution into both of its own terms, so it measured neither gauge
+        agreement nor anything else.
+
+        **AND IT IS `NaN`, NOT A LARGE NUMBER, WHERE THE VELOCITY FORM IS STRUCTURALLY ZERO.** For two orbitals of the SAME subshell
+        the Coulomb branch of an electric multipole vanishes identically -- see `InteractionStrength.MabEmission`, which derives it:
+        the prefactor (kapa-kapb) and I^-(a,a) die together, while the length form keeps J_L and stays finite.  A transition INSIDE one
+        configuration is built from such diagonal pairs, so its electric amplitude is carried by the length form alone and there is
+        nothing to compare.  Measured on C I 1s^2 2s^2 2p^2 at omega = 0.0583 Ha: the diagonal 2p_3/2 E2 element is Coulomb -0.0 exactly
+        against Babushkin -3.6180e-08, and the one surviving OFF-diagonal pair 2p_1/2-2p_3/2 is itself suppressed by 181 in amplitude
+        (-1.9977e-10 against -3.6148e-08) -- 181^2 = 3.3e+04, which is the whole of the 4.4e+04 rate "disagreement" that
+        `examples/example-An.jl` branch c reported as a gauge failure.  Reporting that as an alarm sends a reader hunting a defect in
+        E2 that is not there; the sound indicator on such a line is the CANCELLATION FACTOR, and on that same line it is 0.0008.
+"""
+function  multipoleGaugeRatio(line::PhotoEmission.Line, mp::EmMultipole)
+    !mp.electric  &&  return( NaN )
+    for  ma  in  line.amplitudes
+        if  ma.multipole == mp
+            aC = abs2(ma.amplitude.Coulomb);    aB = abs2(ma.amplitude.Babushkin)
+            return( aC == 0.0  ?  NaN  :  aB / aC )
+        end
+    end
+
+    return( NaN )
+end
+
+
+"""
 `PhotoEmission.qualityVerdict(cf::Float64, ratio::Float64)`
     ... turns a cancellation factor and a Babushkin/Coulomb rate ratio into the one-word verdict used in the quality
         table; a `verdict::String` is returned.  It exists so that the printed table and the value handed back by
         `PhotoEmission.lastQualityFlags()` cannot drift apart -- the thresholds live here and nowhere else.
+
+        **THE TIERS ABOVE A FACTOR OF TWO ARE SEPARATE, added 09-Nov-2026, because a single top class made the indicator
+        useless exactly where it matters most.** Until then every deviation above 1.0 read `gauges x2+`, so a ratio of 2
+        and a ratio of 138 -- both present in the approved reference, 16 rows of it -- were reported in the same words,
+        on a near-neutral system where this module's own `lineQualitySummary` records that the gauge ratio IS evidence.
+        A `NaN` ratio now reads `gauge n/a` rather than `no rate`: it means the question does not apply to this row, which
+        is the case for every magnetic multipole and for an electric one whose velocity form is structurally zero
+        (`PhotoEmission.multipoleGaugeRatio`).
 """
 function  qualityVerdict(cf::Float64, ratio::Float64)
     dev = isnan(ratio) ? NaN : abs(ratio - 1.0)
     if      cf < 0.05        return( "CF critical" )
     elseif  cf < 0.10        return( "CF low" )
-    elseif  isnan(ratio)     return( "no rate" )
+    elseif  isnan(ratio)     return( "gauge n/a" )
+    elseif  dev > 1.0e3      return( "gauges x1000+" )
+    elseif  dev > 1.0e2      return( "gauges x100+" )
+    elseif  dev > 1.0e1      return( "gauges x10+" )
     elseif  dev > 1.0        return( "gauges x2+" )
     elseif  dev > 0.5        return( "gauges 50%+" )
     elseif  dev > 0.2        return( "gauges 20-50%" )
@@ -688,7 +734,7 @@ end
 `PhotoEmission.lineQualitySummary(line::PhotoEmission.Line, qualities::Array{PhotoEmission.LineQuality,1})`
     ... condenses one line's quality indicators into the measured quantities a caller can assert on; a NamedTuple
         `(initialLevel, finalLevel, omega, worstCancellation, worstMultipole, gaugeRatio, gaugeDeviation, verdict,
-        cancellations)` is returned.  `cancellations` keeps the per-multipole detail as (multipole, Coulomb,
+        cancellations, gaugeRatios, totalRateRatio)` is returned.  `cancellations` keeps the per-multipole detail as (multipole, Coulomb,
         Babushkin) triples, and `worstCancellation` is the smallest of them over both gauges.
 
         **THE FIELD TO ASSERT ON IS `worstCancellation`, AND `gaugeDeviation` MUST NOT BE USED ALONE.**  Below 0.10
@@ -698,22 +744,48 @@ end
         Bi, where the two gauges agreed to 2 % throughout.**  So gauge agreement is evidence on a near-neutral
         system and no evidence at all on a highly charged one, and the two indicators fail INDEPENDENTLY: a line
         can be sound in one and not the other, and CF = 1 is not an endorsement.
+
+        **`gaugeRatio` IS PER ELECTRIC MULTIPOLE SINCE 09-Nov-2026, AND IT IS THE WORST ONE THAT EXISTS.**  It used to
+        be the ratio of the line's TOTAL rates, which on a mixed multipole list is not a gauge ratio at all;
+        `gaugeRatios` now carries one entry per multipole, `NaN` where the question does not apply, and
+        `PhotoEmission.multipoleGaugeRatio` holds the measurement that made this necessary.  A line all of whose
+        multipoles are magnetic, or whose electric ones have a structurally zero velocity form, therefore reports
+        `gaugeRatio = NaN` and the verdict `gauge n/a` -- which is the honest reading and was previously a loud
+        alarm pointing at a defect that does not exist.
+
+        **AND THE TOTAL-RATE RATIO IS KEPT BESIDE IT AS `totalRateRatio`, BECAUSE THE TWO ANSWER DIFFERENT QUESTIONS
+        AND NEITHER REPLACES THE OTHER.**  The total says how far apart the two gauges put THIS LINE'S RATE, which is
+        what a user quoting the rate needs;  the per-multipole number says WHICH multipole is responsible, which the
+        total cannot.  Measured on the suite's own Kr case, `15 -> 1`: the total ratio is 1.82 and the E2 ratio is
+        **3.76e+04**, and that is not a subdominant multipole being ignored -- E2 carries 7.21e+03 /s of the
+        Babushkin rate against M1's 8.76e+03 /s and essentially nothing of the Coulomb rate (1.92e-01 /s).  The old
+        single number was therefore not merely mis-attributed but BLIND: on that one test case 28 electric rows read
+        `ok` on a total pinned near 1 by a dominant partner, while their own multipole stood at 2x, 8x, 15x, 30x and
+        once 3.8e+04.  **That is the reverse of this project's usual detector failure, and the more dangerous
+        direction.**
 """
 function  lineQualitySummary(line::PhotoEmission.Line, qualities::Array{PhotoEmission.LineQuality,1})
-    ratio = line.photonRate.Coulomb != 0. ? line.photonRate.Babushkin / line.photonRate.Coulomb : NaN
-    worst = Inf;   worstMp = nothing
+    worst = Inf;   worstMp = nothing;   ratio = NaN;   worstDev = -1.0
+    totalRatio = line.photonRate.Coulomb != 0. ? line.photonRate.Babushkin / line.photonRate.Coulomb : NaN
     cancellations = Tuple{EmMultipole,Float64,Float64}[]
+    gaugeRatios   = Tuple{EmMultipole,Float64}[]
     for  lq  in  qualities
         push!(cancellations, (lq.multipole, lq.cancellation.Coulomb, lq.cancellation.Babushkin))
         cf = min(lq.cancellation.Coulomb, lq.cancellation.Babushkin)
         if  cf < worst    worst = cf;    worstMp = lq.multipole    end
+        # The line's gauge ratio is the worst of those its multipoles individually define; a magnetic multipole and
+        # a structurally zero velocity form each define none, and must not be allowed to stand in for one.
+        mpRatio = PhotoEmission.multipoleGaugeRatio(line, lq.multipole)
+        push!(gaugeRatios, (lq.multipole, mpRatio))
+        if  !isnan(mpRatio)  &&  abs(mpRatio - 1.0) > worstDev    worstDev = abs(mpRatio - 1.0);   ratio = mpRatio    end
     end
     isempty(qualities)  &&  (worst = NaN)
 
     return( (initialLevel = line.initialLevel.index, finalLevel = line.finalLevel.index, omega = line.omega,
              worstCancellation = worst, worstMultipole = worstMp, gaugeRatio = ratio,
              gaugeDeviation = isnan(ratio) ? NaN : abs(ratio - 1.0),
-             verdict = PhotoEmission.qualityVerdict(worst, ratio), cancellations = cancellations) )
+             verdict = PhotoEmission.qualityVerdict(worst, ratio), cancellations = cancellations,
+             gaugeRatios = gaugeRatios, totalRateRatio = totalRatio) )
 end
 
 
@@ -760,7 +832,12 @@ end
 
         + The GAUGE RATIO is about the ORBITALS AND THE CORRELATION. Length and velocity forms agree exactly only for
           exact wave functions, so a ratio far from 1 says the description is incomplete. It says nothing about
-          cancellation: a transition can have CF = 1 in both gauges and still disagree by a factor of two.
+          cancellation: a transition can have CF = 1 in both gauges and still disagree by a factor of two. It is
+          shown PER MULTIPOLE and reads `n/a` where no such ratio exists -- for every magnetic multipole, which has
+          a single form, and for an electric one between two orbitals of the SAME subshell, where the velocity form
+          vanishes identically (`InteractionStrength.MabEmission` derives it). A transition INSIDE one configuration
+          is of that kind, so its length form carries the whole amplitude and an enormous "ratio" means only that
+          the other column is empty. Read the CANCELLATION FACTOR on such a line instead.
 
         The verdict column flags whichever is worse. Neither test can prove a number right; both can show one that
         should not be quoted without saying so.
@@ -770,6 +847,8 @@ function  displayQualityFlags(stream::IO, lines::Array{PhotoEmission.Line,1}, qu
     nx = 130
     println(stream, " ")
     println(stream, "  Quality indicators:  Cowan cancellation factor per gauge, and the Babushkin/Coulomb rate ratio")
+    println(stream, "  of THAT multipole;  n/a where no gauge ratio exists (a magnetic multipole, or a velocity form")
+    println(stream, "  that is structurally zero -- see PhotoEmission.multipoleGaugeRatio).")
     println(stream, " ")
     println(stream, "  ", TableStrings.hLine(nx))
     sa = "  ";   sb = "  "
@@ -785,9 +864,11 @@ function  displayQualityFlags(stream::IO, lines::Array{PhotoEmission.Line,1}, qu
     println(stream, sa);    println(stream, sb);    println(stream, "  ", TableStrings.hLine(nx))
 
     for  (i, line)  in  enumerate(lines)
-        ratio = line.photonRate.Coulomb != 0. ? line.photonRate.Babushkin / line.photonRate.Coulomb : NaN
         for  lq in qualities[i]
             cf = min(lq.cancellation.Coulomb, lq.cancellation.Babushkin)
+            # ONE ROW, ONE MULTIPOLE, so the ratio is that multipole's own and not the line's total -- a magnetic
+            # multipole has a single form and gets no ratio at all.  See PhotoEmission.multipoleGaugeRatio.
+            ratio   = PhotoEmission.multipoleGaugeRatio(line, lq.multipole)
             # The verdict names whichever indicator is worse; a line can be sound in one and not the other.
             verdict = PhotoEmission.qualityVerdict(cf, ratio)
             sa = "  "
@@ -798,7 +879,7 @@ function  displayQualityFlags(stream::IO, lines::Array{PhotoEmission.Line,1}, qu
             sa = sa * TableStrings.center(8, string(lq.multipole); na=3)
             sa = sa * @sprintf("%10.4f", lq.cancellation.Coulomb)   * "    "
             sa = sa * @sprintf("%10.4f", lq.cancellation.Babushkin) * "    "
-            sa = sa * (isnan(ratio) ? TableStrings.center(10, "--"; na=0) : @sprintf("%10.4f", ratio)) * "    "
+            sa = sa * (isnan(ratio) ? TableStrings.center(10, "n/a"; na=0) : @sprintf("%10.4f", ratio)) * "    "
             sa = sa * TableStrings.center(14, verdict; na=2)
             println(stream, sa)
         end
