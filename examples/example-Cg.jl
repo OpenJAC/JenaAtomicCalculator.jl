@@ -44,6 +44,9 @@ if  false
     wb = perform(wa)
     #
 elseif  false
+    # Last visit:  09-Nov-2026 (RAN CLEAN STANDALONE in ~91 s, well under the 500 s cap -- see the report
+    #                            directly below. The 07/08-Nov "TIMED OUT" was sweep contention, not a defect:
+    #                            item 18's own box-widening diagnosis was never needed.)
     # Last visit:  08-Nov-2026 (TIMED OUT at 500 s -- an overnight sweep cap; this branch's own "Grid check"
     #                            warning at startup already flags its box as 10.1 a.u. against a comfortable
     #                            20.2 a.u. for 4s_1/2, and the run then cycles through many continuum
@@ -51,7 +54,22 @@ elseif  false
     #                            related, not re-measured to confirm; the box-widening fix is NOT attempted
     #                            here, since it needs a baseline run to verify against first)
     # Last visit:  07-Nov-2026
-    # Last successful:  31-Jul-2026
+    # Last successful:  31-Jul-2026 (physics still close -- see the 09-Nov note on the small, expected drift)
+    #
+    # ITEM 18 CLOSED 09-Nov-2026, NOT A DEFECT -- NEITHER HALF OF ITS OWN DIAGNOSIS SURVIVED. Standalone on a
+    #   quiet machine this branch completes in ~91 s; the 500 s "TIMED OUT" seen on 07/08-Nov was two heavy
+    #   sweep jobs sharing one CPU, not a hang, so there was never a timeout to fix.
+    #   AND THE "Grid check" / extent-box WARNING IS A FALSE POSITIVE, CONFIRMED DIRECTLY rather than assumed
+    #   from the Z_eff/n>=3 screen (register section D, item 86) -- that screen does not obviously cover a
+    #   valence 4s orbital at Z_eff ~ 2 in a K-hole ion, so it was checked rather than trusted. Three box
+    #   sizes, rbox = 10 (flagged "NOT adequate", extent/box = 0.985) / 25 ("adequate", 0.484) / 35: ALL THREE
+    #   give the IDENTICAL table, omega_R = 1.7257e-01/1.7925e-01 (Cou/Bab), omega_A = 8.2743e-01/8.2075e-01,
+    #   to every figure shown. No `src/` or grid change was made -- there was nothing to fix.
+    #   THE SMALL DRIFT FROM THE 31-Jul-2026 CLAIM (0.1703/0.1720/0.8297/0.8280 then, 1.3-4.2 % away now) is
+    #   NOT re-examined here: it is the already-settled mechanism of register row 9(c) -- the file-wide
+    #   continuum-normalization convention changed under this branch between the two dates (the 03-Nov-2026
+    #   `Continuum` rewrite), the same way it did for `example-Dd.jl`. `Last successful` is left as it stood;
+    #   whether a 1-4 % shift from a known, settled cause still counts as "successful" is the maintainer's call.
     # Branch b: Ca (Z=20) K-shell hole, "1s 2s^2 2p^6 3s^2 3p^6 4s^2" (19 electrons; neutral Ca [Ar]4s^2
     #   minus one 1s electron) -- matches Koziol's own valence configuration "4s^2" for Ca exactly.
     #   Target omega_K (Koziol Table VI/VII, four MCDF/RATIP model variants C+F/B+F/C+R/B+R):
