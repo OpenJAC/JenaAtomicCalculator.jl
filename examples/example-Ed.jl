@@ -3,16 +3,61 @@ println("Ed) Test of the Photoionization module, field-free and Debye-screened (
 
 setDefaults("print summary: open", "zzz-PhotoIonization-Plasma.sum")
 setDefaults("method: continuum, Galerkin")
-setDefaults("method: normalization, pure sine")   ## setDefaults("method: normalization, pure Coulomb")    setDefaults("method: normalization, pure sine")
+setDefaults("method: normalization, Coulomb functions")   ## pure sine was shown 09-Nov-2026 to be UNCONVERGED
+                                                            ## here at every box tried -- see the report below.
+                                                            ## setDefaults("method: normalization, pure sine")
 
 if  true
-    # Last visit:  08-Nov-2026 (RAISED -- Continuum.normalizeOrbitalPureSine() STOPs on the lambda=2 Debye run:
-    #                            the newly-opened 2s channel sits only 0.6136 Ha above its screened threshold,
-    #                            a near-threshold continuum electron the register's own section D already
-    #                            covers as "no box cures this" -- but no PRIOR visit recorded hitting it on
-    #                            THIS branch; filed as a new item for someone to compare against 15-Oct)
+    # Last visit:  09-Nov-2026 (the method below was switched; see the report)
+    # Last visit:  08-Nov-2026 (RAISED -- Continuum.normalizeOrbitalPureSine() STOPs; FIRST DIAGNOSIS WAS WRONG,
+    #                            see 09-Nov below -- it is not the lambda=2 Debye run or a "newly-opened 2s
+    #                            channel", it is the 2p_1/2-hole channel at omega=3000 eV in EVERY row,
+    #                            field-free included, at only 0.6136 Ha above its threshold)
     # Last visit:  20-Oct-2026
-    # Last successful:  15-Oct-2026
+    # Last successful:  unknown ... WITHDRAWN 09-Nov-2026, see the report directly below. The 15-Oct-2026 claim
+    #                              rested on `pure sine` normalization, now shown unconverged for this branch;
+    #                              the replacement numbers are verified box-independent but need a human's
+    #                              physics judgement before they earn their own date (Rule 7).
+    #
+    # WITHDRAWN AND REPLACED 09-Nov-2026 -- `pure sine` DOES NOT CONVERGE HERE, AT ANY BOX, AND THE 15-Oct-2026
+    #   CLAIM BELOW IS THE CASUALTY.  Triggered by investigating priority item 19 (itself filed on a wrong
+    #   diagnosis -- it blamed "the lambda=2 Debye run" and a "newly-opened 2s channel"; the STOP is actually the
+    #   ORDINARY 2p_1/2-hole channel, present in every row of this branch, whose photoelectron sits at only
+    #   16.7 eV = 0.6136 Ha above threshold at omega = 3000 eV REGARDLESS of screening).  The guard that now
+    #   catches it (`Continuum.normalizeOrbitalPureSine`'s rms-misfit check) was rewritten 03-Nov-2026 -- AFTER
+    #   the 15-Oct-2026 date below -- so the 15-Oct run never saw it; it is a stricter check, not a regression.
+    #
+    #   WIDENING THE BOX IS NOT THE FIX, AND THIS IS THE PART WORTH READING. The field-free total at omega =
+    #   3000 eV, under `pure sine`, across three box sizes: rbox = 10 (the dated run) gives 2.212e5 barn,
+    #   rbox = 25 gives 2.618e5, rbox = 35 gives 2.112e5 -- NOT monotonic, NOT converging, exactly the register's
+    #   own settled warning that "no box of any size holds one wave at threshold" applied to a channel that
+    #   LOOKED ordinary. `pure sine` is the wrong tool here, not merely under-resourced.
+    #
+    #   `Coulomb functions` normalization, by contrast, is VERIFIED BOX-INDEPENDENT: the field-free total at
+    #   omega = 3000 eV is 1.202330e5 barn at rbox = 10, 25 AND 35 -- identical to six figures every time. That
+    #   is why the branch now sets this method by default (see line 6).
+    #
+    #   AND THE OLD "0.948 / 0.976" CROSS-ROUTE CHECK WAS ACCIDENTALLY RIGHT FOR THE WRONG REASON. Under
+    #   `Coulomb functions`, the lambda = 1000 a_o (near-field-free) screened total matches the field-free total
+    #   to 1.0000 and 0.9999 at the two omegas -- which is what weak screening SHOULD give, far tighter than the
+    #   old 0.948/0.976. The old deviation was read as "a plausible 5 % screening effect"; it was mostly
+    #   `pure sine` not having converged in one of the two routes being compared.
+    #
+    #   NEW NUMBERS, VERIFIED BOX-INDEPENDENT (rbox = 10/25/35 agree to six figures), `Coulomb functions`,
+    #   09-Nov-2026, total cross section summed over final levels, in barn:
+    #                                   omega = 3000 eV        omega = 3200 eV
+    #     field-free  computeLines        1.20233e5              1.30999e5
+    #     screened    lambda = 1000 a_o   1.20233e5  (1.0000)     1.30993e5  (0.9999)
+    #     screened    lambda =   10 a_o   1.20273e5              1.30934e5
+    #     screened    lambda =    2 a_o   1.55855e5              1.31668e5
+    #
+    #   The "No lines" column (2, 2, 2 -> 3 at omega = 3000; 3 throughout at omega = 3200) is UNCHANGED from the
+    #   15-Oct report, so the channel-opening EXPLANATION in the paragraphs below still holds; only the MAGNITUDES
+    #   were wrong.  Note lambda = 2's row barely moved (1.558546e5 against the old 1.558702e5) -- it happens to
+    #   be the one row where `pure sine` was, by chance, already close to converged at rbox = 10.
+    #
+    #   NOT DATED.  The numbers are now trustworthy by the box-independence test, but whether THIS replaces a
+    #   "successful" claim is a human judgement (Rule 7), not a reproduction check -- left for the maintainer.
     # REWRITTEN 31-Aug-2026. It drove the retired PlasmaShift module -- PlasmaShift.PhotoSettings passed to an
     #   Atomic.Computation -- and PlasmaShift no longer exists anywhere in src/: it was folded into Plasma on
     #   09-Aug-2026, and the route through Atomic.Computation is gone with it. The current route is
@@ -31,6 +76,8 @@ if  true
     #
     # System: Kr^26+ (Ne-like), 1s^2 2s^2 2p^6 -> 2p^-1 and 2s^-1, at 3000 and 3200 eV, E1, Coulomb gauge.
     #
+    # [SUPERSEDED 09-Nov-2026 -- kept for the CHANNEL-OPENING EXPLANATION below, which is still correct; the
+    #   NUMBERS quoted in this block are the ones shown unconverged above and must not be read as current.]
     # MEASURED 31-Aug-2026, total cross section summed over final levels, in barn:
     #                                   omega = 3000 eV        omega = 3200 eV
     #     field-free  computeLines        2.212e5                1.734e5
