@@ -203,6 +203,25 @@ if  false
     # COULOMB while the rate anomaly sat in Babushkin, so it is NOT explained by the length-form fix and should be
     # re-measured before anything is concluded about it.
     #
+    # WHICH ORBITAL SET A SECOND-ORDER AMPLITUDE SHOULD LIVE ON -- MEASURED 09-Nov-2026, and this is the one piece of
+    # guidance to carry to any OTHER system or transition computed with this module. Two validity conditions come first
+    # and are not negotiable: the Green space must be DISJOINT from both CI spaces, and all three multiplets must share
+    # ONE orbital set. TwoElectronOnePhoton.checkSecondOrderConditions tests both, names what it finds, and its
+    # docstring carries the derivation and the numbers. What stayed open until now was WHICH one set, and
+    # tools/probeSecondOrderOrbitalSet.jl answers it on the He-like Ne method case by changing ONLY the configuration
+    # list the single SCF runs over (second order / full CI, with the rate relative to the union set in brackets):
+    #     union of all three spaces 0.996749 [1.0000]   initial + final 0.998628 [1.0622]   final alone 0.998028
+    #     [1.0407]   Green space alone 0.993243 [0.8420]   initial + 1s^2 only 0.999291 [1.0886]
+    # WHICH SET DOES NOT DECIDE VALIDITY: once the two conditions hold, second order reproduces the full CI on whatever
+    # set it is handed, every ratio within 0.7 % of unity -- against the 3.70 / 6.10 / 0.108 that a violated condition
+    # produces. WHICH SET DECIDES THE NUMBER, by up to 29 %, so it is an ORDINARY basis choice: name it in the recorded
+    # path (Rule 21) and compare it like any other. DO NOT optimize the orbitals on the Green space -- it is the worst
+    # choice on both counts, poorest ratio and a rate 16 % below the union. The initial-weighted set is the most
+    # self-consistent, as "the series is referenced to E_i" predicts, but by 0.25 % where the basis spread is 29 %.
+    # AND NOTE WHAT THAT MEANS FOR THIS BRANCH: it does NOT put its two strategies on a common basis -- its own note
+    # above says so -- so it is a STRATEGY COMPARISON, not a validated second-order number. The validated geometry is
+    # TestFrames.testModule_TwoElectronOnePhoton, which meets both conditions and reads 0.996749.
+    #
     # Nothing here is benchmarked against an independent literature value for this synthetic system, so this branch
     # stays dated "Last visit", not "Last successful" (Rule 7).
     #

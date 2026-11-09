@@ -278,7 +278,29 @@ end
         WITH BOTH CONDITIONS MET the explicit second order reproduces the same rate obtained by full CI to 0.3 % on that case.
         These are therefore the conditions under which the module is VALIDATED, not a counsel of perfection, and the two errors
         can hide each other:  the test above read 3.70 with both violated, 6.10 with only (a), and 0.997 with neither.  Build
-        the three multiplets on one orbital set with `Hamiltonian.performCIwithFrozenOrbitals`.
+        the three multiplets on one orbital set with `Hamiltonian.performCIwithFrozenOrbitals`, or -- since 05-Nov-2026 -- on
+        the ordinary `perform` route, by handing `Basics.GivenOrbitals(...)` through the `orbitalSource` field that both
+        `AtomicState.Representation` and `Atomic.Computation` now carry.
+
+        WHICH ONE SET, THEN?  MEASURED 09-Nov-2026 with `tools/probeSecondOrderOrbitalSet.jl`, because until then this had been
+        argued and never run.  Five choices of the single SCF, everything else identical on the same He-like Ne case, the union
+        row reproducing the 0.996749 above to six figures as the probe's own calibration:
+
+            SCF performed over              second order / full CI      rate relative to the union set
+            union of all three spaces              0.996749                       1.0000
+            initial + final (no Green)             0.998628                       1.0622
+            final CI space alone                   0.998028                       1.0407
+            Green space alone                      0.993243                       0.8420
+            initial + 1s^2 only                    0.999291                       1.0886
+
+        WHICH SET DOES NOT DECIDE VALIDITY.  Once (a) and (b) hold, second order reproduces the full CI on WHATEVER set it is
+        handed:  every ratio lies within 0.7 % of unity, against the 3.70 / 6.10 / 0.108 that a violated condition produces.
+        WHICH SET DECIDES THE NUMBER, by up to 29 % (0.8420 to 1.0886), so it is an ORDINARY basis choice -- name it in the
+        recorded path of the calculation and compare it like any other, rather than looking for a special second-order
+        mechanism.  The initial-weighted set is indeed the most self-consistent, as "the series is referenced to E_i" predicts,
+        but by 0.25 % where the basis spread is 29 %.  AND DO NOT OPTIMIZE THE ORBITALS ON THE GREEN SPACE:  it is the worst
+        choice on both counts, poorest ratio and a rate 16 % below the union.  One system, one geometry, one gauge -- a second
+        case would strengthen this, and nothing here is contradicted by a wider basis.
 """
 function checkSecondOrderConditions(finalMultiplet::Multiplet, initialMultiplet::Multiplet, gMultiplet::Multiplet,
                                     grid::Radial.Grid)
