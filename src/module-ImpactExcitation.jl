@@ -9,10 +9,29 @@ using   Distributed, FastGaussQuadrature, GSL, SpecialFunctions, Printf,
         ..AngularMomentum, ..Basics, ..Bsplines, ..Continuum, ..Defaults, ..InteractionStrength, ..ManyElectron,
         ..Nuclear, ..Radial, ..SpinAngular, ..TableStrings, ..RadialIntegrals
 
-## Relative change of sum |amplitude|^2 contributed by the last partial wave, below which the kappa summation
+## Relative contribution to the weighted collision strength from the last kappa shell, below which the summation
 ## counts as converged. Used BOTH to terminate that summation in computeAmplitudesProperties() and to flag the
 ## lines that never reached it in displayResults() -- the two must not be allowed to drift apart.
 const convergenceCriterion = 1.0e-5
+
+# A shell-size diagnostic, not an estimate of the entire omitted tail or of DCS convergence.
+function updateShellConvergence(shell::Float64, total::Float64, consecutive::Int64)
+    isfinite(shell) && isfinite(total) && shell >= 0. && total >= 0. ||
+        error("ImpactExcitation: non-finite or negative partial collision strength.")
+    relative = total > 0. ? shell / total : Inf
+    consecutive = relative < convergenceCriterion ? consecutive + 1 : 0
+    return relative, consecutive
+end
+
+# One continuum-normalization convention for both integrated and differential observables.
+function collisionStrengthNormalization(Ti::Float64, Tf::Float64)
+    isfinite(Ti) && isfinite(Tf) && Ti > 0. && Tf > 0. ||
+        error("ImpactExcitation: incoming and outgoing continuum energies must be finite and strictly positive.")
+    c = Defaults.getDefaults("speed of light: c")
+    qi = sqrt(2Ti + (Ti/c)^2); qf = sqrt(2Tf + (Tf/c)^2)
+    Ei = Ti + c^2; Ef = Tf + c^2
+    return 4pi^2 * sqrt((Ei+c^2)*(Ef+c^2)/(Ei*Ef)) * Ti*Tf / (qi*qf)^2
+end
 
 
 """
@@ -66,7 +85,8 @@ end
             `nothing` -- the default -- lets `Basics.perform` decide automatically from the final-ion `AsfSettings.scField`
             (`Continuum.resolveExchangeDefault`, item 99).  A Symbol instead selects the exchange model of the continuum
             potential itself, and is then used as given: :Slater, :FurnessMcCarthy or :none (Continuum.continuumPotential).
-    + calcDCS                  ::Bool               ... True, if differential cross sections are to be calculated.
+    + calcDCS                  ::Bool               ... True, if differential cross sections are to be calculated. Computes every shell
+                                                        through max(maxKappa, coulombBetheKappa); ICS convergence alone never stops a DCS run.
     + angles                   ::Array{Float64,1}   ... Angles in degrees for calculating differential cross sections.
     + cacheAngularCoefficients ::Bool               ... Cache SpinAngular coefficient tables across energies in this run.
     + cacheRadialIntegrals     ::Bool               ... Cache radial integrals within each individual line/energy.
@@ -74,8 +94,8 @@ end
                                                         (Continuum.orthogonalizeToBasis), as the spin-angular coefficients assume.
     + asymptoticTail           ::Bool               ... Add the part of the direct Coulomb integrals beyond the radial box
                                                         (ImpactExcitation.tailCorrection).
-    + topUp                    ::Bool               ... Add the partial waves beyond maxKappa by geometric extrapolation of the
-                                                        last two kappa shells (ImpactExcitation.topUpCollisionStrength).
+    + topUp                    ::Bool               ... Geometrically extrapolate the last two computed kappa shells in the ICS only.
+                                                        Does not top up the DCS; a warning reports any added contribution with calcDCS.
     + exchangeMaxL             ::Int64              ... Exchange terms of the amplitude are kept only for channels whose incoming
                                                         and outgoing partial waves both have l <= exchangeMaxL (40, the lamex of the
                                                         relativistic distorted-wave code); beyond that exchange is negligible.
@@ -279,7 +299,7 @@ end
     + angles                 ::Array{Float64,1}   ... angles for differential cross section calculation.
     + dcs                    ::Array{Float64,1}   ... differential cross sections for these angles.
     + channels               ::Array{ImpactExcitation.Channel,1}  ... List of ImpactExcitation channels of this line.
-    + convergence            ::Float64       ... convergence of calculation
+    + convergence            ::Float64       ... last kappa shell / weighted collision-strength sum; not a remainder bound or DCS error estimate.
 """
 struct  Line
     initialLevel             ::Level
@@ -682,7 +702,7 @@ end
     + l           ::Int64     ... orbital angular momentum of the large component.
     + A           ::Float64   ... coefficient of the regular Coulomb function F_l.
     + B           ::Float64   ... coefficient of the irregular Coulomb function G_l.
-    + fitError    ::Float64   ... |P_fit - P_grid| / sqrt(A^2+B^2) at an intermediate point; the quality of the continuation.
+    + fitError    ::Float64   ... |P_fit - P_grid| / sqrt(A^2+B^2) at an intermediate point; NaN marks the analytic barrier fallback.
 """
 struct  ContinuumTail
     r0            ::Float64
@@ -704,21 +724,23 @@ end
     + tails       ::Dict{Subshell, ImpactExcitation.ContinuumTail}    ... continuation of each continuum orbital.
     + moments     ::Dict{Tuple{Int64,Subshell,Subshell}, Float64}     ... bound multipole moments M_L(a,c).
     + integrals   ::Dict{Tuple{Int64,Subshell,Subshell}, Float64}     ... tail integrals int_r0^infinity P_b P_d r^-(L+1) dr.
+    + regularAboveKappa ::Int64                                    ... waves above this cutoff were generated analytically as regular Coulomb waves.
 """
 struct  TailCache
     Zion          ::Float64
     tails         ::Dict{Subshell, ImpactExcitation.ContinuumTail}
     moments       ::Dict{Tuple{Int64,Subshell,Subshell}, Float64}
     integrals     ::Dict{Tuple{Int64,Subshell,Subshell}, Float64}
+    regularAboveKappa ::Int64
 end
 
 
 """
-`ImpactExcitation.TailCache(Zion::Float64)`
+`ImpactExcitation.TailCache(Zion::Float64; regularAboveKappa::Int64=typemax(Int64))`
     ... constructor for an empty tail cache of a line with target-ion charge Zion; a cache::ImpactExcitation.TailCache is returned.
 """
-TailCache(Zion::Float64) = TailCache(Zion, Dict{Subshell, ContinuumTail}(), Dict{Tuple{Int64,Subshell,Subshell}, Float64}(),
-                                     Dict{Tuple{Int64,Subshell,Subshell}, Float64}())
+TailCache(Zion::Float64; regularAboveKappa::Int64=typemax(Int64)) = TailCache(Zion, Dict{Subshell, ContinuumTail}(), Dict{Tuple{Int64,Subshell,Subshell}, Float64}(),
+                                     Dict{Tuple{Int64,Subshell,Subshell}, Float64}(), regularAboveKappa)
 
 
 """
@@ -728,22 +750,36 @@ TailCache(Zion::Float64) = TailCache(Zion, Dict{Subshell, ContinuumTail}(), Dict
 function coulombFG(t::ImpactExcitation.ContinuumTail, r::Float64)
     f, fp, g, gp = GSL.sf_coulomb_wave_FG_e(t.eta, t.q * r, Float64(t.l), 0, 0.0, 0.0)
     # Inside the centrifugal barrier of a high partial wave GSL returns NaN where F_l underflows; B = 0 there, so P = 0.
-    if  t.B == 0.  &&  !(isfinite(f.val) && isfinite(fp.val))    return( (0., 0.) )    end
+    if t.B == 0.
+        # Do not multiply an unused, overflowing irregular solution by zero.
+        if isfinite(f.val) && isfinite(fp.val)    return (t.A * f.val, t.q * t.A * fp.val)    end
+        radialMomentum2 = t.q^2 - 2t.eta*t.q/r - t.l*(t.l+1)/r^2
+        radialMomentum2 < 0. || error("ImpactExcitation.coulombFG: invalid regular Coulomb wave outside its barrier.")
+        return (0., 0.)
+    end
 
     return( (t.A * f.val + t.B * g.val,  t.q * (t.A * fp.val + t.B * gp.val)) )
 end
 
 
 """
-`ImpactExcitation.continuumTail(orbital::Orbital, grid::Radial.Grid, Zion::Float64)`
+`ImpactExcitation.continuumTail(orbital::Orbital, grid::Radial.Grid, Zion::Float64; regularCoulomb::Bool=false)`
     ... fits the Coulomb continuation of a continuum orbital beyond its last grid point; see ImpactExcitation.ContinuumTail.
+        regularCoulomb is reserved for waves known to originate from coulombContinuumOrbital; they use their analytic
+        continuation without a fit, marked by fitError = NaN. A failed numerical fit never establishes this provenance.
         A tail::ImpactExcitation.ContinuumTail is returned.
 """
-function continuumTail(orbital::Orbital, grid::Radial.Grid, Zion::Float64)
+function continuumTail(orbital::Orbital, grid::Radial.Grid, Zion::Float64; regularCoulomb::Bool=false)
     wc  = Defaults.getDefaults("speed of light: c");    E = orbital.energy
     q   = sqrt(E * (E + 2wc^2)) / wc;                  eta = -Zion * (1.0 + E/wc^2) / q
     l   = Basics.subshell_l(orbital.subshell)
     m0  = length(orbital.P);   r0 = grid.r[m0]
+    if regularCoulomb
+        # The caller knows this wave came from coulombContinuumOrbital, rather than inferring its
+        # character from a failed fit. Avoid the ill-conditioned F/G fit inside its centrifugal barrier.
+        N = sqrt((E + 2wc^2) / (pi * wc^2 * q))
+        return ContinuumTail(r0, q, eta, l, N, 0., NaN)
+    end
     m1  = m0;   while  m1 > 2  &&  r0 - grid.r[m1] < 0.5pi/q    m1 = m1 - 1   end
     mh  = div(m0 + m1, 2)
     fg(r) = (f = GSL.sf_coulomb_wave_FG_e(eta, q*r, Float64(l), 0, 0.0, 0.0);   (f[1].val, f[3].val))
@@ -756,7 +792,12 @@ function continuumTail(orbital::Orbital, grid::Radial.Grid, Zion::Float64)
     # A wave still inside its centrifugal barrier at r0 (l >> q r0, e.g. the Coulomb-Bethe partial waves of a small box)
     # has P ~ 0 there and the fit is singular. It is then the regular Coulomb function with the normalized amplitude.
     if  !isfinite(A)  ||  !isfinite(B)  ||  !isfinite(err)
-        A = sqrt((E + 2wc^2) / (pi * wc^2 * q));   B = 0.;   err = 0.
+        N = sqrt((E + 2wc^2) / (pi * wc^2 * q))
+        radialMomentum2 = q^2 - 2eta*q/r0 - l*(l+1)/r0^2
+        negligible = maximum(abs, orbital.P[m1:m0]) <= 1.0e-10 * N
+        radialMomentum2 < 0. && negligible ||
+            error("ImpactExcitation.continuumTail: non-finite Coulomb fit outside the negligible barrier region; check the continuum and radial box.")
+        A = N;   B = 0.;   err = NaN  # analytic barrier fallback, not a successful fit
     end
     # A round-off B (~1e-30 measured for an undistorted wave just inside its barrier) must not survive: G_l is huge or NaN
     # there and would poison the tail integral.
@@ -829,8 +870,12 @@ function tailCorrection(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital
              n = min(length(bnd1.P), length(bnd2.P), grid.NoPoints)
              sum( (bnd1.P[i]*bnd2.P[i] + bnd1.Q[i]*bnd2.Q[i]) * grid.r[i]^L * grid.wr[i] for i = 1:n )
          end
-    tb = get!(cache.tails, con1.subshell) do;   ImpactExcitation.continuumTail(con1, grid, cache.Zion)   end
-    td = get!(cache.tails, con2.subshell) do;   ImpactExcitation.continuumTail(con2, grid, cache.Zion)   end
+    tb = get!(cache.tails, con1.subshell) do
+        ImpactExcitation.continuumTail(con1, grid, cache.Zion; regularCoulomb=abs(con1.subshell.kappa)>cache.regularAboveKappa)
+    end
+    td = get!(cache.tails, con2.subshell) do
+        ImpactExcitation.continuumTail(con2, grid, cache.Zion; regularCoulomb=abs(con2.subshell.kappa)>cache.regularAboveKappa)
+    end
     abs(tb.r0 - td.r0) < 1.0e-10   ||   error("ImpactExcitation.tailCorrection: the two continua end at different radii.")
     T  = get!(cache.integrals, (L, con1.subshell, con2.subshell)) do
              ImpactExcitation.tailIntegral(tb, td, L+1)
@@ -1081,7 +1126,7 @@ function computeShellAmplitudes(channels::Vector{ImpactExcitation.Channel}, dens
     for  (outKappa, members)  in  groups
         cache = get!(waveCaches, outKappa) do
             ImpactExcitation.PartialWaveCache(settings.cacheRadialIntegrals ? InteractionStrength.XLCache(screenedPotentials=true) : nothing,
-                                              (settings.asymptoticTail || settings.coulombBetheKappa > settings.maxKappa) ? ImpactExcitation.TailCache(Zion) : nothing,
+                                              (settings.asymptoticTail || settings.coulombBetheKappa > settings.maxKappa) ? ImpactExcitation.TailCache(Zion; regularAboveKappa=settings.maxKappa) : nothing,
                                               Dict{NTuple{6,Int64},Float64}())
         end
         push!(tasks, Threads.@spawn begin
@@ -1109,7 +1154,7 @@ end
 """
 function checkLowEnergyGrid(minEnergy::Float64, grid::Radial.Grid)
     if  minEnergy <= 0.    return( nothing )    end
-    wavenb   = sqrt( 2minEnergy + minEnergy * Defaults.getDefaults("alpha")^2 )
+    wavenb   = sqrt(2minEnergy + (minEnergy / Defaults.getDefaults("speed of light: c"))^2)
     wavelgth = 2pi / wavenb
     rbox = grid.r[end]
     if  wavelgth > rbox
@@ -1260,9 +1305,10 @@ function dcsFromAmplitudeTensor(line::ImpactExcitation.Line, fAmp::Array{Complex
     Ea = sqrt((qa * wc)^2 + wc^4);    Eb = sqrt((qb * wc)^2 + wc^4)
     Ji = line.initialLevel.J.num // line.initialLevel.J.den
 
-    dcsCoeff = 0.5 * sqrt((Ea + wc^2) * (Eb + wc^2) / (Ea * Eb)) / qa / qb
-    normDCS  = (2π)^4 * (qb / qa) / (2 * (2Ji + 1))
-    dcs      = matx .* normDCS .* dcsCoeff^2 .* qa .* qb
+    # Angular orthogonality gives int sum|fAmp|^2 dOmega = sum_J (2J+1)|A_J|^2/(4pi).
+    # Reusing the ICS normalization avoids the previous O(T/c^2) discrepancy, which survives exact angle quadrature.
+    N = ImpactExcitation.collisionStrengthNormalization(line.initialElectronEnergy, line.finalElectronEnergy)
+    dcs = matx .* (4pi^2 * N / (qa^2 * (2Ji + 1)))
 
     return( dcs )
 end
@@ -1280,6 +1326,17 @@ end
     computation and are otherwise rebuilt for every line and every partial wave: the nuclear potential depends only on
     the nuclear model and the grid, the B-spline primitives only on the grid. Nothing is cached; omitting them
     reproduces the previous behaviour exactly.
+
+    The optional amplitudeLevels=(final, initial) supplies counter-rotated, biorthonormal same-N targets for the
+    interaction matrix only. The physical line levels still generate the continuum potentials. This advanced path requires
+    matching bound subshell sets, zero CSF cutoff, and cross-target continuum projection; it does not automatically prepare
+    nonorthogonal targets. See calc/n3_dcs_pilot.jl for the separately qualified oxygen pilot.
+
+    distortionPotential=:channel generates each continuum in its own physical target field. The alternatives :final
+    and :initial use the indicated physical target for BOTH continuum fields, including continuum exchange when enabled.
+    They leave the excitation targets, kinematics, and cross-target projection unchanged. Use separate continuum and
+    exchange caches when comparing these choices. A common final static field with continuumExchange=:none implements
+    the distortion-potential choice described by Sharma et al., J. Phys. B 40 (2007) 3025, section 2.
 """
 function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.Model, grid::Radial.Grid,
                                         nrContinuum::Int64, settings::ImpactExcitation.Settings; printout::Bool=true,
@@ -1288,7 +1345,11 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
                                         angularCache::Union{Nothing,ImpactExcitation.AngularCoefficientCache}=nothing,
                                         exchangeCache::Union{Nothing,Continuum.ExchangeKernelCache}=nothing,
                                         densityCache::Union{Nothing,ImpactExcitation.DensityCoefficientCache}=nothing,
-                                        continuumCache::Union{Nothing,ImpactExcitation.ContinuumCache}=nothing)
+                                        continuumCache::Union{Nothing,ImpactExcitation.ContinuumCache}=nothing,
+                                        amplitudeLevels::Union{Nothing,Tuple{Level,Level}}=nothing,
+                                        distortionPotential::Symbol=:channel)
+    distortionPotential in (:channel, :initial, :final) ||
+        error("ImpactExcitation: distortionPotential must be :channel, :initial, or :final.")
     newChannels = ImpactExcitation.Channel[];
     contSettings = Continuum.Settings(settings.continuumExchange === true, nrContinuum)
     cross = 0.;   coll = 0.; convergence = 1.
@@ -1298,7 +1359,7 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
     # beside nuclearPot and primitives above the `Threads.@threads` loop that calls this function: a Dict is mutable and is written
     # on every first use of a block, so one shared across threads would be a data race. Per line it is thread-local by construction.
     storage = Dict{String,Array{Float64,2}}()
-    conv = 0.; conv0 = 0. ; n = 0
+    consecutiveSmallShells = 0
 
     # Define a common subshell list for both multiplets
     subshellList = Basics.generate(OrderedSubshellList(), line.finalLevel.basis, line.initialLevel.basis)
@@ -1308,9 +1369,30 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
     ## Both symmetry-reduced levels are properties of the line alone; see the note in the innermost loop.
     redILevel = Basics.generateLevelWithSymmetryReducedBasis(line.initialLevel, subshellList)
     redFLevel = Basics.generateLevelWithSymmetryReducedBasis(line.finalLevel,   subshellList)
+    continuumILevel = distortionPotential == :final   ? redFLevel : redILevel
+    continuumFLevel = distortionPotential == :initial ? redILevel : redFLevel
+    # Advanced same-N callers may provide separately counter-rotated, biorthogonal (final, initial)
+    # targets for the matrix element only. The physical line levels above ALWAYS generate the potentials.
+    # This path is qualified separately by calc/check_n3_scattering_target.jl and the oxygen pilot.
+    matrixILevel, matrixFLevel = redILevel, redFLevel
+    if !isnothing(amplitudeLevels)
+        af, ai = amplitudeLevels
+        settings.csfWeightCutoff == 0. || error("ImpactExcitation: CSF weights are not probabilities in a nonorthogonal basis; disable csfWeightCutoff for amplitudeLevels.")
+        settings.orthogonalizeContinuum || error("ImpactExcitation: biorthogonal amplitude targets require cross-target continuum projection.")
+        (af.J, af.parity, ai.J, ai.parity) == (line.finalLevel.J, line.finalLevel.parity, line.initialLevel.J, line.initialLevel.parity) ||
+            error("ImpactExcitation: amplitudeLevels must match the physical target symmetries.")
+        af.basis.subshells == ai.basis.subshells || error("ImpactExcitation: amplitudeLevels currently require matching bound subshell lists.")
+        for a in af.basis.subshells, b in ai.basis.subshells
+            a.kappa == b.kappa || continue
+            defect = abs(RadialIntegrals.overlap(af.basis.orbitals[a], ai.basis.orbitals[b], grid) - (a == b))
+            defect < 1e-7 || error("ImpactExcitation: amplitudeLevels are not biorthonormal (overlap defect $defect).")
+        end
+        matrixILevel = Basics.generateLevelWithSymmetryReducedBasis(ai, subshellList)
+        matrixFLevel = Basics.generateLevelWithSymmetryReducedBasis(af, subshellList)
+    end
     useDensity = settings.amplitudeMethod == :density
-    ampILevel  = useDensity ? redILevel : ImpactExcitation.levelWithLeadingCsfs(redILevel, settings.csfWeightCutoff)
-    ampFLevel  = useDensity ? redFLevel : ImpactExcitation.levelWithLeadingCsfs(redFLevel, settings.csfWeightCutoff)
+    ampILevel  = useDensity ? matrixILevel : ImpactExcitation.levelWithLeadingCsfs(matrixILevel, settings.csfWeightCutoff)
+    ampFLevel  = useDensity ? matrixFLevel : ImpactExcitation.levelWithLeadingCsfs(matrixFLevel, settings.csfWeightCutoff)
     density    = useDensity ? ImpactExcitation.targetDensity(ampFLevel, ampILevel, isnothing(densityCache) ? ImpactExcitation.DensityCoefficientCache() : densityCache,
                                                              settings.csfWeightCutoff) : nothing
     waveCaches = Dict{Int64,ImpactExcitation.PartialWaveCache}()
@@ -1319,7 +1401,7 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
     radialCache = settings.cacheRadialIntegrals ? InteractionStrength.XLCache(screenedPotentials=true) : nothing
     # The free electron sees the target ion's charge beyond the bound orbitals; the tail is continued in that Coulomb field.
     Zion        = nm.Z - sum(line.initialLevel.basis.csfs[1].occupation)
-    tailCache   = (settings.asymptoticTail || settings.coulombBetheKappa > settings.maxKappa) ? ImpactExcitation.TailCache(Float64(Zion)) : nothing
+    tailCache   = (settings.asymptoticTail || settings.coulombBetheKappa > settings.maxKappa) ? ImpactExcitation.TailCache(Float64(Zion); regularAboveKappa=settings.maxKappa) : nothing
 
     angles = settings.calcDCS ? (isempty(settings.angles) ? collect(0.0:1.0:180.0) : settings.angles) : Float64[]
     numMi = Basics.twice(line.initialLevel.J) + 1
@@ -1330,6 +1412,8 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
     # First determine a common set of continuum orbitals for the incoming and outgoing electron
     ciOrbitals = Dict{Subshell, Orbital}();     ciPhases = Dict{Subshell, Float64}()
     cfOrbitals = Dict{Subshell, Orbital}();     cfPhases = Dict{Subshell, Float64}()
+    projectedI = Set{Subshell}(); projectedF = Set{Subshell}()
+    continuumSettings = isnothing(amplitudeLevels) ? settings : ImpactExcitation.Settings(settings; orthogonalizeContinuum=false)
     #
     symi = LevelSymmetry(line.initialLevel.J, line.initialLevel.parity);    
     symf = LevelSymmetry(line.finalLevel.J, line.finalLevel.parity) 
@@ -1338,19 +1422,33 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
     kappaEnd = max(settings.maxKappa, settings.coulombBetheKappa)
     while kappa <= kappaEnd
         channels = ImpactExcitation.shellChannels(kappa, kappa > settings.maxKappa, symi, symf)
-        ImpactExcitation.addContinuumOrbitals!(ciOrbitals, ciPhases, unique([Subshell(101, channel.initialKappa)  for channel in channels]), line.initialElectronEnergy, redILevel,
-                                               Float64(Zion), nm, grid, contSettings, settings, nuclearPot, primitives, storage, exchangeCache, continuumCache)
-        ImpactExcitation.addContinuumOrbitals!(cfOrbitals, cfPhases, unique([Subshell(102, channel.finalKappa)    for channel in channels]), line.finalElectronEnergy, redFLevel,
-                                               Float64(Zion), nm, grid, contSettings, settings, nuclearPot, primitives, storage, exchangeCache, continuumCache)
+        ImpactExcitation.addContinuumOrbitals!(ciOrbitals, ciPhases, unique([Subshell(101, channel.initialKappa)  for channel in channels]), line.initialElectronEnergy, continuumILevel,
+                                               Float64(Zion), nm, grid, contSettings, continuumSettings, nuclearPot, primitives, storage, exchangeCache, continuumCache)
+        ImpactExcitation.addContinuumOrbitals!(cfOrbitals, cfPhases, unique([Subshell(102, channel.finalKappa)    for channel in channels]), line.finalElectronEnergy, continuumFLevel,
+                                               Float64(Zion), nm, grid, contSettings, continuumSettings, nuclearPot, primitives, storage, exchangeCache, continuumCache)
+        if !isnothing(amplitudeLevels)
+            # Cross contractions, not same-side overlaps, must vanish in the biorthogonal matrix element.
+            # Project against the original orthonormal bound sets, whose spans the target rotations preserve.
+            for (orbitals, projected, target) in ((ciOrbitals, projectedI, redFLevel), (cfOrbitals, projectedF, redILevel))
+                for sh in keys(orbitals)
+                    sh in projected && continue
+                    orbitals[sh] = Continuum.orthogonalizeToBasis(orbitals[sh], target, grid)
+                    defect = maximum((abs(RadialIntegrals.overlap(o, orbitals[sh], grid)) for (s,o) in target.basis.orbitals
+                                      if o.isBound && s.kappa == sh.kappa); init=0.)
+                    defect < 1e-7 || error("ImpactExcitation: cross-target continuum projection failed (overlap $defect).")
+                    push!(projected, sh)
+                end
+            end
+        end
         amplitudes = useDensity ? ImpactExcitation.computeShellAmplitudes(channels, density, ampFLevel, ampILevel, cfOrbitals, ciOrbitals, cfPhases, ciPhases, waveCaches, grid,
                                                                           settings, Float64(Zion)) : ComplexF64[]
-        for  (n, channel)  in  enumerate(channels)
+        for  (channelIndex, channel)  in  enumerate(channels)
             iSubshell  = Subshell(101, channel.initialKappa);    fSubshell  = Subshell(102, channel.finalKappa)
             ciOrbital  = ciOrbitals[iSubshell];     iPhase = ciPhases[iSubshell]
             cfOrbital  = cfOrbitals[fSubshell];     fPhase = cfPhases[fSubshell]
             newChannel = ImpactExcitation.Channel(channel.initialKappa, channel.finalKappa, channel.symmetry, iPhase, fPhase, 0.)
             if  useDensity
-                amplitude = amplitudes[n]
+                amplitude = amplitudes[channelIndex]
             else
                 newiLevel = Basics.generateLevelWithExtraElectron(ciOrbital, channel.symmetry, ampILevel)
                 newiLevel = Basics.generateLevelWithExtraSubshell(fSubshell,   newiLevel)
@@ -1361,7 +1459,6 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
                                                        tailCache=tailCache, exchangeMaxL=settings.exchangeMaxL)
             end
             coll = coll + AngularMomentum.bracket([channel.symmetry.J]) * ( conj(amplitude) * amplitude ).re
-            conv += (conj(amplitude) * amplitude).re
             chan = ImpactExcitation.Channel(newChannel.initialKappa, newChannel.finalKappa, newChannel.symmetry, iPhase, fPhase, amplitude)
             push!(newChannels, chan)
             # The Coulomb-Bethe channels enter the DCS too: their phase and sign join those of the distorted waves
@@ -1373,16 +1470,11 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
         end
 
         push!(shellColl, coll - collBefore);   collBefore = coll
-        # Checking convergence
-        convergence = abs(conv - conv0)/conv
-        if convergence < convergenceCriterion
-            printstyled("\nConvergence Achieved "; bold=true, underline=true, color=:light_red); 
-            if n == 5 
-                printstyled("\nConvergence Achieved "; bold=true, underline=true, color=:light_red);   converged = true;   break
-            end
-            n += 1
-        end
-        conv0 = conv
+        convergence, consecutiveSmallShells = ImpactExcitation.updateShellConvergence(shellColl[end], coll, consecutiveSmallShells)
+        converged = consecutiveSmallShells >= 6
+        # A small change in the integrated strength does not bound coherent angular interference.
+        # DCS calculations therefore always reach the explicitly requested cutoff.
+        if converged && !settings.calcDCS    break    end
         kappa += 1
     end
 
@@ -1393,10 +1485,15 @@ function  computeAmplitudesProperties(line::ImpactExcitation.Line, nm::Nuclear.M
 
     initialEnergy = sqrt( (qa*wc)^2 + wc^4 );    finalEnergy = sqrt( (qb*wc)^2 + wc^4 )
 
-    N = 4. * sqrt( (initialEnergy + wc^2) * ( finalEnergy + wc^2 ) / ( initialEnergy * finalEnergy ) ) / qa / qb
-    N = N / ( sqrt( qa / pi / line.initialElectronEnergy) * sqrt( qb / pi / line.finalElectronEnergy) )^2
+    N = ImpactExcitation.collisionStrengthNormalization(line.initialElectronEnergy, line.finalElectronEnergy)
 
-    if  settings.topUp  &&  !converged    coll = coll + ImpactExcitation.topUpCollisionStrength(shellColl)    end
+    if settings.topUp && !converged
+        extra = ImpactExcitation.topUpCollisionStrength(shellColl)
+        if settings.calcDCS && extra > 0.
+            @warn "ImpactExcitation: geometric top-up changes only the ICS; the DCS contains explicit channels only." explicitCollisionStrength=(coll*N) extrapolatedCollisionStrength=(extra*N)
+        end
+        coll += extra
+    end
     coll = coll * N 
     cross = coll * pi / ( (qa^2) * (Basics.twice(line.initialLevel.J) + 1) )
 
@@ -1607,7 +1704,7 @@ function  determineLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet,
                                                                                                 settings.numElectronEnergies) ) 
                     for  initialElectronEnergy in electronEnergies         # initial electron energies
                         finalElectronEnergy    = initialElectronEnergy - (fLevel.energy - iLevel.energy) + energyShift
-                        if  finalElectronEnergy < 0    continue   end  
+                        if  finalElectronEnergy <= 0    continue   end
                         #channels = ImpactExcitation.determineChannels(fLevel, iLevel, settings) 
                         channels = ImpactExcitation.Channel[]
                         # order channels as per Kappa to check convergence
@@ -1624,7 +1721,7 @@ function  determineLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet,
                     for  en in settings.electronEnergies
                         initialElectronEnergy  = Defaults.convertUnits("energy: to atomic", en)
                         finalElectronEnergy    = initialElectronEnergy - (fLevel.energy - iLevel.energy) + energyShift
-                        if  finalElectronEnergy < 0    continue   end  
+                        if  finalElectronEnergy <= 0    continue   end
                         #channels = ImpactExcitation.determineChannels(fLevel, iLevel, settings) 
                         channels = ImpactExcitation.Channel[]
                         # order channels as per Kappa to check convergence

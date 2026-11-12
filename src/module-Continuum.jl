@@ -7,7 +7,7 @@
 module Continuum
 
 
-using  GSL, Printf, SpecialFunctions, DelimitedFiles
+using  GSL, Printf, SpecialFunctions, DelimitedFiles, LinearAlgebra
 using  ..AngularMomentum, ..Basics, ..Bsplines, ..Defaults, ..ManyElectron, ..Radial, ..Nuclear
 
 
@@ -437,8 +437,9 @@ end
 """
 `Continuum.orthogonalizeToBasis(cOrbital::Orbital, level::Level, grid::Radial.Grid)`
     ... makes the continuum orbital orthogonal to every BOUND orbital of the same kappa in the basis of the level, by
-        Schmidt projection  P -> P - <b|c> P_b,  Q -> Q - <b|c> Q_b  (and likewise for the derivatives), taking the bound
-        orbitals as mutually orthonormal. This is what the spin-angular coefficients of an (N+1)-electron CSF with a
+        projection with the bound-orbital Gram matrix: c -> c - sum_b (G^-1 <bound|c>)_b b, also for the derivatives.
+        G is integrated on the continuum's represented interval, so finite orbital extents and small bound normalization
+        defects do not leave a residual overlap. This is what the spin-angular coefficients of an (N+1)-electron CSF with a
         continuum subshell assume: they are derived for orthonormal orbitals, and without the projection every
         exchange term in which the continuum electron shares kappa with a bound one is evaluated inconsistently. For a
         closed bound subshell the removed component is Pauli-forbidden anyway; for an open one it is dropped, i.e.
@@ -446,11 +447,14 @@ end
 """
 function orthogonalizeToBasis(cOrbital::Orbital, level::Level, grid::Radial.Grid)
     P = copy(cOrbital.P);   Q = copy(cOrbital.Q);   Pp = copy(cOrbital.Pprime);   Qp = copy(cOrbital.Qprime)
-    for  (sh, b)  in  level.basis.orbitals
-        if  !b.isBound  ||  sh.kappa != cOrbital.subshell.kappa    continue    end
-        n  = min(length(b.P), length(P))
-        ov = 0.
-        for  i = 1:min(n, grid.NoPoints)    ov = ov + (b.P[i] * P[i] + b.Q[i] * Q[i]) * grid.wr[i]    end
+    bound = [b for (sh,b) in level.basis.orbitals if b.isBound && sh.kappa == cOrbital.subshell.kappa]
+    isempty(bound) && return cOrbital
+    overlap(a,b) = sum((a.P[i]*b.P[i] + a.Q[i]*b.Q[i])*grid.wr[i]
+                          for i in 1:min(length(a.P),length(b.P),length(P),grid.NoPoints))
+    gram = [overlap(a,b) for a in bound,b in bound]
+    coefficients = cholesky(Symmetric(gram)) \ [overlap(b,cOrbital) for b in bound]
+    for (b,ov) in zip(bound,coefficients)
+        n = min(length(b.P), length(P))
         for  i = 1:n
             P[i] = P[i] - ov * b.P[i];   Q[i] = Q[i] - ov * b.Q[i]
             if  i <= length(b.Pprime)  &&  i <= length(Pp)    Pp[i] = Pp[i] - ov * b.Pprime[i]    end
@@ -995,7 +999,7 @@ end
         wrong by two orders of magnitude.
 """
 function gridConsistency(maxEnergy::Float64, grid::Radial.Grid; Zeff::Union{Nothing,Float64}=nothing)
-    wavenb      = sqrt( 2maxEnergy + maxEnergy * Defaults.getDefaults("alpha")^2 )
+    wavenb      = sqrt(2maxEnergy + (maxEnergy / Defaults.getDefaults("speed of light: c"))^2)
     wavelgth    = 2pi / wavenb
     nrContinuum = grid.NoPoints - 200
     
