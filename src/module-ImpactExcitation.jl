@@ -63,6 +63,27 @@ end
 
 
 """
+`struct ImpactExcitation.DistributionRateCoefficients`
+    ... excitation rates for an isotropic non-Maxwellian electron energy distribution. Temperatures [K]
+        specify mean energy 3kBT/2; alphas are in cm^3/s. No Maxwellian effective strength is implied.
+    + distribution                  ::Symbol                         ... :kappa or :druyvesteyn.
+    + kappa                         ::Union{Nothing,Float64}          ... kappa > 3/2, or nothing for Druyvesteyn.
+    + lowerExtrapolationFractions   ::Vector{Float64}                  ... fractions of each rate below the sampled range.
+    + upperExtrapolationFractions   ::Vector{Float64}                  ... fractions of each rate above the sampled range.
+"""
+struct DistributionRateCoefficients
+    initialLevel                  ::Level
+    finalLevel                    ::Level
+    temperatures                  ::Vector{Float64}
+    alphas                        ::Vector{Float64}
+    distribution                  ::Symbol
+    kappa                         ::Union{Nothing,Float64}
+    lowerExtrapolationFractions    ::Vector{Float64}
+    upperExtrapolationFractions    ::Vector{Float64}
+end
+
+
+"""
 `struct  ImpactExcitation.Settings  <:  AbstractProcessSettings`  ... defines a type for the details and parameters of computing 
                                                                                                 electron-impact excitation lines.
 
@@ -1965,12 +1986,115 @@ end
 
 
 """
-`ImpactExcitation.computeRateCoefficients(lines::Array{ImpactExcitation.Line,1}, settings::ImpactExcitation.Settings)`
+`ImpactExcitation.electronEnergyDistribution(energy::Float64, temperature::Float64; distribution::Symbol=:Maxwellian, kappa::Real=3.0)`
+    ... normalized isotropic electron energy probability density [Hartree^-1], with incoming kinetic energy
+        in Hartree and temperature in Kelvin. All models have mean energy 3kBT/2. Supports :Maxwellian,
+        :Kappa (finite kappa > 3/2) and :Druyvesteyn, case-insensitively.
+        For kappa, a=(kappa-3/2)kBT and f(E) is proportional to sqrt(E)(1+E/a)^(-kappa-1).
+        For Druyvesteyn, b=(3/2)kBT Gamma(3/4)/Gamma(5/4) and f(E) is proportional to sqrt(E)exp(-(E/b)^2).
+"""
+function electronEnergyDistribution(energy::Float64, temperature::Float64; distribution::Symbol=:Maxwellian, kappa::Real=3.0)
+    isfinite(temperature) && temperature > 0. || error("ImpactExcitation: distribution temperature must be finite and positive.")
+    energy >= 0. && !isnan(energy) || error("ImpactExcitation: incoming kinetic energy must be nonnegative.")
+    model = Symbol(lowercase(String(distribution)))
+    model in (:maxwellian, :kappa, :druyvesteyn) || error("ImpactExcitation: unknown electron distribution $distribution.")
+    theta = Defaults.convertUnits("temperature: from Kelvin to (Hartree) units", temperature)
+    isfinite(theta) && theta > 0. || error("ImpactExcitation: distribution temperature is outside the represented range.")
+    if  model == :kappa
+        kap = Float64(kappa)
+        isfinite(kap) && kap > 1.5 || error("ImpactExcitation: kappa must be finite and greater than 3/2.")
+        scale = (kap-1.5)*theta
+        isfinite(scale) && scale > 0. || error("ImpactExcitation: kappa energy scale is outside the represented range.")
+        (energy == 0. || isinf(energy)) && return 0.
+        # logbeta avoids subtracting two large log-gamma values in the Maxwellian limit.
+        logDensity = log(2/sqrt(pi)) + loggamma(1.5) - logbeta(kap-0.5, 1.5) -
+                     1.5log(scale) + 0.5log(energy) - (kap+1)*log1p(energy/scale)
+    elseif model == :druyvesteyn
+        scale = 1.5theta*exp(loggamma(0.75)-loggamma(1.25))
+        isfinite(scale) && scale > 0. || error("ImpactExcitation: Druyvesteyn energy scale is outside the represented range.")
+        (energy == 0. || isinf(energy)) && return 0.
+        logDensity = log(2.) - loggamma(0.75) - 1.5log(scale) + 0.5log(energy) - (energy/scale)^2
+    else
+        (energy == 0. || isinf(energy)) && return 0.
+        logDensity = log(2/sqrt(pi)) - 1.5log(theta) + 0.5log(energy) - energy/theta
+    end
+    return exp(logDensity)
+end
+
+
+"""
+`ImpactExcitation.computeRateCoefficients(lines::Array{ImpactExcitation.Line,1}, settings::ImpactExcitation.Settings; distribution::Symbol=:Maxwellian, kappa::Real=3.0)`
     ... computes Maxwellian excitation rate coefficients from collision strengths at temperatures [K], using
         the actual incoming-minus-outgoing kinetic threshold, including any applied energy shift.
-        The rate coefficients are returned in [cm^3/s]. Returns an Array{ImpactExcitation.RateCoefficients,1}.
+        The default returns Array{ImpactExcitation.RateCoefficients,1}. For :Kappa or :Druyvesteyn, directly
+        averages energy-resolved collision strengths over the normalized incoming energy distribution and
+        returns Array{ImpactExcitation.DistributionRateCoefficients,1}, without Maxwellian effective strengths.
+        Uses the nonrelativistic sigma=pi a0^2 Omega/(2 E gi) convention and existing rate-conversion constant.
+        Interpolation and declared threshold/tail extrapolation are unchanged; fractions contributed outside
+        the sampled range are reported and warned about above 1%. This is not a physical error bound.
 """
-function computeRateCoefficients(lines::Array{ImpactExcitation.Line, 1}, settings::ImpactExcitation.Settings)
+function computeRateCoefficients(lines::Array{ImpactExcitation.Line, 1}, settings::ImpactExcitation.Settings;
+                                 distribution::Symbol=:Maxwellian, kappa::Real=3.0)
+
+    model = Symbol(lowercase(String(distribution)))
+    model in (:maxwellian, :kappa, :druyvesteyn) || error("ImpactExcitation: unknown electron distribution $distribution.")
+    if  model != :maxwellian
+        # Validate the model even for an empty line/temperature list.
+        ImpactExcitation.electronEnergyDistribution(0., 1.; distribution=model, kappa=kappa)
+        all(t -> isfinite(t) && t > 0., settings.temperatures) ||
+            error("ImpactExcitation: temperatures must be finite and positive Kelvin values.")
+        results = DistributionRateCoefficients[]
+        for group in ImpactExcitation.groupLines(lines)
+            threshold = ImpactExcitation.kineticThreshold(group)
+            energies = [l.finalElectronEnergy for l in group]
+            strengths = [l.collisionStrength for l in group]
+            ImpactExcitation.validateStrengthTable(energies, strengths)
+            initial = group[1].initialLevel; final = group[1].finalLevel
+            isE1 = AngularMomentum.isAllowedMultipole(LevelSymmetry(initial.J, initial.parity),
+                                                     EmMultipole("E1"), LevelSymmetry(final.J, final.parity))
+            alphas = Float64[]; lowerFractions = Float64[]; upperFractions = Float64[]
+            for temperature in settings.temperatures
+                theta = Defaults.convertUnits("temperature: from Kelvin to (Hartree) units", temperature)
+                scale = model == :kappa ? (Float64(kappa)-1.5)*theta :
+                    1.5theta*exp(loggamma(0.75)-loggamma(1.25))
+                # Log incoming energy resolves the algebraic kappa tail. Every tabulated interval is
+                # integrated separately; include characteristic scales so narrow cores cannot be missed.
+                knots = sort!(unique(vcat(0., log1p.(energies./threshold),
+                                         log1p(theta/threshold), log1p(scale/threshold), Inf)))
+                lowerEnd = log1p(energies[1]/threshold); upperStart = log1p(energies[end]/threshold)
+                function integrand(t)
+                    logEnergy = log(threshold)+t
+                    logEnergy >= log(floatmax(Float64)) && return 0.
+                    energy = exp(logEnergy)
+                    excess = t < 1. ? threshold*expm1(t) : max(0., energy-threshold)
+                    density = ImpactExcitation.electronEnergyDistribution(energy, temperature; distribution=model, kappa=kappa)
+                    return ImpactExcitation.interpolateCS(excess, energies, strengths, isE1)*sqrt(energy)*density
+                end
+                total = 0.; lower = 0.; upper = 0.
+                for (a, b) in zip(knots[1:end-1], knots[2:end])
+                    value, quadratureError = QuadGK.quadgk(integrand, a, b; rtol=1.e-9)
+                    isfinite(value) && value >= 0. && quadratureError <= 1.e-8*value ||
+                        error("ImpactExcitation: non-Maxwellian quadrature did not converge.")
+                    total += value
+                    if  b <= lowerEnd    lower += value
+                    elseif a >= upperStart    upper += value    end
+                end
+                # Same nonrelativistic conversion as the Maxwellian path, but no exp(-Delta/kT)
+                # factor: the full incoming distribution above already supplies threshold suppression.
+                rate = 8.6291269e-6/sqrt(temperature)/(Basics.twice(initial.J)+1) * sqrt(pi*theta)/2 * total
+                isfinite(rate) && rate >= 0. || error("ImpactExcitation: invalid non-Maxwellian rate.")
+                push!(alphas, rate)
+                push!(lowerFractions, total > 0. ? lower/total : 0.)
+                push!(upperFractions, total > 0. ? upper/total : 0.)
+            end
+            if  any(>(0.01), lowerFractions) || any(>(0.01), upperFractions)
+                @warn "ImpactExcitation: more than 1% of the non-Maxwellian rate comes from extrapolated collision strengths; extend the sampled range." distribution=model kappa=(model == :kappa ? kappa : nothing) initialLevel=initial.index finalLevel=final.index temperatures=settings.temperatures lowerFractions upperFractions
+            end
+            push!(results, DistributionRateCoefficients(initial, final, settings.temperatures, alphas, model,
+                                                       model == :kappa ? Float64(kappa) : nothing, lowerFractions, upperFractions))
+        end
+        return results
+    end
 
     effStrengths = ImpactExcitation.computeEffStrengths(lines, settings)
     allAlphas = ImpactExcitation.RateCoefficients[]
@@ -2177,6 +2301,35 @@ end
 """
 function displayResults(allRates::Array{RateCoefficients,1})
     ImpactExcitation.displayResults(stdout, allRates)
+end
+
+
+"""
+`ImpactExcitation.displayResults(allRates::Array{ImpactExcitation.DistributionRateCoefficients,1})`
+    ... prints non-Maxwellian rates, model parameters and extrapolation fractions to stdout.
+"""
+function displayResults(allRates::Array{DistributionRateCoefficients,1})
+    ImpactExcitation.displayResults(stdout, allRates)
+end
+
+
+"""
+`ImpactExcitation.displayResults(stream::IO, allRates::Array{ImpactExcitation.DistributionRateCoefficients,1})`
+    ... prints rates in cm^3/s, with mean-energy temperatures [K] and the fractions contributed by
+        extrapolated collision strengths. No Maxwellian effective collision strength is printed.
+"""
+function displayResults(stream::IO, allRates::Array{DistributionRateCoefficients,1})
+    println(stream, "\n  Non-Maxwellian excitation rates; mean electron energy = 3kBT/2.")
+    println(stream, "  i -> f      Distribution    kappa       T [K]        Rate [cm^3/s]     Lower frac.   Upper frac.")
+    for rates in allRates
+        for j in eachindex(rates.temperatures)
+            parameter = isnothing(rates.kappa) ? "--" : @sprintf("%.6g", rates.kappa)
+            @printf(stream, "  %d -> %-5d %-15s %-10s %.6e   %.8e     %.4e    %.4e\n",
+                    rates.initialLevel.index, rates.finalLevel.index, String(rates.distribution), parameter,
+                    rates.temperatures[j], rates.alphas[j], rates.lowerExtrapolationFractions[j], rates.upperExtrapolationFractions[j])
+        end
+    end
+    return nothing
 end
 
 
