@@ -5,7 +5,7 @@
 """
 module ImpactExcitation 
 
-using   Distributed, FastGaussQuadrature, GSL, SpecialFunctions, Printf,
+using   Distributed, FastGaussQuadrature, GSL, SpecialFunctions, Printf, QuadGK,
         ..AngularMomentum, ..Basics, ..Bsplines, ..Continuum, ..Defaults, ..InteractionStrength, ..ManyElectron,
         ..Nuclear, ..Radial, ..SpinAngular, ..TableStrings, ..RadialIntegrals
 
@@ -1698,9 +1698,17 @@ function  determineLines(finalMultiplet::Multiplet, initialMultiplet::Multiplet,
         for  iLevel  in  initialMultiplet.levels
             for  fLevel  in  finalMultiplet.levels
                 if  Basics.selectLevelPair(iLevel, fLevel, settings.lineSelection)
-                    ΔE = fLevel.energy - iLevel.energy
-                    #enGrid = Radial.GridGL("Finite", ΔE, ΔE * settings.maxEnergyMultiplier, settings.numElectronEnergies, printout=false)
-                    electronEnergies = exp.( LinRange(log(ΔE+0.0003), log(max(5., settings.maxEnergyMultiplier*ΔE)), 
+                    ΔE = fLevel.energy - iLevel.energy - energyShift
+                    isfinite(ΔE) && ΔE > 0. || error("ImpactExcitation: thermal excitation requires a positive shifted threshold.")
+                    settings.numElectronEnergies >= 2 || error("ImpactExcitation: thermal rates require at least two electron energies.")
+                    isfinite(settings.maxEnergyMultiplier) && settings.maxEnergyMultiplier > 1. ||
+                        error("ImpactExcitation: maxEnergyMultiplier must be finite and greater than one.")
+                    # Keep the small positive outgoing energy needed by the continuum solver, but
+                    # measure the entire grid from the SAME shifted threshold as the line kinematics.
+                    upperEnergy = max(5., settings.maxEnergyMultiplier*ΔE)
+                    isfinite(upperEnergy) && upperEnergy > ΔE+0.0003 ||
+                        error("ImpactExcitation: thermal energy range must extend beyond the first near-threshold sample.")
+                    electronEnergies = exp.( LinRange(log(ΔE+0.0003), log(upperEnergy),
                                                                                                 settings.numElectronEnergies) ) 
                     for  initialElectronEnergy in electronEnergies         # initial electron energies
                         finalElectronEnergy    = initialElectronEnergy - (fLevel.energy - iLevel.energy) + energyShift
@@ -1743,25 +1751,49 @@ end
         returns an Array{Array{ImpactExcitation.Line,1},1}
 """
 function groupLines(lines::Array{ImpactExcitation.Line,1})
-    indexPairs = Set{Tuple{Level, Level}}()
-
-    for line in lines
-        push!(indexPairs,(line.initialLevel, line.finalLevel))
-    end
-
     groupLines = Array{ImpactExcitation.Line,1}[]
-
-    for indexPair in indexPairs
-        gl = ImpactExcitation.Line[]
-        for line in lines
-            if indexPair[1] == line.initialLevel && indexPair[2] == line.finalLevel
-                push!(gl, line)
-            end
+    key(l) = (l.index, l.J, l.parity, l.energy)
+    for line in lines
+        index = findfirst(g -> key(g[1].initialLevel) == key(line.initialLevel) &&
+                              key(g[1].finalLevel) == key(line.finalLevel), groupLines)
+        if  isnothing(index)
+            push!(groupLines, ImpactExcitation.Line[line])
+        else
+            reference = groupLines[index][1]
+            ImpactExcitation.sameThermalState(reference.initialLevel, line.initialLevel) &&
+                ImpactExcitation.sameThermalState(reference.finalLevel, line.finalLevel) ||
+                error("ImpactExcitation: coincident level identifiers refer to different target wavefunctions.")
+            push!(groupLines[index], line)
         end
-        push!(groupLines, gl)
     end
-
+    for group in groupLines    sort!(group; by=line -> line.finalElectronEnergy)    end
     return( groupLines )
+end
+
+
+"""
+`ImpactExcitation.sameThermalState(a::Level, b::Level)`
+    ... checks matching target representations when independently deserialized lines share level identifiers.
+        Distinct targets must not be combined into one thermal average merely because their labels coincide.
+"""
+function sameThermalState(a::Level, b::Level)
+    a === b && return true
+    a.hasStateRep == b.hasStateRep && a.mc == b.mc || return false
+    x = a.basis; y = b.basis
+    x.isDefined == y.isDefined && x.NoElectrons == y.NoElectrons && x.subshells == y.subshells &&
+        x.coreSubshells == y.coreSubshells && length(x.csfs) == length(y.csfs) || return false
+    for (c, d) in zip(x.csfs, y.csfs)
+        all(getfield(c, f) == getfield(d, f) for f in
+            (:J, :parity, :occupation, :seniorityNr, :subshellJ, :subshellX)) || return false
+    end
+    keys(x.orbitals) == keys(y.orbitals) || return false
+    for s in keys(x.orbitals)
+        c = x.orbitals[s]; d = y.orbitals[s]
+        all(getfield(c, f) == getfield(d, f) for f in
+            (:energy, :isBound, :useStandardGrid, :P, :Q, :Pprime, :Qprime)) || return false
+        c.grid.r == d.grid.r || return false
+    end
+    return true
 end
 
 
@@ -1771,25 +1803,8 @@ end
         returns an Array{Array{ImpactExcitation.Line,1},1}
 """
 function groupLines(lines::Array{ImpactExcitation.Line,1}, settings::ImpactExcitation.Settings)
-
-    n = settings.numElectronEnergies
-    q, r = divrem(length(lines), n)
-    if  r != 0
-        error("ImpactExcitation.groupLines(): the $(length(lines)) lines do not divide evenly into groups of " *
-              "settings.numElectronEnergies = $n.  This list has to be a rectangular (energies x transitions) " *
-              "block; set numElectronEnergies to the number of DISTINCT incident electron energies actually " *
-              "computed.")
-    end
-
-    groupLines = Array{ImpactExcitation.Line,1}[]
-
-    lines = reshape(lines, n, q)
-
-    for i = 1:q
-        push!(groupLines, lines[:,i])
-    end
-
-    return( groupLines )
+    # Imported/cascade transitions need not have equal counts or transition-major ordering.
+    return( ImpactExcitation.groupLines(lines) )
 end
 
 
@@ -1799,21 +1814,11 @@ end
         returns a Float64.
 """
 function interpolateCS(x::Float64, xa::Vector{Float64}, ya::Vector{Float64})
-    n = length(xa)
-
-    # Alloc and setup
-    obj = GSL.interp_alloc(gsl_interp_linear, n)
-    #obj = GSL.interp_alloc(gsl_interp_cspline, n)
-    acc = GSL.interp_accel_alloc()
-    GSL.interp_init(obj, xa, ya, n)
-
-    # Interpolate
-    y = GSL.interp_eval(obj, xa, ya, x, acc)
-    # Free
-    GSL.interp_accel_free(acc)
-    GSL.interp_free(obj)
-
-    return( y )
+    ImpactExcitation.validateStrengthTable(xa, ya)
+    isfinite(x) && xa[1] <= x <= xa[end] || error("ImpactExcitation: interpolation energy is outside the table.")
+    j = min(searchsortedlast(xa, x), length(xa)-1)
+    fraction = (x-xa[j])/(xa[j+1]-xa[j])
+    return( (1-fraction)*ya[j] + fraction*ya[j+1] )
 end    
 
 
@@ -1825,32 +1830,19 @@ end
         Returns a Float64.
 """
 function interpolateCS(x::Float64, xa::Vector{Float64}, ya::Vector{Float64}, isE1Allowed::Bool)
-    ## Guard the LOWER bound as well.  Only the upper one was handled, but the Gauss-Laguerre nodes of the
-    ## thermal average are xt = t*kT with t starting near 0.137, so they reach far below the sampled energies
-    ## whenever the energy grid does not begin at threshold -- and GSL then aborts with a bare
-    ## "interpolation error at interp.c:150".  That never showed up as long as calcRateCoefficient = true
-    ## auto-generated its own grid starting AT threshold (see ImpactExcitation.determineLines), but a cascade
-    ## supplies its own energies and need not start there.  Below the sampled range the collision strength is
-    ## simply not known, so a constant extrapolation is used -- the same conservative choice already made above
-    ## the range for non-E1 transitions.  NB this makes rate coefficients at kT well below the lowest sampled
-    ## energy unreliable; sample from near threshold if the low-temperature end matters.
+    ImpactExcitation.validateStrengthTable(xa, ya)
+    isfinite(x) && x >= 0. || error("ImpactExcitation: excess energy must be finite and nonnegative.")
+    # Threshold continuation is constant. The E1 tail is anchored and fitted in a dimensionless
+    # logarithmic coordinate; it is a model assumption, whose thermal coverage is reported below.
     if      x < minimum(xa)     return( ya[1] )
     elseif  x <= maximum(xa)
-        n = length(xa)
-        # Alloc and setup
-        obj = GSL.interp_alloc(gsl_interp_linear, n)
-        #obj = GSL.interp_alloc(gsl_interp_cspline, n)
-        acc = GSL.interp_accel_alloc()
-        GSL.interp_init(obj, xa, ya, n)
-        # Interpolate
-        y = GSL.interp_eval(obj, xa, ya, x, acc)
-        # Free
-        GSL.interp_accel_free(acc)
-        GSL.interp_free(obj)
+        y = ImpactExcitation.interpolateCS(x, xa, ya)
     else  
         if isE1Allowed
-            a = ya[end] / log(xa[end])
-            y = a * log(x)
+            difference = ya[end] - ya[end-1]
+            slope = difference > 0. ? difference / (-log1p((xa[end-1]-xa[end])/(2xa[end]))) : 0.
+            isfinite(slope) || error("ImpactExcitation: cannot infer a finite E1 tail slope; extend the energy grid.")
+            y = ya[end] + slope * log1p((x-xa[end])/(2xa[end]))
         else
             y = ya[end]
         end
@@ -1860,16 +1852,89 @@ end
 
 
 """
+`ImpactExcitation.validateStrengthTable(energies::Vector{Float64}, strengths::Vector{Float64})`
+    ... validates a strictly increasing excess-energy table with finite nonnegative collision strengths.
+"""
+function validateStrengthTable(energies::Vector{Float64}, strengths::Vector{Float64})
+    length(energies) == length(strengths) && length(energies) >= 2 ||
+        error("ImpactExcitation: at least two matching energy/strength samples are required.")
+    all(e -> isfinite(e) && e >= 0., energies) && all(diff(energies) .> 0.) ||
+        error("ImpactExcitation: excess energies must be finite, nonnegative and strictly increasing.")
+    all(v -> isfinite(v) && v >= 0., strengths) ||
+        error("ImpactExcitation: collision strengths must be finite and nonnegative.")
+    return nothing
+end
+
+
+"""
+`ImpactExcitation.kineticThreshold(lines::Vector{ImpactExcitation.Line})`
+    ... obtains and validates the positive excitation threshold from incoming minus outgoing electron energy.
+"""
+function kineticThreshold(lines::Vector{ImpactExcitation.Line})
+    isempty(lines) && error("ImpactExcitation: no lines in thermal transition.")
+    threshold = lines[1].initialElectronEnergy - lines[1].finalElectronEnergy
+    isfinite(threshold) && threshold > 0. || error("ImpactExcitation: thermal excitation requires a positive kinematic threshold.")
+    for line in lines
+        incoming = line.initialElectronEnergy; outgoing = line.finalElectronEnergy
+        isfinite(incoming) && isfinite(outgoing) && incoming > 0. && outgoing >= 0. ||
+            error("ImpactExcitation: invalid thermal electron energies.")
+        tolerance = 64eps(Float64) * max(abs(incoming), abs(outgoing), threshold)
+        abs((incoming - outgoing) - threshold) <= tolerance ||
+            error("ImpactExcitation: inconsistent excitation thresholds within one transition.")
+    end
+    return threshold
+end
+
+
+"""
+`ImpactExcitation.maxwellianStrength(energies::Vector{Float64}, strengths::Vector{Float64}, kT::Float64, isE1Allowed::Bool)`
+    ... integrates the piecewise-linear strength exactly against exp(-E/kT)d(E/kT), with a constant threshold
+        extension and the declared logarithmic/constant high-energy tail. Accuracy of extrapolation is a model issue.
+"""
+function maxwellianStrength(energies::Vector{Float64}, strengths::Vector{Float64}, kT::Float64, isE1Allowed::Bool)
+    ImpactExcitation.validateStrengthTable(energies, strengths)
+    isfinite(kT) && kT > 0. || error("ImpactExcitation: kT must be finite and positive.")
+    total = strengths[1] * (-expm1(-energies[1]/kT))
+    for j in 1:length(energies)-1
+        h = (energies[j+1] - energies[j])/kT
+        mass = -expm1(-h)
+        # Positive endpoint weights avoid cancellation for narrow intervals or high temperatures.
+        upper = h < 1.e-3 ? h*(0.5 + h*(-1/3 + h*(1/8 - h/30))) : mass/h - exp(-h)
+        total += exp(-energies[j]/kT) * ((mass-upper)*strengths[j] + upper*strengths[j+1])
+    end
+    tailWeight = exp(-energies[end]/kT)
+    if  tailWeight > 0.
+        difference = strengths[end] - strengths[end-1]
+        slope = isE1Allowed && difference > 0. ?
+            difference / (-log1p((energies[end-1]-energies[end])/(2energies[end]))) : 0.
+        isfinite(slope) || error("ImpactExcitation: cannot infer a finite E1 tail slope; extend the energy grid.")
+        tail = strengths[end]
+        if  slope > 0.
+            correction, _ = QuadGK.quadgk(u -> u > 745. ? 0. : exp(-u)*log1p(kT*u/(2energies[end])),
+                                          0., Inf; rtol=1.e-10)
+            tail += slope * correction
+        end
+        total += tailWeight * tail
+    end
+    isfinite(total) && total >= 0. || error("ImpactExcitation: invalid Maxwellian effective collision strength.")
+    return total
+end
+
+
+"""
 `ImpactExcitation.computeEffStrengths(lines::Array{ImpactExcitation.Line, 1}, settings::ImpactExcitation.Settings)`
     ... computes Effective collision strengths from the calculated line collision strengths at temperature(s) [K].
         Returns an Array{ImpactExcitation.RateCoefficients,1}.
 """
 function computeEffStrengths(lines::Array{ImpactExcitation.Line, 1}, settings::ImpactExcitation.Settings)
     gLines = ImpactExcitation.groupLines(lines, settings)
+    all(t -> isfinite(t) && t > 0., settings.temperatures) ||
+        error("ImpactExcitation: temperatures must be finite and positive Kelvin values.")
 
     allEffOmegas = ImpactExcitation.RateCoefficients[]
 
     for lines in gLines
+        ImpactExcitation.kineticThreshold(lines)
 
         symi = LevelSymmetry(lines[1].initialLevel.J, lines[1].initialLevel.parity);    
         symf = LevelSymmetry(lines[1].finalLevel.J, lines[1].finalLevel.parity)
@@ -1879,22 +1944,17 @@ function computeEffStrengths(lines::Array{ImpactExcitation.Line, 1}, settings::I
         energies = [ line.finalElectronEnergy for line in lines]
         collisionStrengths = [ line.collisionStrength for line in lines]
         
-        enGrid = Radial.GridGL(Radial.GridGaussLegendreFinite(), minimum(energies), maximum(energies) , 25, printout=false)
-        cs     = [ ImpactExcitation.interpolateCS(en, energies, collisionStrengths) for en in enGrid.t ]
-
-        # For low temperature Gauss-Laguerre integration
-        t, wt = FastGaussQuadrature.gausslaguerre(10)
-
         effOmegas = Float64[]
+        lowerWeights = Float64[]; upperWeights = Float64[]
         for temp in settings.temperatures
             temp_au  = Defaults.convertUnits("temperature: from Kelvin to (Hartree) units", temp)
-            wa = 0.0
-            xt = t .* temp_au
-            for i in eachindex(t)
-                wa += ImpactExcitation.interpolateCS(xt[i], energies, collisionStrengths, isE1Allowed) * wt[i]
-            end
-
+            wa = ImpactExcitation.maxwellianStrength(energies, collisionStrengths, temp_au, isE1Allowed)
+            push!(lowerWeights, -expm1(-energies[1]/temp_au))
+            push!(upperWeights, exp(-energies[end]/temp_au))
             push!(effOmegas, wa)
+        end
+        if  any(>(0.01), lowerWeights) || any(>(0.01), upperWeights)
+            @warn "ImpactExcitation: more than 1% of the Maxwellian integration weight lies outside the sampled range; extend the grid to qualify threshold/tail extrapolation." initialLevel=lines[1].initialLevel.index finalLevel=lines[1].finalLevel.index temperatures=settings.temperatures lowerWeights upperWeights
         end
         push!(allEffOmegas, ImpactExcitation.RateCoefficients(lines[1].initialLevel, lines[1].finalLevel, settings.temperatures, 
                                                                     zeros(length(settings.temperatures)), effOmegas ) )
@@ -1906,7 +1966,8 @@ end
 
 """
 `ImpactExcitation.computeRateCoefficients(lines::Array{ImpactExcitation.Line,1}, settings::ImpactExcitation.Settings)`
-    ... computes Exitation rate coefficients from the calculated collsion strengths at a temperature(s) [K].
+    ... computes Maxwellian excitation rate coefficients from collision strengths at temperatures [K], using
+        the actual incoming-minus-outgoing kinetic threshold, including any applied energy shift.
         The rate coefficients are returned in [cm^3/s]. Returns an Array{ImpactExcitation.RateCoefficients,1}.
 """
 function computeRateCoefficients(lines::Array{ImpactExcitation.Line, 1}, settings::ImpactExcitation.Settings)
@@ -1914,10 +1975,10 @@ function computeRateCoefficients(lines::Array{ImpactExcitation.Line, 1}, setting
     effStrengths = ImpactExcitation.computeEffStrengths(lines, settings)
     allAlphas = ImpactExcitation.RateCoefficients[]
     
-    for effOmegas in effStrengths
+    for (transitionLines, effOmegas) in zip(ImpactExcitation.groupLines(lines), effStrengths)
 
         initialLevel = effOmegas.initialLevel ; finalLevel = effOmegas.finalLevel
-        ΔE = finalLevel.energy - initialLevel.energy
+        ΔE = ImpactExcitation.kineticThreshold(transitionLines)
         gi = 2.0 * ( initialLevel.J.num / initialLevel.J.den )  + 1
 
         alphas = Float64[]
