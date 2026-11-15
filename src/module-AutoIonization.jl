@@ -29,10 +29,10 @@ using  Printf, ..AngularMomentum, ..Basics, ..BiOrthogonal, ..Bsplines, ..Contin
             "empty slot" on the initial side filled by `Basics.generateLevelWithExtraSubshell`'s dummy,
             all-zero placeholder orbital; a transformation applied any later would LU-decompose a singular
             per-kappa overlap matrix built partly from that placeholder. See PhotoIonization.Settings'
-            calcBiorthogonal docstring for the same reasoning in full, including the still-open question of
-            whether BiOrthogonal.computeTransformation is rigorously valid for the resulting N-vs-(N-1)
-            electron-count mismatch (empirically it runs and gives plausible results, but has not yet been
-            checked against an independent known-answer test).
+            calcBiorthogonal docstring for the same reasoning in full. The N-vs-(N-1) electron-count mismatch is
+            sound: `BiOrthogonal.computeTransformation` splits the overlap symmetrically between the two sides, so a
+            transformed core preserves its norms and a consumer that rebuilds a mean field from it sees the exact
+            electron count. An unsymmetric split does not, and the invariant is asserted by the test suite.
     + printBefore         ::Bool               ... True, if all energies and lines are printed before their evaluation.
     + lineSelection       ::LineSelection      ... Specifies the selected levels, if any.
     + augerEnergyShift    ::Float64            ... An overall energy shift for all Auger (free-electron) energies.

@@ -49,11 +49,12 @@ using Printf, ..AngularMomentum, ..Basics, ..BiOrthogonal, ..Bsplines, ..Continu
                                                               per-kappa orbital COUNTS (not matching NoElectrons), and
                                                               `generateCounterRotatingCiMatrices` builds its counter-rotation matrix
                                                               entirely from one side's OWN CSF list, with no cross-reference to the other
-                                                              side's electron count at all -- the N-vs-(N-1) case used here appears
-                                                              mathematically sound on inspection, but (unlike the PhotoEmission/
-                                                              PhotoExcitation cases) has not yet been checked against an independent
-                                                              known-answer test; treat quantitative results with appropriate caution until
-                                                              such a test exists.
+                                                              side's electron count at all. The N-vs-(N-1) case used here is SOUND, and no
+                                                              longer merely sound on inspection: `BiOrthogonal.computeTransformation`
+                                                              splits the overlap symmetrically between the two sides, so a transformed
+                                                              core preserves its orbital norms and a consumer that rebuilds a mean field
+                                                              from it sees the exact electron count. An unsymmetric split does not, and
+                                                              the invariant is asserted by the test suite.
     + printBefore                   ::Bool                ... True, if all energies and lines are printed before their evaluation.
     + lineSelection                 ::LineSelection       ... Specifies the selected levels, if any.
     + stokes                        ::ExpStokes           ... Stokes parameters of the incident radiation.
