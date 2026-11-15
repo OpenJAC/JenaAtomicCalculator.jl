@@ -233,6 +233,29 @@ const  CONT_BOX_WAVES_WARN             = 4.0
 
 
 """
+`Continuum.occupiedCoreOf(level::Level, includeExchange::Bool)`  
+    ... selects the orbitals that the frozen nonlocal exchange operator is taken with, together with their mean occupations.
+        THE CORE IS THE OCCUPIED PART OF THE BASIS AND NOT ALL OF ITS ORBITALS. `level.basis.orbitals` carries every orbital
+        the basis was built with, which for a configuration interaction on a shared or extended orbital set includes VIRTUALS
+        that no CSF of this level occupies; `Basics.extractMeanOccupation` runs over `basis.subshells` and so returns no entry
+        for them, and `Bsplines.setupExchangeMatrix` -- whose contract is one occupation per core orbital -- then raised "no
+        occupation given for core subshell ...". That raise fired on a perfectly legitimate state: a shared orbital set is what
+        an explicit second-order amplitude REQUIRES, and such a set carries subshells the final ion does not occupy. A virtual
+        contributes nothing to the exchange sum, so the core is restricted here to the subshells that HAVE an occupation. This
+        removes the raise and changes no number that was computable before it, since every orbital dropped carried no occupation
+        and hence no weight. A tuple (coreOrbitals::Dict{Subshell,Orbital}, coreOccupations::Dict{Subshell,Float64}) is
+        returned, or (nothing, nothing) where exchange is not wanted.
+"""
+function occupiedCoreOf(level::Level, includeExchange::Bool)
+    if  !includeExchange    return( (nothing, nothing) )    end
+    occupations  = Basics.extractMeanOccupation(level.basis)
+    coreOrbitals = Dict{Subshell,Orbital}( sh => orb  for (sh, orb) in level.basis.orbitals  if haskey(occupations, sh) )
+
+    return( (coreOrbitals, occupations) )
+end
+
+
+"""
 `Continuum.generateOrbitalForLevel(energy::Float64, sh::Subshell, level::Level, nm::Nuclear.Model, grid::Radial.Grid,
                                     settings::Continuum.Settings; nuclearPot::Union{Nothing,Radial.Potential}=nothing, 
                                     primitives::Union{Nothing,Bsplines.Primitives}=nothing, 
@@ -280,8 +303,7 @@ function generateOrbitalForLevel(energy::Float64, sh::Subshell, level::Level, nm
     settings.includeExchange  &&  Defaults.GBL_CONT_SOLUTION != BsplineGalerkin()  &&
         error("Continuum.generateOrbitalForLevel(): settings.includeExchange = true needs the Galerkin solution " *
               "method (setDefaults(\"method: continuum, Galerkin\")); the current method has no nonlocal term to add it to.")
-    coreOrbitals, coreOccupations = settings.includeExchange ?
-                                     (level.basis.orbitals, Basics.extractMeanOccupation(level.basis)) : (nothing, nothing)
+    coreOrbitals, coreOccupations = Continuum.occupiedCoreOf(level, settings.includeExchange)
 
     # Generate a continuum orbital due to the given solution method
     if      Defaults.GBL_CONT_SOLUTION  ==  ContBessel()
@@ -369,8 +391,7 @@ function generateOrbitalForLevel(energy::Float64, sh::Subshell, level::Level, nm
     settings.includeExchange  &&  Defaults.GBL_CONT_SOLUTION != BsplineGalerkin()  &&
         error("Continuum.generateOrbitalForLevel(): settings.includeExchange = true needs the Galerkin solution " *
               "method (setDefaults(\"method: continuum, Galerkin\")); the current method has no nonlocal term to add it to.")
-    coreOrbitals, coreOccupations = settings.includeExchange ?
-                                     (level.basis.orbitals, Basics.extractMeanOccupation(level.basis)) : (nothing, nothing)
+    coreOrbitals, coreOccupations = Continuum.occupiedCoreOf(level, settings.includeExchange)
 
     # Generate a continuum orbital due to the given solution method
     if      Defaults.GBL_CONT_SOLUTION  ==  ContBessel()
