@@ -76,10 +76,15 @@ const XLKey = Tuple{Symbol, Int64, Subshell, Subshell, Subshell, Subshell, Float
         passed, and the EOL solver threads its own `cache1p`/`cache2p` -- so the XL_* strengths were the one remaining place that kept its
         memo out of sight.
 
-    + values    ::Dict{XLKey, Float64}   ... the memoised strengths.
+    + values    ::Dict{XLKey, Float64}                                              ... the memoised strengths.
+    + vkCache   ::Dict{Tuple{Int64,Subshell,Subshell,Int64}, Vector{Float64}}   ... the memoised screened
+          potentials V_L[b,d] that XL_Coulomb's own XLCache miss-path builds its value from (item 17,
+          09-Nov-2026) -- see RadialIntegrals.SlaterRkKinkAware's cached method for why this is a function of
+          only TWO of the four orbitals and is worth keying separately from `values` above.
 """
 struct  XLCache
     values      ::Dict{XLKey, Float64}
+    vkCache     ::Dict{Tuple{Int64,Subshell,Subshell,Int64}, Vector{Float64}}
 end
 
 
@@ -87,7 +92,7 @@ end
 `InteractionStrength.XLCache()`
     ... constructor for an empty cache of interaction strengths; a cache::InteractionStrength.XLCache is returned.
 """
-XLCache() = XLCache( Dict{XLKey, Float64}() )
+XLCache() = XLCache( Dict{XLKey, Float64}(), Dict{Tuple{Int64,Subshell,Subshell,Int64}, Vector{Float64}}() )
 
 
 """
@@ -1460,9 +1465,45 @@ end
 function XL_Coulomb(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid, cache::XLCache)
     key = (:Coulomb, L, a.subshell, b.subshell, c.subshell, d.subshell, 0., :direct)
     haskey(cache.values, key)   &&   return( cache.values[key] )
-    value = InteractionStrength.XL_Coulomb(L, a, b, c, d, grid)
+    value = InteractionStrength.XL_Coulomb(L, a, b, c, d, grid, cache.vkCache)
     cache.values[key] = value
     return( value )
+end
+
+
+"""
+`InteractionStrength.XL_Coulomb(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid,
+                                 vkCache::Dict{Tuple{Int64,Subshell,Subshell,Int64},Vector{Float64}})`
+    ... as XL_Coulomb without a cache, but passing `vkCache` down to RadialIntegrals.SlaterRkKinkAware so that
+        the screened potential V_L[b,d] -- the expensive part, and a function of only TWO of the four orbitals
+        -- is built once per (L,b,d,extent) instead of once per coefficient. A value::Float64 is returned.
+
+        THE SAME FORMULA AS XL_Coulomb's OWN UNCACHED METHOD, JUST GIVEN THE SAME CACHING PARITY
+        InteractionStrength.XL_CoulombKinkAware's vkCache method ALREADY HAD (found 09-Nov-2026, item 17):
+        that sibling's own docstring measures a 25.7x redundancy on C-like uranium (20 083 coefficients, only
+        781 distinct (L,b,d,extent) triples) for exactly this reason. It went unnoticed here because every
+        caller of THIS method went through `cache::XLCache`'s own quadruple key instead, which cannot see a
+        triple-level reuse -- the two caches are complementary, not alternatives, exactly as that docstring
+        says. On a basis built almost entirely of near-unique continuum pseudostates (`PhotoIonizationPseudostates`),
+        the quadruple key barely ever hits at all, so this is the ONLY reuse available, and it is large: the
+        two orbitals that vary per CSF pair are (a,c), while (b,d) is very often a shared, FIXED core orbital.
+"""
+function XL_Coulomb(L::Int64, a::Orbital, b::Orbital, c::Orbital, d::Orbital, grid::Radial.Grid,
+                     vkCache::Dict{Tuple{Int64,Subshell,Subshell,Int64},Vector{Float64}})
+    la = Basics.subshell_l(a.subshell);    ja2 = Basics.subshell_2j(a.subshell)
+    lb = Basics.subshell_l(b.subshell);    jb2 = Basics.subshell_2j(b.subshell)
+    lc = Basics.subshell_l(c.subshell);    jc2 = Basics.subshell_2j(c.subshell)
+    ld = Basics.subshell_l(d.subshell);    jd2 = Basics.subshell_2j(d.subshell)
+
+    if  AngularMomentum.triangularDelta(ja2+1,jc2+1,L+L+1) * AngularMomentum.triangularDelta(jb2+1,jd2+1,L+L+1) == 0   ||
+        rem(la+lc+L,2) == 1   ||   rem(lb+ld+L,2) == 1
+        return( 0. )
+    end
+
+    xc = AngularMomentum.CL_reduced_me(a.subshell, L, c.subshell) * AngularMomentum.CL_reduced_me(b.subshell, L, d.subshell)
+    if   rem(L,2) == 1    xc = - xc    end
+
+    return( xc * RadialIntegrals.SlaterRkKinkAware(L, a, b, c, d, grid, vkCache) )
 end
 
 
