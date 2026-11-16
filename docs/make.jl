@@ -21,6 +21,7 @@ makedocs(;
         "Demos"                         => "demos.md",
         "Examples"                      => "examples.md",
         "News"                          => "news.md",
+        "How JAC is developed"          => "development.md",
         "API Atomic computations"       => "api-atomic.md",
         "API Atomic processes"          => "api-processes.md",
         "API Atomic properties"         => "api-properties.md",

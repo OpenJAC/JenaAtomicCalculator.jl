@@ -160,6 +160,9 @@ julia> ]
 As a **Scientific package** users are encouraged to explore the capabilities of JAC, and modify the package as per their 
 requirement. JAC comes with an MIT 'Expat' [License](@ref jac-license).
 
+**[How JAC is developed](development.md)** states plainly that most changes are made with AI assistance under a
+written set of rules, and how that record is kept re-derivable rather than hand-typed.
+
 For development purpose, user can install JAC from GitHub to their **desired direcory** using `git clone` in the 
 terminal. This will download a copy of JAC from the development branch of GitHub repository.
 ```

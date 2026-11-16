@@ -152,6 +152,13 @@ If you use JAC in published work, please cite the reference article:
 A `CITATION.cff` file is included in this repository; GitHub displays a *Cite this repository*
 button in the sidebar that formats the citation automatically.
 
+## How JAC is developed
+
+Most changes to JAC are made with the assistance of an AI coding assistant, working under a written set of
+rules kept in [`CLAUDE.md`](CLAUDE.md). [`CONTRIBUTING.md`](CONTRIBUTING.md) states what an external
+contribution needs; **["How JAC is developed"](https://openjac.github.io/JenaAtomicCalculator.jl/stable/development/)**
+states the AI-assistance record plainly, with the numbers re-derived from `git log` rather than hand-typed.
+
 
 ## Current limitations of JAC
 
