@@ -111,12 +111,20 @@ Keyword parameters in the signature use `Union{Nothing,T}=nothing` (e.g. `calcK:
 | `demos/` | Pluto notebooks | Yes |
 | `work/` | Running JAC; `.sum` output files | Yes |
 | `tools/` | Assistant-maintained diagnostics and cross-code comparison harnesses | Yes |
+| `internal/maintainance/` | The maintainer's standing discussion with the assistant, compiled over months | Yes, on request |
 | Any other project directory | Reference only | **Never** |
 
 `work/` is **gitignored**: it is scratch, and anything left there is lost on the next clean. `tools/` is
 **tracked** and is the assistant's own -- diagnostics, harnesses, and the small Fortran drivers that let JAC's
 results be compared against another code. The maintainer is not expected to read or maintain it; its point is
 that such a harness survives a move between machines, which a `work/` file does not.
+
+`internal/maintainance/` is where a discussion that outlives a session is kept: the maintainer's questions, the
+assistant's analyses, and the decisions that came out of them, numbered `b26.NN-topic-who.ext`. It is
+**gitignored on purpose** and that is not an oversight -- the discussion names collaborators, unpublished work
+and correspondence, which Rule 14 keeps out of anything git carries. So material moves *out* of this folder into
+the repository only after being rewritten to Rule 14's standard, and a draft intended for git is kept in
+`internal/maintainance/drafts-for-git/` until it is approved. The rest of `internal/` remains reference-only.
 
 Files outside the JAC project root are **read-only**.
 Information exchange between projects is always read-only.
@@ -405,6 +413,22 @@ reader finding what they expect where they expect it.
    identical, since a re-flow may change only where the line breaks fall -- and that check is the whole
    difference between re-flowing and rewriting.
 
+   **WORKED EXAMPLE, so the check is applied and not merely understood.** Before (wrapped at 100):
+
+       ... computes the reduced matrix element of the electric multipole operator between the given pair
+       of orbitals.
+
+   After (re-flowed to use 140):
+
+       ... computes the reduced matrix element of the electric multipole operator between the given pair of
+       orbitals.
+
+   Reading the two as a single word stream -- `computes the reduced matrix element of the electric multipole
+   operator between the given pair of orbitals` -- they are identical; only the position of the line break moved,
+   from after `pair` to after `pair of`. A rewrite that also tightened the wording (dropping "reduced", say, or
+   reordering the clause) would fail this check even if the result looked better, because the check tests for
+   RE-FLOWING specifically, not for improved prose.
+
 **Comments**
 
 6. **EVERY COMMENT USES A SINGLE `#`, standalone or appended** -- the maintainer's ruling of 08-Nov-2026, which
@@ -545,11 +569,19 @@ gitignored and therefore reaches nobody.
    already in `examples/*.jl` (see the file's own preamble and `tools/capabilityNotes.jl`), so this is a
    re-derivation, not an edit — never hand-edit `CAPABILITIES.md` between releases. Skip this step for a
    patch-only release; a patch does not add or retire a capability.
-7. **Bump `version` in `Project.toml`**, then run the suite from `test/` (Rule 11). No approved reference may be
+7. **Re-derive the development record**: `julia --project=. tools/measureDevelopmentRecord.jl --write`, which
+   rewrites the measured block quoted by `docs/src/development.md`. A published number that nothing re-derives
+   goes stale silently; that is this project's most repeated failure (see step 3's SCF-accuracy case).
+8. **Read every condition on the challenges list once.** The list holds its items on stated conditions and
+   nothing obliges anybody to read them; a release is the natural moment. Close the ones whose condition has
+   become impossible and retire their numbers.
+9. **Refresh `CITATION.cff`** — its `version` and `date-released`. Measured stale on 15-Nov-2026: it said 0.6.0
+   against a registered 0.7.1.
+10. **Bump `version` in `Project.toml`**, then run the suite from `test/` (Rule 11). No approved reference may be
    re-approved to make it pass.
-8. **Commit as `Release X.Y.Z: <one line>`** and push. `documentation.yml` then rebuilds and deploys the site
+11. **Commit as `Release X.Y.Z: <one line>`** and push. `documentation.yml` then rebuilds and deploys the site
    automatically, so the docs go live at push, before the registry step.
-9. **Register — the maintainer's step.** Comment on the release commit:
+12. **Register — the maintainer's step.** Comment on the release commit:
 
        @JuliaRegistrator register
 
@@ -565,7 +597,7 @@ gitignored and therefore reaches nobody.
    request in 14 seconds and ignored the second for 44 minutes, because version and commit were unchanged. To add
    notes afterwards, register a NEW commit. Do not create the tag by hand — `TagBot.yml` does it once the General
    registry merges, and doing both yields two tags for one release.
-10. **Afterwards**, read WHICH CI job failed before reacting: JAC's CI has historically failed on the coverage
+13. **Afterwards**, read WHICH CI job failed before reacting: JAC's CI has historically failed on the coverage
    step rather than on the tests.
 
 ## Where the sqrt(2j+1) sits: one Wigner-Eckart convention for the whole code (Rule 18)
@@ -1146,6 +1178,14 @@ rewrites.
    written below fires at the moment of REPORTING, while the machine time and the wrong turn are spent at the
    moment of MEASURING -- so the duty at filing is necessary and arrives after the cost.
 
+   **AND A DETECTOR STATES WHAT IT WOULD MISS, not only what it reports.** More than twenty detectors have been
+   built here and every one but a single case erred toward noise -- over-reporting, which trains a reader to
+   discount them. The exception is the one that matters: on 09-Nov-2026 a quality indicator was found to have
+   been reporting the wrong quantity for an entire class of rows while reading "ok" on 28 rows whose own
+   multipole disagreed between gauges by factors up to 3.8e4. A quiet detector had been read as good news. So a
+   new detector is accompanied by the one sentence that says what a defect of this kind would look like **if the
+   detector could not see it** -- and if that sentence cannot be written, the detector is not calibrated yet.
+
    **AND THE REFRAMING THAT MAKES IT WORTH DOING RATHER THAN MERELY OWED: the register is not only a guard
    against re-filing settled work, it is a LIBRARY OF CALIBRATED INSTRUMENTS.** Measured 04-Nov-2026: a
    radial-extent orbital diagnostic was written, believed and acted upon across two job launches and about two
@@ -1174,6 +1214,14 @@ rewrites.
    `src/`, put the closing note AT THAT PLACE IN `src/` as well** -- a comment at the function cannot go stale
    against the code and cannot be missed by whoever reads the code. That is the only part of this check that
    does not depend on somebody remembering a list exists.
+
+   **WORKED EXAMPLE of step (c), reading the register rather than trusting a grep of it.** On 15-Nov-2026 an idea
+   was declared "absent from all four lists" after grepping the priority, application, competition and
+   challenges lists for its wording, and the grep was right -- none of those words appeared. Reading the settled
+   register in full, the same idea turned up under a different name, `CsfG`, already proposed and already
+   declined, with its reasoning recorded. The grep was correct and the conclusion drawn from it was wrong, which
+   is precisely the failure step (c) exists to catch: the same THING had come back in DIFFERENT words, and only
+   reading the register -- not searching it -- found that.
 
 The command only reads, prints and prunes. It never starts work on an item.
 
@@ -1364,3 +1412,9 @@ When a code change legitimately alters numerical output (a physics fix or new fe
    automatically or silently.
 3. A purely structural change (rename, refactor) must pass all tests unchanged. If a test fails
    after such a change, something went wrong.
+4. **Worked example.** An external contribution once arrived in which three approved references came out
+   different from the ones in the repository. The contributor did the right thing on both counts: they left
+   `test/approved/*.sum` unchanged rather than overwriting it to make their own run agree, and they said plainly
+   which three files differed and by how much. What remained — for each of the three, whether the contribution
+   had repaired a wrong number or introduced a regression — is a physics judgement, and it is the maintainer's,
+   never the contributor's and never a tool's, however confident a diff looks.
