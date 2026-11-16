@@ -15,6 +15,9 @@ and collaboration rules for the JenaAtomicCalculator (JAC) codebase. Follow thes
 - **Two sessions often run in parallel in this one directory.** The discipline that keeps them from
   blocking or overwriting each other is under `/preparetravel`, "Starting a SECOND session"; read it
   before committing, testing or editing the shared working lists.
+- **Code changes are made on ONE machine.** `src/`, `test/` and `examples/` are changed only on the
+  machine that can run the suite; see Rule 23 for the boundary and for what the travelling session
+  does with a fix it finds instead.
 
 ## Code style — preserve as-is unless told otherwise
 
@@ -853,6 +856,48 @@ it had ever run. So write remote output under `$HOME`, and **fetch each result a
 collecting them at the end** -- a batched job is still a series of results, and a result that has not been fetched
 does not yet exist. The same reboot is the reason a long remote job needs a cheap way to say how far it got: a run
 that prints only on completion is indistinguishable from a run that died.
+
+## Where a change may be made: one machine for the code (Rule 23)
+
+Agreed 16-Nov-2026. Two machines are in use -- one that computes and one that travels -- and `/preparetravel`
+already says how work MOVES between them. This rule says where a change may be MADE in the first place, which is a
+different question and had until now been decided case by case.
+
+**`src/`, `test/` and `examples/` ARE CHANGED ON THE COMPUTING MACHINE ONLY**, and not as a matter of taste. A
+change to JAC is held to a byte-identical behaviour baseline and to a suite run started from `test/` on a still
+tree; the travelling machine cannot meet that standard -- it has less of everything and is often behind a slow
+link, both of which are machine specifics that belong in the assistant's own notes rather than in this published
+file (Rule 14). So the rule is only Rule 11 and the baseline rule followed to their conclusion: **a change that
+cannot be VERIFIED where it is made is not COMMITTED there.**
+
+Two further reasons, either of which would carry the rule on its own:
+
+* **Review happens where the maintainer reads code.** A change that lands on the machine he works on can be
+  approved in his own editor at once; one that lands elsewhere has to travel through `origin` before he can see
+  it, and in between, his picture of the code and the repository differ. That gap is the real content of "it
+  confuses me" -- a mechanism, not a preference.
+* **One writer is the only protection that actually works.** Git makes a collision visible; a file copy does not.
+  On 15-Nov-2026 seven edits made by a live session were destroyed by a push from the other machine, and were
+  recovered only because transcripts happened to still hold both sides of every edit. Confining the code to one
+  machine REMOVES that failure mode instead of mitigating it.
+
+| what | where it may be changed |
+|---|---|
+| `src/`, `test/`, `test/approved/`, `examples/` | **the computing machine only** -- the package, its oracle, and the dated claims |
+| `tools/`, `internal/` | either machine: they ship no physics and cannot move a published number |
+| `CLAUDE.md`, `docs/` | either machine, but a commit from the travelling one says in its message that nothing was run |
+
+**AND THE MECHANISM FOR WHAT THE TRAVELLING SESSION FINDS, because the rule is useless without one:** write the
+fix down -- as a patch under `internal/`, or simply in the reply -- and let the other machine apply it, test it and
+commit it. Nothing new is needed; it is how the drafts already waiting under `internal/` came to be.
+
+**The honest cost.** A one-line fix found while travelling now waits for a round trip, and the first few times
+that will feel wasteful. It is paid back the first time it stops an untested `src/` change from being committed.
+
+**THE BOUNDARY IS WRITTEN DOWN RATHER THAN LEFT TO JUDGEMENT BECAUSE IT WAS CROSSED ON THE DAY IT WAS AGREED.**
+`tools/probeAngularSkeletonReuse.jl` was committed from the travelling machine on 16-Nov-2026. Under the table
+above that is allowed; under "all code work happens on the computing machine" read strictly, it was not. The table
+is the ruling, and a rule of this kind is only as good as its least interesting row.
 
 ## Commands
 
