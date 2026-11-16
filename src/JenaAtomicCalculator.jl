@@ -300,6 +300,12 @@ include("module-AdjustedLevels.jl")
 # Functions/methods for atomic computations
 include("module-Atomic.jl");            using ..Atomic
 
+# NO `using ..Preflight` HERE, DELIBERATELY, for the reason given above ResultKeys: that module names its types
+# `Finding` and `Report`, which are far too generic to bring into the global namespace.  The MODULE NAME alone is
+# exported, so `Preflight.analyze(...)` resolves after `using JenaAtomicCalculator`.
+include("module-Preflight.jl")
+export Preflight
+
 if  incPlasma
 # Functions/methods for plasma computations
 include("module-Plasma.jl");            using ..Plasma
