@@ -572,20 +572,35 @@ end
         coupling P against one of THOSE would be a near-diagonal, not a genuine off-diagonal, term.
     + coupling       ::Array{Float64,2}  ... the `<P level i|H-E|Q CSF s>` coupling, P's levels (rows) against
         `newQIndices` (columns, in the SAME order), for a caller who wants more than the target levels alone.
+    + promotedQIndices ::Array{Int64,1} ... which positions of `newQIndices` were PROMOTED into the joint
+        diagonalization behind `deltaEDiagonalized` (challenge S38) -- the union, over all `targetLevels`, of
+        each level's own top-by-CONTRIBUTION Q-CSFs (together reaching 90 % of that level's perturbative sum)
+        plus every Q-CSF this level ever flagged for `foldNearDegenerateQCluster`. Empty only if no target
+        level had any genuinely new Q-CSF to promote.
+    + deltaEDiagonalized ::Array{Float64,1} ... the SAME shift as `deltaE`, in the SAME order, but from
+        diagonalizing `targetLevels` together with `promotedQIndices` as ONE matrix (real Q-Q couplings among
+        the promoted CSFs included) rather than summing/folding each target level against the WHOLE new-Q
+        space perturbatively. See `Hamiltonian.diagonalizePromotedQSpace`'s own docstring for why this is the
+        surviving remedy for a dense, top-heavy Q space (challenge S38) where `deltaE` itself is not usable.
 """
 struct  ShapeCrossingPartition
-    targetLevels    ::Array{Int64,1}
-    deltaE          ::Array{Float64,1}
-    newQIndices     ::Array{Int64,1}
-    coupling        ::Array{Float64,2}
+    targetLevels        ::Array{Int64,1}
+    deltaE              ::Array{Float64,1}
+    newQIndices         ::Array{Int64,1}
+    coupling            ::Array{Float64,2}
+    promotedQIndices    ::Array{Int64,1}
+    deltaEDiagonalized  ::Array{Float64,1}
 end
 
 
 function Base.show(io::IO, part::Hamiltonian.ShapeCrossingPartition)
     println(io, "ShapeCrossingPartition: second-order correction for $(length(part.targetLevels)) target " *
-                "level(s) of P against $(length(part.newQIndices)) genuinely new CSF(s) of Q.")
+                "level(s) of P against $(length(part.newQIndices)) genuinely new CSF(s) of Q " *
+                "($(length(part.promotedQIndices)) promoted into a joint diagonalization).")
     for  (j, i)  in  enumerate(part.targetLevels)
-        println(io, @sprintf("  P level %d:  deltaE = %+.6e Ha  (%+.4f mHa)", i, part.deltaE[j], 1000*part.deltaE[j]))
+        println(io, @sprintf("  P level %d:  deltaE = %+.6e Ha  (%+.4f mHa)   diagonalized = %+.6e Ha  (%+.4f mHa)",
+                              i, part.deltaE[j], 1000*part.deltaE[j],
+                              part.deltaEDiagonalized[j], 1000*part.deltaEDiagonalized[j]))
     end
 end
 
@@ -615,6 +630,186 @@ function foldNearDegenerateQCluster(ePLevel::Float64, hqqCluster::Array{Float64,
     iMin = argmin(abs.(vals .- ePLevel))
 
     return( vals[iMin] - ePLevel )
+end
+
+
+"""
+`Hamiltonian.diagonalizePromotedQSpace(targetLevels::Array{Int64,1}, targetEnergies::Array{Float64,1},
+                                        coupling::Array{Float64,2}, promotedIdx::Array{Int64,1},
+                                        hqq::Array{Float64,1}, qBasis0::Basis, newQIndices::Array{Int64,1},
+                                        op::Basics.HminusE, grid::Radial.Grid, nuclearPot::Radial.Potential;
+                                        resolvedCoeffs::Union{Nothing,Dict{Int64,Dict{Int64,Float64}}}=nothing)`
+    ... challenge S38's surviving remedy for a dense, top-heavy Q space: `foldNearDegenerateQCluster` folds ONE
+        P level against its own flagged cluster, with Q-Q off-diagonals assumed zero because that caller never
+        computes them; this generalizes BOTH limitations at once. ALL of `targetLevels` and the UNIONED set of
+        CSFs named by `promotedIdx` (positions into `newQIndices`) are placed into ONE Hermitian matrix --
+        `targetEnergies` on its own diagonal block (already exact, since these are P's own eigenstates and
+        P-P off-diagonals within an eigenbasis are exactly zero), `coupling[i, promotedIdx]` as the off-
+        diagonal P-Q block, and `hqq[promotedIdx]` plus the REAL Q-Q matrix elements among `promotedIdx` --
+        computed here, on `qBasis0` alone, by the same single-basis `ManyElectron.matrixElement_HminusE` call
+        `hqq` itself already uses -- as the Q-Q block. Diagonalizing this once, rather than summing each
+        target level separately against the whole Q space, is exactly what makes the promoted CSFs act on
+        every target level consistently (S38's own `WHAT TO DO`).
+
+        EACH TARGET LEVEL IS MATCHED TO ONE EIGENVALUE BY DOMINANT CHARACTER, NOT BY NEAREST ENERGY --
+        `foldNearDegenerateQCluster`'s own rule, generalized. One level at a time, nearest-eigenvalue is
+        unambiguous; with `length(targetLevels)` eigenstates diagonalized together, two target levels close in
+        energy could otherwise both claim the same eigenvalue. Each target level's weight on every eigenvector
+        is instead read off directly (the SQUARED component the eigenvector carries on that level's own basis
+        slot), and levels are assigned to their best-matching, not-yet-claimed eigenvector in order of how
+        UNAMBIGUOUS that match is -- the level with the single largest weight on any eigenvector is assigned
+        first, so an easy, clean match is never blocked by a harder one still being decided.
+
+        `resolvedCoeffs`/`slotGroupKey`/`qGroups`/`blockPairCache`, ADDED 16-Nov-2026 FOR THE RESOLVE+PROMOTE
+        COMBINATION -- when not `nothing`, every Q-Q matrix element below goes through `resolvedQQElement`
+        instead of a direct raw-CSF lookup, since `promotedIdx` then names slots of an ALREADY-RESOLVED Q
+        (each a linear combination of raw CSFs, not one of them -- see `secondOrderShapeCrossingCorrection`'s
+        own `S38_RESOLVE_CONFIGS` block), and caches each block pair's raw matrix across every slot pair
+        between the SAME two blocks (see `resolvedQQElement`'s own docstring -- without this caching the
+        resolve+promote combination was measured to not finish in over an hour). Left at their default, the
+        default caller's behaviour (raw-CSF Q-Q lookups, no cache) is completely unchanged.
+
+        A `deltaEDiagonalized::Array{Float64,1}`, in the SAME order as `targetLevels`, is returned.
+"""
+function diagonalizePromotedQSpace(targetLevels::Array{Int64,1}, targetEnergies::Array{Float64,1},
+                                    coupling::Array{Float64,2}, promotedIdx::Array{Int64,1},
+                                    hqq::Array{Float64,1}, qBasis0::Basis, newQIndices::Array{Int64,1},
+                                    op::Basics.HminusE, grid::Radial.Grid, nuclearPot::Radial.Potential;
+                                    resolvedCoeffs::Union{Nothing,Dict{Int64,Dict{Int64,Float64}}}=nothing,
+                                    slotGroupKey::Union{Nothing,Dict{Int64,Any}}=nothing,
+                                    qGroups::Union{Nothing,Dict{Any,Array{Int64,1}}}=nothing,
+                                    blockPairCache::Union{Nothing,Dict{Tuple{Any,Any},Array{Float64,2}}}=nothing)
+    nT = length(targetLevels);    nQ = length(promotedIdx);    n = nT + nQ
+    Hmat = zeros(n, n)
+    for  (p, i)  in  enumerate(targetLevels)
+        Hmat[p,p] = targetEnergies[p]
+        for  (q, s)  in  enumerate(promotedIdx)
+            Hmat[p, nT+q] = coupling[i,s];    Hmat[nT+q, p] = coupling[i,s]
+        end
+    end
+    for  (q, s)  in  enumerate(promotedIdx)
+        Hmat[nT+q, nT+q] = hqq[s]
+        csfS = qBasis0.csfs[newQIndices[s]]
+        for  (q2, s2)  in  enumerate(promotedIdx)
+            q2 <= q   &&   continue
+            # DIFFERENT (J,parity) CSFs couple to EXACTLY ZERO under H-E (the Hamiltonian is block-diagonal in
+            # the total symmetry) -- `matrixElement_HminusE` already returns 0.0 for this case, via its own
+            # `@warn` route, but `promotedIdx` unions nominees across EVERY target level, which routinely
+            # spans several different symmetries at once (Ti III's five J's, pooled into one RasExpansion), so
+            # MOST Q-Q pairs here are cross-symmetry -- skipping them before the call avoids a wasted function
+            # call AND a wasted warning for every one of them, measured to otherwise run into the millions.
+            csfS2 = qBasis0.csfs[newQIndices[s2]]
+            (csfS.J, csfS.parity) != (csfS2.J, csfS2.parity)   &&   continue
+            melem = resolvedCoeffs === nothing ?
+                        ManyElectron.matrixElement_HminusE(op, qBasis0, newQIndices[s], qBasis0, newQIndices[s2], grid, nuclearPot) :
+                        Hamiltonian.resolvedQQElement(s, s2, resolvedCoeffs, slotGroupKey, qGroups, blockPairCache,
+                                                        qBasis0, newQIndices, op, grid, nuclearPot)
+            Hmat[nT+q, nT+q2] = melem;    Hmat[nT+q2, nT+q] = melem
+        end
+    end
+
+    # DIAGNOSTIC, CHALLENGE S38 -- TEMPORARY, 15-Nov-2026: a toy model showed the depth trend is NOT a matching
+    # bug (zero Q-Q coupling converges this exact algorithm cleanly and monotonically to the true answer) but
+    # IS acutely sensitive to the Q-Q coupling magnitude, which has never been measured on the real case. This
+    # prints that magnitude against the already-known P-Q coupling scale (0.27-0.49 Ha) so the next real run
+    # settles which regime applies, instead of guessing further. Remove once that question is settled.
+    qqVals = [ Hmat[nT+q, nT+q2]  for q = 1:nQ, q2 = 1:nQ  if  q2 > q  &&  Hmat[nT+q,nT+q2] != 0.0 ]
+    if  !isempty(qqVals)
+        worstQQratio = 0.0;    worstQQdd = Inf;    worstQQcoupling = 0.0
+        for  q = 1:nQ,  q2 = q+1:nQ
+            Hmat[nT+q, nT+q2] == 0.0   &&   continue
+            ddQQ = Hmat[nT+q,nT+q] - Hmat[nT+q2,nT+q2]
+            abs(ddQQ) < 1.0e-10   &&   continue
+            ratio = abs(Hmat[nT+q,nT+q2] / ddQQ)
+            if  ratio > worstQQratio
+                worstQQratio = ratio;    worstQQdd = ddQQ;    worstQQcoupling = Hmat[nT+q,nT+q2]
+            end
+        end
+        @info("Hamiltonian.diagonalizePromotedQSpace(): $(length(qqVals)) nonzero Q-Q coupling(s) among the " *
+              "$nQ promoted CSFs, |Q-Q| RMS = $(round(sqrt(sum(qqVals.^2)/length(qqVals)), digits=4)) Ha, " *
+              "max = $(round(maximum(abs, qqVals), digits=4)) Ha -- see the module docstring's toy model for " *
+              "what this number decides. WORST Q-INTERNAL PAIR: |coupling/dd| = $(round(worstQQratio, digits=3)) " *
+              "from coupling = $(round(worstQQcoupling, digits=4)) Ha over a Q-Q denominator of " *
+              "$(round(worstQQdd, digits=4)) Ha -- a near-degenerate PAIR WITHIN Q, invisible to the existing " *
+              "P-Q `ratioThreshold` test, would show here as a small `dd` next to an ordinary coupling.")
+    end
+
+    vals, vecs = eigen(Symmetric(Hmat))
+    weights    = vecs[1:nT, :] .^ 2                                      # nT x n, column k = eigenvector k's
+                                                                          # own weight on each target-level slot
+    assigned = fill(0, nT);    usedCols = falses(n)
+    order    = sortperm( [ maximum(weights[p,:])  for p = 1:nT ], rev = true )
+    for  p  in  order
+        k = argmax( [ usedCols[k] ? -Inf : weights[p,k]  for k = 1:n ] )
+        assigned[p] = k;    usedCols[k] = true
+    end
+
+    return( [ vals[assigned[p]] - targetEnergies[p]  for p = 1:nT ] )
+end
+
+
+"""
+`Hamiltonian.resolvedQQElement(s::Int64, s2::Int64, resolvedCoeffs::Dict{Int64,Dict{Int64,Float64}},
+                                slotGroupKey::Dict{Int64,Any}, qGroups::Dict{Any,Array{Int64,1}},
+                                blockPairCache::Dict{Tuple{Any,Any},Array{Float64,2}}, qBasis0::Basis,
+                                newQIndices::Array{Int64,1}, op::Basics.HminusE, grid::Radial.Grid,
+                                nuclearPot::Radial.Potential)`
+    ... challenge S38's Q-Q matrix element between two RESOLVED Q slots `s`, `s2` (each possibly a linear
+        combination of raw CSFs from `secondOrderShapeCrossingCorrection`'s own `S38_RESOLVE_CONFIGS` block,
+        `resolvedCoeffs[s]` mapping each raw CSF position in `newQIndices` to its coefficient in slot `s`'s
+        resolved eigenstate) rather than between two raw CSFs directly. The two are related by the ordinary
+        basis-transform rule for a matrix element, `<s|H-E|s2> = c_s' * M_AB * c_s2`, `M_AB` the raw-CSF
+        matrix between slot `s`'s whole block `A` and slot `s2`'s whole block `B`; a slot untouched by
+        resolution (a singleton (configuration,J,parity) block) carries a single `a => 1.0` entry, so this
+        reduces to the ordinary single-pair call in that case. Used wherever the promote/closure machinery
+        below needs a Q-Q coupling and `S38_RESOLVE_CONFIGS` is on, since `hqq`/`coupling` have already been
+        rewritten into the resolved basis by then and a direct `newQIndices[s]` lookup would address the
+        wrong (pre-resolution) object.
+
+        TWO SLOTS OF THE SAME ORIGINAL BLOCK ARE EXACTLY ZERO, AND ARE SHORT-CIRCUITED -- added 16-Nov-2026
+        after the naive sum-over-cross-products first attempt at the resolve+promote combination ran for well
+        over an hour without finishing. `s` and `s2` are then two DIFFERENT eigenvectors of the SAME
+        diagonalized `Hblock`, and a symmetric matrix's own eigenvectors are mutually orthogonal in it by
+        construction -- `vecs[:,a]' * Hblock * vecs[:,b]` is exactly 0 for `a != b`, no matter how large the
+        block. `slotGroupKey[s]` names the block slot `s` belongs to, so the shortcut costs one dictionary
+        lookup instead of the full cross-product sum.
+
+        `M_AB` IS CACHED PER (BLOCK A, BLOCK B) PAIR, NOT PER SLOT PAIR -- added 16-Nov-2026 as the SECOND,
+        separate fix the same measurement demanded: the same-block shortcut alone left every CROSS-block pair
+        still paying the full `O(|A|*|B|)` raw sum, and the closure loop below tests MANY slot pairs between
+        the same two blocks (every resolved slot of `A` against every resolved slot of `B` that the cheap
+        `hqq`/symmetry filters let through), recomputing the identical raw matrix element `<a|H-E|b>` from
+        scratch every time. `M_AB`, `|A| x |B|`, depends only on the two raw CSF sets, never on which
+        particular eigenvector of `A` or `B` is asked for -- so it is built ONCE per block pair, in
+        `blockPairCache`, and every further slot pair between `A` and `B` costs one small vector-matrix-vector
+        product instead of a fresh `O(|A|*|B|)` sum. `qGroups` supplies each block's raw CSF index list in a
+        FIXED order (the cache and `resolvedCoeffs` must agree on it), and the cache is checked under BOTH
+        `(keyA,keyB)` and `(keyB,keyA)` (the second transposed) since which order a pair is first requested in
+        is incidental.
+
+        A single `Float64` matrix element is returned.
+"""
+function resolvedQQElement(s::Int64, s2::Int64, resolvedCoeffs::Dict{Int64,Dict{Int64,Float64}},
+                            slotGroupKey::Dict{Int64,Any}, qGroups::Dict{Any,Array{Int64,1}},
+                            blockPairCache::Dict{Tuple{Any,Any},Array{Float64,2}}, qBasis0::Basis,
+                            newQIndices::Array{Int64,1}, op::Basics.HminusE, grid::Radial.Grid,
+                            nuclearPot::Radial.Potential)
+    s != s2  &&  slotGroupKey[s] == slotGroupKey[s2]   &&   return( 0.0 )
+
+    keyA = slotGroupKey[s];    keyB = slotGroupKey[s2]
+    idxA = qGroups[keyA];      idxB = qGroups[keyB]
+    Mab  = if      haskey(blockPairCache, (keyA,keyB))    blockPairCache[(keyA,keyB)]
+           elseif  haskey(blockPairCache, (keyB,keyA))    blockPairCache[(keyB,keyA)]'
+           else
+               Mnew = [ ManyElectron.matrixElement_HminusE(op, qBasis0, newQIndices[a], qBasis0, newQIndices[b], grid, nuclearPot)
+                        for a in idxA, b in idxB ]
+               blockPairCache[(keyA,keyB)] = Mnew
+               Mnew
+           end
+    cA = [ resolvedCoeffs[s][a]   for a in idxA ]
+    cB = [ resolvedCoeffs[s2][b]  for b in idxB ]
+
+    return( dot(cA, Mab * cB) )
 end
 
 
@@ -692,6 +887,31 @@ end
         coefficients are driven by CSF OCCUPATION, never by subshell-list length, so a slot no CSF occupies
         is never looked up. A no-op (bit-identical) when P and Q already agree, as on branch g.
 
+        CHALLENGE S38, ADDED 15-Nov-2026 -- A SECOND, ADDITIVE TREATMENT OF THE SAME `deltaE` BLOWUP, ALONGSIDE
+        THE PERTURBATIVE SUM ABOVE RATHER THAN REPLACING IT. S34's measurement showed the Ti III blowup is a
+        few dozen TOP-HEAVY terms by CONTRIBUTION (`coupling^2/dd`), not a few near-degenerate outliers by
+        RATIO -- so for every target level, the Q-CSFs needed to reach `promoteCoverage` of ITS OWN
+        perturbative sum (plus anything already flagged above) are nominated, unioned across all
+        `targetLevels`, and promoted into ONE joint diagonalization via `diagonalizePromotedQSpace` -- real
+        Q-Q couplings among the promoted CSFs included, which the perturbative sum and the fold above both
+        lack. EVERY LEVEL'S OWN NON-PROMOTED REMAINDER (its own `unflaggedIdx`, minus whatever the UNION
+        promoted) STILL OWES ITS ORDINARY PERTURBATIVE CONTRIBUTION, added back after the diagonalization --
+        omitting this undercounts correlation from whichever part of Q a level's own nominees did not reach,
+        and was confirmed to make a deeper promotion look WORSE (not merely insufficient) before this addition
+        was in place. This is purely additive: the perturbative `deltaE` loop above is UNCHANGED code, so it
+        stays byte-identical wherever it already was (Cl III branch g); the new `deltaEDiagonalized` is
+        reported alongside it as a second, independent number, not a replacement in-place.
+
+        THE PROMOTED SET IS THEN CLOSED UNDER STRONG Q-INTERNAL COUPLING -- the fix for a SECOND, independent
+        failure mode found the same day by a toy model (zero Q-Q coupling converges this exact algorithm
+        cleanly and monotonically to the true answer; nonzero Q-Q coupling does not, and the real case measured
+        a Q-internal pair at |coupling/dd| = 1870, denominator essentially 0.0 Ha). Promoting one member of a
+        near-degenerate Q-Q pair while leaving the other out is the textbook intruder-state pathology: it
+        produces a large, physically meaningless local splitting that the matching step cannot distinguish
+        from a real shift. So after the per-level union above, `promotedIdx` is grown to closure -- any
+        CSF within `degenDenominator` of an already-promoted one, and genuinely coupled to it, is promoted too
+        -- until no such unpaired pair remains.
+
         A `Hamiltonian.ShapeCrossingPartition` is returned.
 """
 function secondOrderShapeCrossingCorrection(pMp::Multiplet, qMp::Multiplet, refConfigs::Array{Configuration,1},
@@ -761,6 +981,76 @@ function secondOrderShapeCrossingCorrection(pMp::Multiplet, qMp::Multiplet, refC
     mcP      = hcat( [ lv.mc  for lv in newPMp.levels ]... )
     coupling = mcP' * M
 
+    # RESOLVE EACH (CONFIGURATION, J, PARITY) BLOCK OF Q INTERNALLY -- TEMPORARY, GATED, 15-Nov-2026, CHALLENGE
+    # S38: measured on Ti III, Q's 5371 "genuinely new" CSFs reduce to just 9 distinct non-relativistic
+    # configurations, each exploded into hundreds of CSFs by ordinary open-shell angular/seniority coupling.
+    # `hqq` is each CSF's OWN bare diagonal energy, never mixed against same-configuration partners anywhere
+    # upstream, so CSFs sharing a configuration cluster artificially close in energy (same radial parts, only
+    # the angular coupling differs) before any real correlation effect enters -- exactly the "near-degenerate
+    # Q-internal pair" pathology the promote/closure machinery below was built to patch around. Diagonalizing
+    # each block EXACTLY (cheap: at most a few hundred CSFs per block, all of the SAME (J,parity) by
+    # construction) replaces the artificial clustering with the block's own true, properly-separated
+    # eigenstates -- exact, not approximate, using the SAME `matrixElement_HminusE` the bare diagonal already
+    # relies on, just including the within-block off-diagonal terms that were never computed before.
+    # GATED behind `S38_RESOLVE_CONFIGS` so the unresolved path (and everything downstream of it, including
+    # `deltaEDiagonalized`) stays exactly as it was for comparison. COMBINED WITH THE PROMOTE/CLOSURE PATH,
+    # 16-Nov-2026: that path's own Q-Q coupling calls would otherwise assume `newQIndices[s]` names a single
+    # raw CSF, which is no longer true once `s` names a resolved LINEAR COMBINATION -- fixed by routing every
+    # such call, once `resolveConfigs` is on, through `resolvedQQElement` instead (see its own docstring and
+    # `diagonalizePromotedQSpace`'s `resolvedCoeffs` keyword).
+    resolveConfigs = get(ENV, "S38_RESOLVE_CONFIGS", "0") == "1"
+    resolvedCoeffs = Dict{Int64,Dict{Int64,Float64}}()   # filled below when `resolveConfigs` is on, so that the
+                                                          # promote/closure machinery further down can still form
+                                                          # a correct Q-Q coupling against a RESOLVED slot (see
+                                                          # `resolvedQQElement`'s own docstring); stays empty and
+                                                          # unused when `resolveConfigs` is off.
+    slotGroupKey   = Dict{Int64,Any}()   # slot -> its (configuration,J,parity) key, so `resolvedQQElement` can
+                                          # short-circuit two slots of the SAME block to the exact zero their
+                                          # shared diagonalization already guarantees, rather than paying the
+                                          # full cross-product sum for a value already known -- see its own
+                                          # docstring. Filled alongside `resolvedCoeffs`, same scope and gating.
+    qGroups        = Dict{Any,Array{Int64,1}}()   # key -> its raw CSF index list, needed again (not just here)
+                                                   # by `resolvedQQElement`'s own block-pair raw-matrix cache.
+    blockPairCache = Dict{Tuple{Any,Any},Array{Float64,2}}()   # one raw |A|x|B| matrix per BLOCK pair, built
+                                                                # once and reused for every slot pair between
+                                                                # the same two blocks -- see `resolvedQQElement`.
+    if  resolveConfigs
+        for  s = 1:nNewQ
+            csf = qBasis0.csfs[newQIndices[s]]
+            key = ( Hamiltonian.configurationKey(Basics.extractConfiguration(Basics.FromBasis(), qBasis0, csf)),
+                    csf.J, csf.parity )
+            push!( get!(qGroups, key, Int64[]), s )
+        end
+        nMultiGroups = count( grp -> length(grp) > 1, values(qGroups) )
+        @info("Hamiltonian.secondOrderShapeCrossingCorrection(): resolving $(length(qGroups)) (configuration," *
+              "J,parity) block(s) of Q internally ($nMultiGroups with more than one CSF) before anything else " *
+              "touches `hqq`/`coupling`.")
+        for  (key, grp)  in  qGroups
+            for  s  in  grp    slotGroupKey[s] = key    end
+            if  length(grp) == 1
+                resolvedCoeffs[grp[1]] = Dict(grp[1] => 1.0)
+                continue
+            end
+            n = length(grp)
+            Hblock = zeros(n, n)
+            for  (a, sa)  in  enumerate(grp)
+                Hblock[a,a] = hqq[sa]
+                for  (b, sb)  in  enumerate(grp)
+                    b <= a   &&   continue
+                    melem = ManyElectron.matrixElement_HminusE(op, qBasis0, newQIndices[sa], qBasis0, newQIndices[sb], grid, nuclearPot)
+                    Hblock[a,b] = melem;    Hblock[b,a] = melem
+                end
+            end
+            vals, vecs = eigen(Symmetric(Hblock))
+            newCoup    = coupling[:, grp] * vecs
+            for  (a, sa)  in  enumerate(grp)
+                hqq[sa]        = vals[a]
+                coupling[:,sa] = newCoup[:,a]
+                resolvedCoeffs[sa] = Dict( grp[b] => vecs[b,a]  for b = 1:n )
+            end
+        end
+    end
+
     refKeysTarget = [ Hamiltonian.configurationKey(conf)  for conf in refConfigs ]
     targetLevels  = Int64[]
     for  i = 1:length(pMp.levels)
@@ -779,7 +1069,12 @@ function secondOrderShapeCrossingCorrection(pMp::Multiplet, qMp::Multiplet, refC
     deltaE = zeros(length(targetLevels))
     anatomy = Dict{Int64,Tuple{Int64,Float64,Int64,Float64,Float64,Float64}}()   # see the block that fills it
     ratioThreshold = 0.4   # |coupling/dd| above this is folded rather than summed, item 5 -- see the module docstring
+    # challenge S38, STILL BEING SIZED -- read from ENV for now so the depth can be swept without re-running the
+    # whole RAS ladder per value; hardcode once a working depth is settled (see the module docstring).
+    promoteCoverage = parse(Float64, get(ENV, "S38_PROMOTE_COVERAGE", "0.99"))
     nFolded = 0;    worstRatio = 0.0;    worstDenominator = Inf
+    promote           = Dict{Int64,Array{Int64,1}}( j => Int64[]  for j = 1:length(targetLevels) )   # challenge S38
+    perLevelUnflagged = Dict{Int64,Array{Int64,1}}()   # challenge S38 -- see where it is consumed, below the loop
     for  (j, i)  in  enumerate(targetLevels)
         ePLevel      = pMp.levels[i].energy
         unflaggedIdx = Int64[];    flaggedIdx = Int64[]
@@ -827,7 +1122,126 @@ function secondOrderShapeCrossingCorrection(pMp::Multiplet, qMp::Multiplet, refC
             dds  = sort( [ abs(hqq[s] - ePLevel)  for s in unflaggedIdx ] )   # Statistics is not imported here,
             ddMed = dds[ (length(dds)+1) >> 1 ]                                   # so the median is taken directly
             anatomy[j] = (length(terms), abs(terms[1])/tot, n90, coupling[i,sTop], hqq[sTop] - ePLevel, ddMed)
+            # CHALLENGE S38: the SAME terms, re-sorted keeping their own `s` index, which the anatomy tuple
+            # above does not need and therefore drops.  The top terms needed to reach 90 % of this level's own
+            # sum are this level's nominees for promotion into the joint diagonalization below -- selected by
+            # CONTRIBUTION (`coupling^2/dd`), never by the `ratioThreshold` test above, which is exactly the
+            # quantity S34 showed is the wrong one for a dense, top-heavy Q space.
+            idxTerms = sort!( [ (s, -coupling[i,s]^2 / (hqq[s] - ePLevel))  for s in unflaggedIdx ],
+                               by = t -> abs(t[2]), rev = true )
+            acc = 0.0
+            for  t  in  idxTerms
+                acc += abs(t[2]);    push!(promote[j], t[1])
+                acc >= promoteCoverage * tot   &&   break
+            end
         end
+        append!(promote[j], flaggedIdx)   # already known to be a bad fit for ordinary perturbation theory
+        perLevelUnflagged[j] = unflaggedIdx
+    end
+
+    # CHALLENGE S38 -- "PROMOTE THE STRONGLY COUPLED Q-CSFs INTO P, BY CONTRIBUTION", the surviving remedy once
+    # S34's measurement showed the dense-Q blowup is a few dozen top-heavy terms, not a few near-degenerate
+    # outliers.  UNIONED across every target level (not chosen per level, which would give each level its own
+    # P and break a common basis) so that the promoted CSFs act on all of `targetLevels` at once and
+    # consistently, exactly as S38's own `WHAT TO DO` asks.  See `diagonalizePromotedQSpace`'s own docstring
+    # for the matrix this builds and how each target level is matched back to one of its eigenvalues.
+    #
+    # RUNS AFTER RESOLUTION TOO, COMBINED 16-Nov-2026 -- when `resolveConfigs` is on, every Q-Q coupling below
+    # (both in the closure loop here and inside `diagonalizePromotedQSpace`) goes through `resolvedQQElement`
+    # instead of a direct `newQIndices[s]` lookup, since `hqq`/`coupling` have already been rewritten into the
+    # resolved basis by the block above and a resolved slot `s` names a LINEAR COMBINATION of raw CSFs, not one
+    # of them. `resolveConfigs` off leaves every call below exactly as it always was (direct raw-CSF lookups,
+    # `resolvedCoeffs` empty and unused).
+    promotedIdx = sort!( unique( vcat( values(promote)... ) ) )
+    nOriginalPromoted = length(promotedIdx)
+
+    # CLOSE `promotedIdx` UNDER STRONG Q-INTERNAL COUPLING, added 15-Nov-2026 after measuring WHY depth alone
+    # made Ti III worse rather than better: an UNPAIRED near-degenerate Q-Q pair, one member promoted and the
+    # other not, is the textbook intruder-state pathology -- measured directly, a worst case of
+    # |coupling/dd| = 1870 from a coupling of only -0.0546 Ha over a Q-Q denominator of essentially 0.0 Ha
+    # (`diagonalizePromotedQSpace`'s own diagnostic). Diagonalizing one half of a near-degenerate cluster while
+    # leaving the other out produces a large, physically meaningless local splitting that the weight-based
+    # matching cannot tell apart from a real target-level shift. The remedy is the standard one for an intruder
+    # state: the ACTIVE SPACE MUST BE CLOSED under strong coupling -- never promote one member of a
+    # near-degenerate pair without its partner. `degenDenominator` is deliberately generous, far wider than a
+    # typical P-Q denominator (median ~2.7 Ha here), since ANY non-negligible coupling over a near-zero Q-Q
+    # denominator is dangerous regardless of its own size.
+    degenDenominator = 0.05
+    promotedSet = Set(promotedIdx)
+    frontier    = collect(promotedSet)   # SCAN ONLY THE NEWLY-ADDED MEMBERS EACH PASS, not the whole set --
+                                          # re-scanning members already settled in an earlier pass is pure
+                                          # waste and was measured to make this loop impractically slow.
+    nClosurePasses = 0
+    while  !isempty(frontier)
+        nClosurePasses += 1
+        newFrontier = Int64[]
+        for  s  in  frontier
+            csfS = qBasis0.csfs[newQIndices[s]]
+            for  s2 = 1:nNewQ
+                s2 in promotedSet   &&   continue
+                abs(hqq[s] - hqq[s2]) >= degenDenominator   &&   continue
+                # SAME symmetry pre-filter as `diagonalizePromotedQSpace`'s own Q-Q block -- without it, this
+                # loop calls `matrixElement_HminusE` (and its own `@warn`) on every CROSS-symmetry candidate
+                # that happens to pass the cheap denominator check, which a dense correlation space produces
+                # by the hundreds of thousands: measured running into 446000+ before being killed.
+                csfS2 = qBasis0.csfs[newQIndices[s2]]
+                (csfS.J, csfS.parity) != (csfS2.J, csfS2.parity)   &&   continue
+                melem = resolveConfigs ?
+                            Hamiltonian.resolvedQQElement(s, s2, resolvedCoeffs, slotGroupKey, qGroups, blockPairCache,
+                                                            qBasis0, newQIndices, op, grid, nuclearPot) :
+                            ManyElectron.matrixElement_HminusE(op, qBasis0, newQIndices[s], qBasis0, newQIndices[s2], grid, nuclearPot)
+                if  abs(melem) > 1.0e-6   &&   !(s2 in promotedSet)
+                    push!(promotedSet, s2);    push!(newFrontier, s2)
+                end
+            end
+        end
+        frontier = unique(newFrontier)
+    end
+    promotedIdx = sort!( collect(promotedSet) )
+    @info("Hamiltonian.secondOrderShapeCrossingCorrection(): Q-internal closure took $nClosurePasses pass(es), " *
+          "growing the promoted set from $nOriginalPromoted to $(length(promotedIdx)).")
+
+    # DIAGNOSTIC, CHALLENGE S38 -- TEMPORARY, 15-Nov-2026: is the 94 % closure a sign of real physics (a
+    # genuinely dense set of near-degenerate CONFIGURATIONS) or a coupling-scheme artifact (many CSFs of the
+    # SAME non-relativistic configuration, differing only in angular/seniority coupling, which are degenerate
+    # with each other almost by construction rather than by any real correlation effect)? Counted here rather
+    # than guessed. Remove once this question is settled.
+    promotedConfigKeys = Set( Hamiltonian.configurationKey(
+                                   Basics.extractConfiguration(Basics.FromBasis(), qBasis0, qBasis0.csfs[newQIndices[s]]))
+                               for s in promotedIdx )
+    allNewQConfigKeys = Set( Hamiltonian.configurationKey(
+                                  Basics.extractConfiguration(Basics.FromBasis(), qBasis0, qBasis0.csfs[newQIndices[s]]))
+                              for s = 1:nNewQ )
+    @info("Hamiltonian.secondOrderShapeCrossingCorrection(): the $(length(promotedIdx)) promoted CSFs reduce to " *
+          "$(length(promotedConfigKeys)) distinct non-relativistic configuration(s) -- against $(nNewQ) new-Q " *
+          "CSFs reducing to $(length(allNewQConfigKeys)) distinct configurations overall. A promoted-set " *
+          "collapse much sharper than the overall one would point at a coupling-scheme artifact, not real " *
+          "physics; a collapse of similar sharpness would not.")
+
+    deltaEDiagonalized = if  isempty(promotedIdx)
+        copy(deltaE)
+    else
+        targetEnergies = [ pMp.levels[i].energy  for i in targetLevels ]
+        shift = Hamiltonian.diagonalizePromotedQSpace(targetLevels, targetEnergies, coupling, promotedIdx, hqq,
+                                                        qBasis0, newQIndices, op, grid, nuclearPot;
+                                                        resolvedCoeffs  = resolveConfigs ? resolvedCoeffs  : nothing,
+                                                        slotGroupKey    = resolveConfigs ? slotGroupKey    : nothing,
+                                                        qGroups         = resolveConfigs ? qGroups         : nothing,
+                                                        blockPairCache  = resolveConfigs ? blockPairCache  : nothing)
+        # THE DIAGONALIZATION ABOVE ACCOUNTS FOR `promotedIdx` ALONE -- exactly like `foldNearDegenerateQCluster`
+        # accounts for ONE level's own flagged cluster alone, the REMAINING, non-promoted Q-CSFs of THIS level
+        # still owe their ordinary perturbative contribution, or `deltaEDiagonalized` silently drops most of Q
+        # for any level whose own candidates were not ALL promoted (the global union need not cover a given
+        # level's full `unflaggedIdx`). Added here, exactly as the untouched `deltaE` loop above computes it.
+        for  (j, i)  in  enumerate(targetLevels)
+            ePLevel   = pMp.levels[i].energy
+            remainder = setdiff(perLevelUnflagged[j], promotedIdx)
+            for  s  in  remainder
+                shift[j] -= coupling[i,s]^2 / (hqq[s] - ePLevel)
+            end
+        end
+
+        shift
     end
 
     # AND THE GUARD THAT THE TI III CASE ASKED FOR (challenge S34):  a second-order correction LARGER THAN THE
@@ -860,6 +1274,23 @@ function secondOrderShapeCrossingCorrection(pMp::Multiplet, qMp::Multiplet, refC
                                      : "an OUTLIER effect, which foldNearDegenerateQCluster is the mechanism for"))
             end
         end
+        # CHALLENGE S38's OWN PASS CONDITION: the diagonalized number, not the perturbative one above, is what
+        # must come out smooth -- a spread small against `span`, with THIS guard silent, is the test a repair
+        # is judged by. Reported unconditionally once more than one target level exists, so a caller sees the
+        # comparison whether or not the perturbative sum above already broke down.
+        worstDiag    = maximum(abs, deltaEDiagonalized)
+        spreadDiagmHa = round(1000*(maximum(deltaEDiagonalized) - minimum(deltaEDiagonalized)), digits=2)
+        valuesmHa    = round.(deltaEDiagonalized*1000, digits=2)
+        spanmHa      = round(1000*span, digits=2)
+        verdict      = span > 0.0 && worstDiag > span ?
+                       " -- STILL LARGER THAN THE SPAN, so promotion to this depth did not repair it either." : "."
+        source       = resolveConfigs ?
+                           "resolving Q's own (configuration,J,parity) blocks internally, then diagonalizing " *
+                           "$(length(promotedIdx)) promoted/closed slot(s) jointly" :
+                           "diagonalizing $(length(promotedIdx)) promoted Q-CSF(s) jointly"
+        @info("Hamiltonian.secondOrderShapeCrossingCorrection(): $source with $(length(targetLevels)) target " *
+              "level(s) (challenge S38) gives deltaE $valuesmHa mHa, spread $spreadDiagmHa mHa against a " *
+              "$spanmHa mHa target-level span$verdict")
     end
     if  nFolded > 0
         @warn("Hamiltonian.secondOrderShapeCrossingCorrection(): $nFolded of $(length(targetLevels)*nNewQ) " *
@@ -872,5 +1303,5 @@ function secondOrderShapeCrossingCorrection(pMp::Multiplet, qMp::Multiplet, refC
               "than this fold.  Inspect `hqq` and `coupling` directly before trusting `deltaE` here.")
     end
 
-    return( ShapeCrossingPartition(targetLevels, deltaE, newQIndices, coupling) )
+    return( ShapeCrossingPartition(targetLevels, deltaE, newQIndices, coupling, promotedIdx, deltaEDiagonalized) )
 end
