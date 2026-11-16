@@ -2,7 +2,7 @@
 
 The JenaAtomicCalculator package is distributed under the [MIT licence](https://github.com/OpenJAC/JenaAtomicCalculator.jl/blob/master/LICENSE.md). The associated [User Guide, Compendium & Theoretical Background to JAC](https://github.com/OpenJAC/JenaAtomicCalculator.jl/blob/master/docs/UserGuide-Jac.pdf) is distributed under the Creative Commons Attribution 4.0 International (CC BY 4.0) license.
 
-> Copyright (c) 2017-2025: Stephan Fritzsche.
+> Copyright (c) 2017-2026: Stephan Fritzsche.
 > 
 > Permission is hereby granted, free of charge, to any person obtaining a copy
 > of this software and associated documentation files (the "Software"), to deal
