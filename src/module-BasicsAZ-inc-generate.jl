@@ -689,6 +689,18 @@ function runRasStep!(istep::Int64, step::AtomicState.RasStep, repType::AtomicSta
     # have stopped in different places.
     #   IT IS ADVISORY AND NEVER GATING, as the verdict itself is.  A layer whose increment is still moving is
     # not wrong, it is unfinished, and the reader is the one who decides whether that matters.
+    #   AND READ THIS NUMBER RATHER THAN THE LAST FEW ITERATIONS' INCREMENT, which is the tempting substitute and is
+    # wrong in BOTH directions -- measured 17-Nov-2026 on a Yb+ 4f^13 6s^2 correlation layer that demonstrated it on
+    # itself.  Its iterations 20 to 40 were flat to 0.14 mHa;  it then dropped 110 mHa between 40 and 80;  and 80 to 98
+    # went flat again, to 0.94 mHa.  A reader quoting the last decade would have called that layer converged twice, once
+    # immediately before a 110 mHa fall.  The companion ground-state layer failed the other way round: a 3.8 mHa last
+    # decade looked converged while 48 mHa had in fact arrived between iterations 30 and 60, and the test below read
+    # 16.55 %;  run on to its own exit that layer needed 78 iterations and only 0.54 mHa more, so the extra iterations
+    # bought almost no energy and all of the confidence.  The reason sits in the solver rather than here:
+    # `energyStillAvailable` is the Newton decrement along the ONE current search direction, so a flat stretch means
+    # that direction is exhausted, NOT that a minimum has been reached.  A detector built on "the increment has gone
+    # flat" therefore certifies both a plateau about to break and a layer that is genuinely short -- and it is quiet in
+    # exactly the cases where it matters, which is the worst way for a check to fail.
     if  repType.settings.scfRoute isa Basics.RotationRoute
         vd = SelfConsistent.lastScfVerdict()
         if  !isnothing(vd)  &&  vd.descent > 0.  &&  vd.descentAtHalf > 0.
