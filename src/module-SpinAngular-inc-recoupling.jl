@@ -102,6 +102,7 @@ end
 # its repeat factor being 1.04.
 
 const SHELL_W_CACHE = Dict{NTuple{7,Int64}, Float64}()
+const SHELL_W_LOCK  = ReentrantLock()
 
 
 # The single-operator matrix elements are memoised for the same reason as the rank-k ones, and it matters more. The
@@ -121,6 +122,7 @@ const SHELL_W_CACHE = Dict{NTuple{7,Int64}, Float64}()
 # for the open shells that cost the most. MEASURE BEFORE CHANGING THIS: a first attempt reported 4-25 % because it
 # cleared the memo before the "cold" call but let it refill during the "warm" one, and so timed the radial cache.
 const SHELL_A_CACHE = Dict{NTuple{8,Int64}, Float64}()
+const SHELL_A_LOCK  = ReentrantLock()
 
 
 """
@@ -129,13 +131,16 @@ const SHELL_A_CACHE = Dict{NTuple{8,Int64}, Float64}()
         Not needed for correctness -- the cached quantities are basis-independent -- but useful for timing a cold
         run. Note that ONE cleared call is not a cold measurement of the memo: the store refills during that very
         call and serves the rest of it, so a cold/warm comparison must clear before EVERY timed call and use a
-        fresh radial cache with it. Returns the number of entries discarded.
+        fresh radial cache with it. Each cache is read and cleared under its OWN lock (item 21), so this is safe
+        to call between runs even though it is not itself meant to race a threaded `performCI`. Returns the
+        number of entries discarded.
 """
 function clearCaches()
-    n = length(SHELL_W_CACHE) + length(PARTNER_CACHE) + length(SHELL_A_CACHE)
-    empty!(SHELL_W_CACHE);    empty!(PARTNER_CACHE);    empty!(SHELL_A_CACHE)
+    nW = Base.@lock SHELL_W_LOCK  begin   n = length(SHELL_W_CACHE);   empty!(SHELL_W_CACHE);   n   end
+    nP = Base.@lock PARTNER_LOCK  begin   n = length(PARTNER_CACHE);   empty!(PARTNER_CACHE);   n   end
+    nA = Base.@lock SHELL_A_LOCK  begin   n = length(SHELL_A_CACHE);   empty!(SHELL_A_CACHE);   n   end
 
-    return( n )
+    return( nW + nP + nA )
 end
 
 
@@ -145,15 +150,21 @@ end
     ... gives the reduced matrix element of the W^(kj) double tensor within one subshell j^N, between the states of
         seniority senBra/Jbra and senKet/Jket. **This is the MEMOISED wrapper**: it returns a cached value where one
         exists and otherwise calls `shellReducedWUncached` and stores the result under the key of all seven
-        arguments in doubled form. A value::Float64 is returned. The cache `SHELL_W_CACHE` is session-lived and
-        unbounded; see Rule 19 on whether it should be scoped.
+        arguments in doubled form. A value::Float64 is returned. The cache `SHELL_W_CACHE` is session-lived,
+        unbounded and THREAD-SAFE (item 21, 17-Nov-2026): the read and the write are each taken under
+        `SHELL_W_LOCK`, but the expensive `shellReducedWUncached` call itself runs OUTSIDE any lock, so two
+        threads racing the same miss just compute the same pure, deterministic value twice -- wasted work, never
+        a wrong answer or a corrupted `Dict` -- exactly the pattern already proven in
+        `PhotoIonizationPseudostates.LazyLadderOrbitals.getindex`.
 """
 function shellReducedW(j::AngularJ64, N::Int64, senBra::Int64, Jbra::AngularJ64, senKet::Int64, Jket::AngularJ64,
                        kj::Int64)
-    key = (Basics.twice(j), N, senBra, Basics.twice(Jbra), senKet, Basics.twice(Jket), kj)
-    haskey(SHELL_W_CACHE, key)  &&  return( SHELL_W_CACHE[key] )
-    wa  = shellReducedWUncached(j, N, senBra, Jbra, senKet, Jket, kj)
-    SHELL_W_CACHE[key] = wa
+    key    = (Basics.twice(j), N, senBra, Basics.twice(Jbra), senKet, Basics.twice(Jket), kj)
+    cached = Base.@lock SHELL_W_LOCK begin   get(SHELL_W_CACHE, key, nothing)   end
+    cached === nothing  ||  return( cached )
+
+    wa = shellReducedWUncached(j, N, senBra, Jbra, senKet, Jket, kj)
+    Base.@lock SHELL_W_LOCK begin   SHELL_W_CACHE[key] = wa   end
 
     return( wa )
 end
@@ -315,13 +326,17 @@ end
         <j^Nbra v J || a^(+/-) || j^Nket v' J'>, from the quasispin representation. As with `shellReducedW`, the
         coefficients of fractional parentage are reused as DATA -- `SpinAngular.completlyReducedCfpByIndices` -- and only
         the assembly is re-implemented. `mq` is +1/2 for creation and -1/2 for annihilation. A value::Float64 is returned.
+        `SHELL_A_CACHE` is THREAD-SAFE the same way `SHELL_W_CACHE` is (item 21, 17-Nov-2026): see that cache's
+        own docstring for the lock pattern.
 """
 function shellReducedA(j::AngularJ64, Nbra::Int64, senBra::Int64, Jbra::AngularJ64,
                        Nket::Int64, senKet::Int64, Jket::AngularJ64, mq::AngularM64)
-    key = (Basics.twice(j), Nbra, senBra, Basics.twice(Jbra), Nket, senKet, Basics.twice(Jket), Basics.twice(mq))
-    haskey(SHELL_A_CACHE, key)  &&  return( SHELL_A_CACHE[key] )
+    key    = (Basics.twice(j), Nbra, senBra, Basics.twice(Jbra), Nket, senKet, Basics.twice(Jket), Basics.twice(mq))
+    cached = Base.@lock SHELL_A_LOCK begin   get(SHELL_A_CACHE, key, nothing)   end
+    cached === nothing  ||  return( cached )
+
     wa = shellReducedAUncached(j, Nbra, senBra, Jbra, Nket, senKet, Jket, mq)
-    SHELL_A_CACHE[key] = wa
+    Base.@lock SHELL_A_LOCK begin   SHELL_A_CACHE[key] = wa   end
 
     return( wa )
 end

@@ -619,6 +619,7 @@ end
 
 
 const PARTNER_CACHE = Dict{NTuple{6,Int64}, Matrix{Float64}}()
+const PARTNER_LOCK  = ReentrantLock()
 
 
 """
@@ -629,11 +630,16 @@ const PARTNER_CACHE = Dict{NTuple{6,Int64}, Matrix{Float64}}()
         The point of caching it is that the matrix depends only on the FOUR SUBSHELL ANGULAR MOMENTA and not on the CSF
         pair, so the same one serves every pair of a calculation; a six-j costs about a microsecond and this family of
         them was being re-evaluated for each of thousands of pairs. A matrix::Matrix{Float64} is returned.
+        `PARTNER_CACHE` is THREAD-SAFE (item 21, 17-Nov-2026): the read and the write are each taken under
+        `PARTNER_LOCK`, with the six-j/matrix build itself running outside any lock -- the same pattern as
+        `SpinAngular.shellReducedW`'s own `SHELL_W_CACHE` (see that docstring). A rare raced miss builds M twice
+        and discards one, never a wrong or corrupted result.
 """
 function partnerMatrix(js::NTuple{4,AngularJ64}, nk::Int64, between::Bool)
     ja, jb, jc, jd = js
-    key = (Basics.twice(ja), Basics.twice(jb), Basics.twice(jc), Basics.twice(jd), nk, between ? 1 : 0)
-    haskey(PARTNER_CACHE, key)  &&  return( PARTNER_CACHE[key] )
+    key    = (Basics.twice(ja), Basics.twice(jb), Basics.twice(jc), Basics.twice(jd), nk, between ? 1 : 0)
+    cached = Base.@lock PARTNER_LOCK begin   get(PARTNER_CACHE, key, nothing)   end
+    cached === nothing  ||  return( cached )
 
     M = zeros(Float64, nk, nk)
     for  k = 0:nk-1,  K = 0:nk-1
@@ -641,7 +647,7 @@ function partnerMatrix(js::NTuple{4,AngularJ64}, nk::Int64, between::Bool)
                        AngularMomentum.Wigner_6j(ja, jb, AngularJ64(k), jd, jc, AngularJ64(K))
         M[k+1, K+1] = (2.0*K + 1.0) * w6
     end
-    PARTNER_CACHE[key] = M
+    Base.@lock PARTNER_LOCK begin   PARTNER_CACHE[key] = M   end
 
     return( M )
 end

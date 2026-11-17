@@ -107,10 +107,19 @@
 
     `SHELL_A_CACHE`, `SHELL_W_CACHE` and `PARTNER_CACHE` are unbounded and live as long as the session. They are pure
     memoisation on complete keys and change no result -- every verification in `examples/example-Aq.jl` was re-run after
-    they were added -- but two properties belong in an interface decision rather than in a comment: memory grows with the
-    number of distinct subshell terms encountered, and NONE of them is thread-safe. If JAC is ever threaded over CSF
-    pairs these must be made task-local or locked. `SpinAngular.clearCaches()` empties them and returns how many
-    entries were held.
+    they were added -- but memory grows with the number of distinct subshell terms encountered.
+
+    **THREAD-SAFE SINCE item 21, 17-Nov-2026.** The risk this section used to name as open -- "if JAC is ever
+    threaded over CSF pairs these must be made task-local or locked" -- fired for real on 15-Nov-2026: a `-t 8`
+    run of `example-Ar.jl` branch (i) crashed with `AssertionError: Multiple concurrent writes to Dict detected!`
+    inside `shellReducedW`, reached from `Hamiltonian.setupMatrix`'s own threaded CI-matrix construction. LOCKED,
+    not made task-local: unlike `InteractionStrength.XLCache` (basis-dependent, so each thread needs its own),
+    the values here are pure angular-momentum quantities, identical in every basis and every calculation, so
+    sharing one memo across all threads is exactly what is wanted -- it only needed to be made safe. Each cache
+    now has its own `ReentrantLock` (`SHELL_W_LOCK`/`SHELL_A_LOCK`/`PARTNER_LOCK`), held only around the `Dict`
+    read and, separately, the `Dict` write -- never around the expensive uncached computation itself, so a raced
+    miss costs a harmless duplicate computation rather than serializing the hot path. `SpinAngular.clearCaches()`
+    empties all three, each under its own lock, and returns how many entries were held.
 """
 module SpinAngular
 
