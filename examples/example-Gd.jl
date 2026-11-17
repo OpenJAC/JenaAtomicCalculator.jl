@@ -17,11 +17,11 @@ J   = Basic(:J)
 
 if  true
     # Last successful:  unknown ...
-    # Compute 
-    w1 = RacahAlgebra.DFunction(j1, p1, q1, alpha, beta, gamma)
-    w2 = RacahAlgebra.Djpq(j,p,q,beta)
-    wa = RacahAlgebra.Ylm(l1,m1,theta1,phi1)
-    RacahAlgebra.symmetricForms(w2)
+    # Compute
+    w1  = RacahAlgebra.DFunction(j1, p1, q1, alpha, beta, gamma);    println("w1  = $w1")
+    w2  = RacahAlgebra.Djpq(j,p,q,beta);                             println("w2  = $w2")
+    wa  = RacahAlgebra.Ylm(l1,m1,theta1,phi1);                       println("wa  = $wa")
+    rex = RacahAlgebra.symmetricForms(w2);                           println("rex = $rex")
     #
 elseif false
     # Last successful:  unknown ...
