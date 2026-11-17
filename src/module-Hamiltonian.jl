@@ -24,6 +24,17 @@ const  CI_PARTIAL_DIAG_MIN_DIM = 20
 
 
 """
+`Hamiltonian.CI_MATRIX_CHUNK_MIN_PAIRS`
+    ... minimum number of CSF pairs in a single symmetry block's upper triangle above which
+        Hamiltonian.setupMatrix splits the pair loop into Threads.nthreads()-scaled chunks and builds them
+        concurrently (item 17, sized and implemented 17-Nov-2026). Below this, chunking overhead is not worth
+        it and the original single serial loop runs unchanged; this only matters at all when
+        Threads.nthreads() > 1. Chosen as a round, conservative value with margin, not a measured crossover.
+"""
+const  CI_MATRIX_CHUNK_MIN_PAIRS = 2000
+
+
+"""
 `Hamiltonian.diagonalizeCiMatrix(matrix::Array{Float64,2}, levelSelectionCI::LevelSelection)`
     ... diagonalizes a single symmetry-block CI matrix, automatically choosing between a full and a partial
         (LAPACK syevr-based, via Basics.diagonalize's range keyword) diagonalization. Partial diagonalization
@@ -274,10 +285,12 @@ end
 
 """
 `Hamiltonian.setupMatrix(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings,
-                      cache::InteractionStrength.XLCache; printout::Bool=false)`  
+                      cache::InteractionStrength.XLCache; printout::Bool=false)`
     ... Set-up (computes) the Hamiltonian matrix for all CSF with symmetry sym in the given basis. The individual contributions
-        from the Breit or diagonal interaction as well as from QED to this matrix are controlled by the settings.
-        A  matrix::Arrays{Float64,2}  is returned.
+        from the Breit or diagonal interaction as well as from QED to this matrix are controlled by the settings. Above
+        CI_MATRIX_CHUNK_MIN_PAIRS CSF pairs and with Threads.nthreads() > 1, the pair loop itself runs concurrently in
+        chunks, each with its own radial-integral caches, in addition to performCI's own threading across symmetry
+        blocks (item 17, 17-Nov-2026) -- see CI_MATRIX_CHUNK_MIN_PAIRS. A  matrix::Arrays{Float64,2}  is returned.
 """
 function setupMatrix(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::Radial.Grid, settings::AsfSettings,
                       cache::InteractionStrength.XLCache; printout::Bool=false)
@@ -325,57 +338,99 @@ function setupMatrix(sym::LevelSymmetry, basis::Basis, nm::Nuclear.Model, grid::
     # an ORDERING one: the memos below are keyed on SUBSHELLS and are consulted BEFORE any orbital is touched, the
     # lookups now sitting inside the `get!` closure so that they run only on a miss.  The one-particle integral had no
     # memo at all, and at 71.9x reuse that cost every CI matrix in JAC, not only the pseudostate case.
-    i1Cache  = Dict{Tuple{Subshell,Subshell},Float64}()
-    qedCache = Dict{Tuple{Subshell,Subshell},Float64}()
-    i2Cache  = Dict{Tuple{Symbol,Int64,Subshell,Subshell,Subshell,Subshell},Float64}()
-
-    matrix = zeros(Float64, n, n)
+    # Flatten the pair set once, rather than filtering inside two nested loops, so that it can be split into
+    # independent chunks below -- not a behaviour change by itself, since no DiagonalCoulomb() off-diagonal
+    # pair is included either way.
+    pairs = Tuple{Int64,Int64}[]
     for  r = 1:n
         for  s = r:n
             if  settings.eeInteractionCI == DiagonalCoulomb()  &&  r != s    continue    end
-            # Calculate the spin-angular coefficients
-            subshellList = basis.subshells
-            opa  = SpinAngular.OneParticleOperator(0, plus)
-            waG1 = SpinAngular.computeCoefficients(opa, basis.csfs[idx_csf[r]], basis.csfs[idx_csf[s]], subshellList)
-            opa  = SpinAngular.TwoParticleOperator(0, plus)
-            waG2 = SpinAngular.computeCoefficients(opa, basis.csfs[idx_csf[r]], basis.csfs[idx_csf[s]], subshellList)
-            wa   = [waG1, waG2]
-
-            me = 0.
-            for  coeff in waG1
-                wk = (coeff.a, coeff.b)
-                me = me + coeff.T * get!(i1Cache, wk) do
-                        RadialIntegrals.GrantIab(basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid, potential)
-                    end
-                if  settings.qedModel != NoneQed()
-                    me = me + get!(qedCache, wk) do
-                        InteractionStrengthQED.qedLocal(basis.orbitals[coeff.a], basis.orbitals[coeff.b], nm,
-                                                       settings.qedModel, meanPot, grid)
-                    end
-                end
-            end
-
-            for  coeff in waG2
-                if  typeof(settings.eeInteractionCI) in [DiagonalCoulomb, CoulombInteraction, CoulombBreit, CoulombGaunt]
-                    wk = (:Coulomb, coeff.nu, coeff.a, coeff.b, coeff.c, coeff.d)
-                    me = me + coeff.V * get!(i2Cache, wk) do
-                            InteractionStrength.XL_Coulomb(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
-                                                                     basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid, cache)
-                        end
-                end
-
-                if      typeof(settings.eeInteractionCI) in [BreitInteraction, CoulombBreit, CoulombGaunt]
-                    wk = (:Breit, coeff.nu, coeff.a, coeff.b, coeff.c, coeff.d)
-                    me = me + coeff.V * get!(i2Cache, wk) do
-                            InteractionStrength.XL_Breit(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
-                                                                   basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid,
-                                                                   settings.eeInteractionCI, cache)
-                        end
-                end
-            end
-            matrix[r,s] = me
+            push!(pairs, (r, s))
         end
-    end 
+    end
+
+    matrix = zeros(Float64, n, n)
+
+    # Computes one (r,s) matrix element from the caches given, so the same body serves the serial loop below
+    # and every concurrent chunk alike -- each chunk gets its OWN i1c/qedc/i2c/xlc, never a shared one.
+    computeElement(r, s, i1c, qedc, i2c, xlc) = begin
+        subshellList = basis.subshells
+        opa  = SpinAngular.OneParticleOperator(0, plus)
+        waG1 = SpinAngular.computeCoefficients(opa, basis.csfs[idx_csf[r]], basis.csfs[idx_csf[s]], subshellList)
+        opa  = SpinAngular.TwoParticleOperator(0, plus)
+        waG2 = SpinAngular.computeCoefficients(opa, basis.csfs[idx_csf[r]], basis.csfs[idx_csf[s]], subshellList)
+
+        me = 0.
+        for  coeff in waG1
+            wk = (coeff.a, coeff.b)
+            me = me + coeff.T * get!(i1c, wk) do
+                    RadialIntegrals.GrantIab(basis.orbitals[coeff.a], basis.orbitals[coeff.b], grid, potential)
+                end
+            if  settings.qedModel != NoneQed()
+                me = me + get!(qedc, wk) do
+                    InteractionStrengthQED.qedLocal(basis.orbitals[coeff.a], basis.orbitals[coeff.b], nm,
+                                                   settings.qedModel, meanPot, grid)
+                end
+            end
+        end
+
+        for  coeff in waG2
+            if  typeof(settings.eeInteractionCI) in [DiagonalCoulomb, CoulombInteraction, CoulombBreit, CoulombGaunt]
+                wk = (:Coulomb, coeff.nu, coeff.a, coeff.b, coeff.c, coeff.d)
+                me = me + coeff.V * get!(i2c, wk) do
+                        InteractionStrength.XL_Coulomb(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
+                                                                 basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid, xlc)
+                    end
+            end
+
+            if      typeof(settings.eeInteractionCI) in [BreitInteraction, CoulombBreit, CoulombGaunt]
+                wk = (:Breit, coeff.nu, coeff.a, coeff.b, coeff.c, coeff.d)
+                me = me + coeff.V * get!(i2c, wk) do
+                        InteractionStrength.XL_Breit(coeff.nu, basis.orbitals[coeff.a], basis.orbitals[coeff.b],
+                                                               basis.orbitals[coeff.c], basis.orbitals[coeff.d], grid,
+                                                               settings.eeInteractionCI, xlc)
+                    end
+            end
+        end
+
+        return( me )
+    end
+
+    # WITHIN-BLOCK PARALLELIZATION, item 17, sized and implemented 17-Nov-2026.  performCI's own threading is
+    # ACROSS symmetry blocks only, so a basis that collapses to one large block -- the pooled pseudostate case
+    # that motivated this -- saw none of that benefit however many threads were available (confirmed by a
+    # statistical profile taken mid-run, 17-Nov-2026: ~50% CPU utilization, the rest spent in `poptask` waiting
+    # on the single running block-task).  Below CI_MATRIX_CHUNK_MIN_PAIRS pairs the chunking overhead is not
+    # worth it and the ORIGINAL single serial loop runs unchanged, with the single cache handed in by the
+    # caller exactly as before.  A chunk-task spawned from inside performCI's own block-task is a nested
+    # Threads.@spawn, new to this codebase but standard, documented Julia behaviour.
+    nthr = Threads.nthreads()
+    if  nthr > 1  &&  length(pairs) >= CI_MATRIX_CHUNK_MIN_PAIRS
+        nchunks   = 4 * nthr
+        chunkSize = cld(length(pairs), nchunks)
+        @sync for chunkStart = 1:chunkSize:length(pairs)
+            chunkEnd = min(chunkStart + chunkSize - 1, length(pairs))
+            Threads.@spawn begin
+                # ONE CACHE PER CHUNK, not one shared: these Dicts are written during setup, so sharing them
+                # across tasks would be a data race -- the same convention performCI already uses per block.
+                i1c  = Dict{Tuple{Subshell,Subshell},Float64}()
+                qedc = Dict{Tuple{Subshell,Subshell},Float64}()
+                i2c  = Dict{Tuple{Symbol,Int64,Subshell,Subshell,Subshell,Subshell},Float64}()
+                xlc  = InteractionStrength.XLCache()
+                for  idx = chunkStart:chunkEnd
+                    (r, s)      = pairs[idx]
+                    matrix[r,s] = computeElement(r, s, i1c, qedc, i2c, xlc)
+                end
+            end
+        end
+    else
+        i1Cache  = Dict{Tuple{Subshell,Subshell},Float64}()
+        qedCache = Dict{Tuple{Subshell,Subshell},Float64}()
+        i2Cache  = Dict{Tuple{Symbol,Int64,Subshell,Subshell,Subshell,Subshell},Float64}()
+        for  (r, s)  in  pairs
+            matrix[r,s] = computeElement(r, s, i1Cache, qedCache, i2Cache, cache)
+        end
+    end
     if printout    println("   ... done.")    end
 
     return( matrix )
