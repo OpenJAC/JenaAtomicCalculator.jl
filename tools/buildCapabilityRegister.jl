@@ -74,30 +74,83 @@ function  parseExamplesIndex(path::String)
 end
 
 
-# ===== 2. For one branch code, find the best (most recent, genuinely parseable) `Last successful` date ========
+# ===== 2. For one branch code, find the best (most recent, genuinely parseable) `Last successful` date, and,
+#          failing that, whatever explanatory text the branch's own author already wrote beside "unknown" =====
 
 function  bestDate(code::String)
 
     path = joinpath(ROOT, "examples", "example-$code.jl")
-    isfile(path) || return( (status = :nofile, date = nothing) )
+    isfile(path) || return( (status = :nofile, date = nothing, note = nothing) )
 
     dates = Date[]
+    note  = nothing
     for  line in readlines(path)
         m = match(r"#\s*Last successful:\s*(.*)", line)
         m === nothing && continue
-        tail = m.captures[1]
+        tail = strip(m.captures[1])
         dm = match(r"(\d{1,2})[-\s]?([A-Za-z]{3})[-\s]?(\d{4})", tail)
-        dm === nothing && continue
-        try
-            push!(dates, Date("$(dm.captures[1])-$(dm.captures[2])-$(dm.captures[3])", dateformat"d-u-y"))
-        catch
-            # an unparseable date token (shouldn't happen given the regex) is simply not counted
+        if  dm !== nothing
+            try
+                push!(dates, Date("$(dm.captures[1])-$(dm.captures[2])-$(dm.captures[3])", dateformat"d-u-y"))
+            catch
+                # an unparseable date token (shouldn't happen given the regex) is simply not counted
+            end
+            continue
+        end
+        # NOT A DATE -- but "unknown" is so often followed by the author's OWN reason ("... NOT VERIFIED; the
+        # gauges disagree", "... not yet run; it is a guard test, not a physics branch") that discarding it
+        # and falling back to one generic sentence throws away exactly the distinction item 27 is about. Take
+        # the FIRST such note found; a file with several undated branches saying different things is already
+        # a one-row-per-file limitation this register discloses in its own preamble, not a new one.
+        if  note === nothing
+            um = match(r"^unknown\b[\s.\-:#]*(.*)$"i, tail)
+            if  um !== nothing  &&  !isempty(strip(um.captures[1]))
+                note = strip(um.captures[1])
+            end
         end
     end
 
-    isempty(dates) && return( (status = :undated, date = nothing) )
+    isempty(dates) && return( (status = :undated, date = nothing, note = note) )
 
-    return( (status = :dated, date = maximum(dates)) )
+    return( (status = :dated, date = maximum(dates), note = nothing) )
+
+end
+
+
+# ===== 2b. Does this branch's own MODULE carry a Rule-13 "parked" STATUS block in src/, when the example file =
+#           itself is silent (a bare "unknown", no author's note)? Re-derived from src/ every time, exactly
+#           like the generator's own stated philosophy -- if the parking is ever lifted, this note disappears
+#           on the next regeneration with no file here needing to be remembered and edited. =====================
+
+function  parkedNote(modName::Union{Nothing,AbstractString})
+
+    modName === nothing  &&  return( nothing )
+    base = split(modName, '.')[1]
+    path = joinpath(ROOT, "src", "module-$(base).jl")
+    isfile(path)  ||  return( nothing )
+
+    best = nothing   # (date, text) of the MOST RECENT "STATUS, DD-Mon-YYYY[...]:" line -- a module may carry
+                      # more than one as its status moved on (PhotoDoubleIonization has two), and only the
+                      # latest is the module's CURRENT word on itself.
+    for  line in readlines(path)
+        m = match(r"STATUS,\s*(\d{1,2}[-\s]?[A-Za-z]{3}[-\s]?\d{4})[^:]*:\s*(.*)", line)
+        m === nothing && continue
+        d = try   Date(replace(m.captures[1], r"[-\s]+" => "-"), dateformat"d-u-y")   catch;   nothing   end
+        d === nothing && continue
+        (best === nothing || d > best[1])  &&  (best = (d, strip(m.captures[2])))
+    end
+    best === nothing && return( nothing )
+
+    date, text = best
+    isParked = (occursin(r"\bPARKED\b"i, text) || occursin(r"\bPOSTPONED\b"i, text))  &&  !occursin(r"\bLIFTED\b"i, text)
+    isParked  ||  return( nothing )
+
+    # First sentence only (the register's own "one-line hint, not a specification" standard) -- the STATUS
+    # block's own text usually continues over several more lines that would otherwise be cut off mid-word.
+    stop = findfirst('.', text)
+    text = stop === nothing ? text : text[1:stop]
+
+    return( "PARKED under Rule 13 ($(Dates.format(date, "dd-u-yyyy"))): $(text)" )
 
 end
 
@@ -146,7 +199,12 @@ function  renderEntry(io::IO, e::Entry)
         println(io, "- No dedicated `examples/example-$(e.code).jl` file was found for this branch code.")
     elseif  d.status == :undated
         println(io, "- Start here: `examples/example-$(e.code).jl`")
-        println(io, "- Date: **unknown/undated** -- the branch exists and runs; nobody has yet recorded a judged date.")
+        note = d.note !== nothing ? d.note : parkedNote(modName)
+        if  note !== nothing
+            println(io, "- Date: **unknown/undated** -- $(note)")
+        else
+            println(io, "- Date: **unknown/undated** -- the branch exists and runs; nobody has yet recorded a judged date.")
+        end
     else
         println(io, "- Start here: `examples/example-$(e.code).jl`, dated **$(Dates.format(d.date, "dd-u-yyyy"))**")
     end
@@ -200,10 +258,16 @@ function  buildRegister()
     println(io, "**How to trust what it says.** Every row's date comes from that branch's own " *
                 "`# Last successful: DD-Mon-YYYY` comment line in `examples/*.jl` -- the one marker in this " *
                 "codebase that a human, not a tool, has ever written after physically judging the numbers " *
-                "(see `CLAUDE.md`, Rule 7). A row marked **unknown/undated** means exactly that: the module " *
-                "exists and the branch runs, but nobody has yet judged the physics, or an earlier judgement " *
-                "was withdrawn. An omitted `Module:` line means the same kind of honesty -- this register's " *
-                "generator could not confidently name one, rather than guessing.")
+                "(see `CLAUDE.md`, Rule 7). A row marked **unknown/undated** means the module exists and the " *
+                "branch runs, but nobody has yet judged the physics, or an earlier judgement was withdrawn -- " *
+                "**undated is not the same as unimplemented or abandoned, and the text after the dash says " *
+                "which it is wherever the branch's own author already wrote one** (item 27, 17-Nov-2026): a " *
+                "branch deliberately parked, one that ran and failed, a guard test that is SUPPOSED to not " *
+                "pass, and one nobody has simply gotten to yet all now read differently, taken verbatim from " *
+                "that branch's own `# Last successful: unknown ...` comment rather than flattened to one " *
+                "generic sentence. Where no such note exists in the source, the generic sentence is all there " *
+                "honestly is to say. An omitted `Module:` line means the same kind of honesty -- this " *
+                "register's generator could not confidently name one, rather than guessing.")
     println(io)
     println(io, "**Restrictions column.** A one-line hint, not a specification. It exists to stop a false " *
                 "start, not to replace reading the branch. A blank entry means no restriction is currently " *

@@ -7,7 +7,7 @@
 
 **What this file is NOT.** It is not the manual, and completeness of DETAIL is explicitly not the goal -- simple use and fast orientation are. The full technical detail lives in each module's own docstrings and in `docs/`; this file only tells you whether to look there at all, and where to start. It IS complete in COVERAGE, though: every branch listed by `examples/examples.jl` gets its own row here, mechanically, so nothing in that index goes missing from this one.
 
-**How to trust what it says.** Every row's date comes from that branch's own `# Last successful: DD-Mon-YYYY` comment line in `examples/*.jl` -- the one marker in this codebase that a human, not a tool, has ever written after physically judging the numbers (see `CLAUDE.md`, Rule 7). A row marked **unknown/undated** means exactly that: the module exists and the branch runs, but nobody has yet judged the physics, or an earlier judgement was withdrawn. An omitted `Module:` line means the same kind of honesty -- this register's generator could not confidently name one, rather than guessing.
+**How to trust what it says.** Every row's date comes from that branch's own `# Last successful: DD-Mon-YYYY` comment line in `examples/*.jl` -- the one marker in this codebase that a human, not a tool, has ever written after physically judging the numbers (see `CLAUDE.md`, Rule 7). A row marked **unknown/undated** means the module exists and the branch runs, but nobody has yet judged the physics, or an earlier judgement was withdrawn -- **undated is not the same as unimplemented or abandoned, and the text after the dash says which it is wherever the branch's own author already wrote one** (item 27, 17-Nov-2026): a branch deliberately parked, one that ran and failed, a guard test that is SUPPOSED to not pass, and one nobody has simply gotten to yet all now read differently, taken verbatim from that branch's own `# Last successful: unknown ...` comment rather than flattened to one generic sentence. Where no such note exists in the source, the generic sentence is all there honestly is to say. An omitted `Module:` line means the same kind of honesty -- this register's generator could not confidently name one, rather than guessing.
 
 **Restrictions column.** A one-line hint, not a specification. It exists to stop a false start, not to replace reading the branch. A blank entry means no restriction is currently flagged -- not that none exists.
 
@@ -74,7 +74,7 @@
 
 ### An) Apply & test the bi-orthogonal transformation of two independently-generated multiplets.
 
-- Start here: `examples/example-An.jl`, dated **30-Jul-2026**
+- Start here: `examples/example-An.jl`, dated **09-Nov-2026**
 
 ### Ao) Apply & test the average-level (AL) and optimized-level (EOL) self-consistent fields, and where they differ.
 
@@ -180,7 +180,7 @@
 
 - Module: `StarkShift`
 - Start here: `examples/example-Cl.jl`
-- Date: **unknown/undated** -- the branch exists and runs; nobody has yet recorded a judged date.
+- Date: **unknown/undated** -- RUNS (exit 0) and is the CLEAREST demonstration of why this file
 
 ### Cm) Apply & test the StarkZeeman module (exact ASF-basis diagonalization of level mixing in static E and/or B fields of arbitrary relative direction).
 
@@ -253,7 +253,7 @@
 
 - Module: `RayleighCompton`
 - Start here: `examples/example-Dg.jl`
-- Date: **unknown/undated** -- the branch exists and runs; nobody has yet recorded a judged date.
+- Date: **unknown/undated** -- BLOCKED by a defect in src/module-RayleighCompton.jl itself, see below.
 
 ### Dh) Apply & test the MultiPhotonTransition module: TWO-photon emission, absorption and bichromatic absorption.
 
@@ -275,7 +275,7 @@
 
 - Module: `PhotoDoubleIonization`
 - Start here: `examples/example-Dj.jl`
-- Date: **unknown/undated** -- the branch exists and runs; nobody has yet recorded a judged date.
+- Date: **unknown/undated** -- and it stays unknown: a Coulomb/Babushkin ratio of 1.76 is not a
 
 ### Dk) Apply & test the RadiativeAuger module with ASF from an internally generated initial- and final-state multiplet.
 
@@ -293,7 +293,7 @@
 
 - Module: `InternalRecombination`
 - Start here: `examples/example-Dm.jl`
-- Date: **unknown/undated** -- the branch exists and runs; nobody has yet recorded a judged date.
+- Date: **unknown/undated** -- (see REPORT -- root cause #2 above still open, absolute magnitude not
 
 ### Dn) Apply & test the TwoElectronOnePhoton (TEOP) module: both computational strategies compared for the same transition.
 
@@ -348,6 +348,11 @@
 - Start here: `examples/example-Dy.jl`, dated **20-Oct-2026**
 - Keywords: Fano
 
+### Dz) Apply & test the PhotoIonizationPseudostates module: a diagonalize-once CI mixing bound autoionizing CSFs with a box-discretized continuum pseudostate ladder -- the alternative to Dy's amplitude-sum route.
+
+- Module: `PhotoIonizationPseudostates`
+- Start here: `examples/example-Dz.jl`, dated **05-Nov-2026**
+
 ---
 
 ## E) Examples, tests & development of composed atomic processes
@@ -362,7 +367,7 @@
 
 - Module: `PhotoExcitationFluores`
 - Start here: `examples/example-Eb.jl`
-- Date: **unknown/undated** -- the branch exists and runs; nobody has yet recorded a judged date.
+- Date: **unknown/undated** -- PARKED under Rule 13 (31-Aug-2026): PARKED BY THE MAINTAINER.
 
 ### Ec) Apply & test the PhotoExcitationAutoIon module with ASF from an internally generated initial-, intermediate and final-state multiplets.
 
@@ -372,7 +377,7 @@
 
 ### Ed) Apply & test the Photoionization and PlasmaShift module with ASF from an internally generated initial- and final-state multiplet.
 
-- Start here: `examples/example-Ed.jl`, dated **15-Oct-2026**
+- Start here: `examples/example-Ed.jl`, dated **09-Nov-2026**
 
 ### Ef) RETIRED -- plasma-shifted Auger rates moved to Plasma.LineShiftScheme; see example-Jb.jl branch 1.
 
@@ -516,7 +521,7 @@
 
 - Module: `StrongField`
 - Start here: `examples/example-Ib.jl`
-- Date: **unknown/undated** -- the branch exists and runs; nobody has yet recorded a judged date.
+- Date: **unknown/undated** -- PARKED under Rule 13 (26-Aug-2026): POSTPONED BY THE MAINTAINER UNTIL 2027, together with examples/example-Id.
 - Keywords: ATI, strong field, SFA
 - Restriction: shares the StrongField module with Id; check this branch's own date independently before trusting it.
 
@@ -524,7 +529,7 @@
 
 - Module: `StrongField`
 - Start here: `examples/example-Ic.jl`
-- Date: **unknown/undated** -- the branch exists and runs; nobody has yet recorded a judged date.
+- Date: **unknown/undated** -- PARKED under Rule 13 (26-Aug-2026): POSTPONED BY THE MAINTAINER UNTIL 2027, together with examples/example-Id.
 - Keywords: ATI, strong field, SFA
 - Restriction: shares the StrongField module with Id; check this branch's own date independently before trusting it.
 
@@ -532,7 +537,7 @@
 
 - Module: `StrongField`
 - Start here: `examples/example-Id.jl`
-- Date: **unknown/undated** -- the branch exists and runs; nobody has yet recorded a judged date.
+- Date: **unknown/undated** -- PARKED under Rule 13 (26-Aug-2026): POSTPONED BY THE MAINTAINER UNTIL 2027, together with examples/example-Id.
 - Keywords: ATI, strong field, SFA
 - Restriction: explicitly marked [POSTPONED until 2027] in examples.jl itself -- do not use for a real calculation.
 
@@ -752,7 +757,7 @@
 ### Of) ONE-PHOTON annihilation of a positron with a bound electron: e^+ + |i(N)> --> |f(N-1)> + photon.
 
 - Start here: `examples/example-Of.jl`
-- Date: **unknown/undated** -- the branch exists and runs; nobody has yet recorded a judged date.
+- Date: **unknown/undated** -- NOT VERIFIED; two checks fail, see the report below.
 
 ---
 
@@ -761,7 +766,7 @@
 ### Pa) BOUND-FREE PAIR CREATION: gamma + |i(N)> --> |f(N+1)> + e^+, the created electron being captured into a bound orbital.
 
 - Start here: `examples/example-Pa.jl`
-- Date: **unknown/undated** -- the branch exists and runs; nobody has yet recorded a judged date.
+- Date: **unknown/undated** -- NOT VERIFIED; the gauges disagree, see the report below.
 
 ### Pb) RAYLEIGH scattering: gamma + |i> --> |i> + gamma, second order over an explicit gMultiplet of intermediate levels.
 
@@ -770,7 +775,7 @@
 ### Pc) RESONANT INELASTIC scattering (RIXS): the same second order, tuned ONTO an intermediate level with a width.
 
 - Start here: `examples/example-Pc.jl`
-- Date: **unknown/undated** -- the branch exists and runs; nobody has yet recorded a judged date.
+- Date: **unknown/undated** -- the Lorentzian IS reproduced to 0.6 %, but the absolute cross sections rest on
 
 ### Pd) FORM-FACTOR approximation for Rayleigh and Compton: the cheap limit, and the Thomson absolute check.
 
@@ -779,7 +784,7 @@
 ### Pe) TWISTED (Bessel) beams: the vortex node on axis, and the plane-wave limit, at finite impact parameter.
 
 - Start here: `examples/example-Pe.jl`
-- Date: **unknown/undated** -- the branch exists and runs; nobody has yet recorded a judged date.
+- Date: **unknown/undated** -- see the report below.
 
 ---
 
@@ -810,4 +815,4 @@
 
 ---
 
-*Mechanically generated by `tools/buildCapabilityRegister.jl` on 05-Nov-2026 from commit `4681cfca`. Regenerated once per MAJOR/MINOR release (`CLAUDE.md` Rule 17) -- never hand-edited in between.*
+*Mechanically generated by `tools/buildCapabilityRegister.jl` on 17-Nov-2026 from commit `c64609e1`. Regenerated once per MAJOR/MINOR release (`CLAUDE.md` Rule 17) -- never hand-edited in between.*
