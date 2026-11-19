@@ -209,9 +209,8 @@ end
 """
 function  W6j(a::AngMomentum, b::AngMomentum, c::AngMomentum, 
                 d::AngMomentum, e::AngMomentum, f::AngMomentum)
-    wa = AngMomentum(a);    wb = AngMomentum(b);    wc = AngMomentum(c)    
-    wd = AngMomentum(d);    we = AngMomentum(e);    wf = AngMomentum(f)    
-    println("aaa")
+    wa = AngMomentum(a);    wb = AngMomentum(b);    wc = AngMomentum(c)
+    wd = AngMomentum(d);    we = AngMomentum(e);    wf = AngMomentum(f)
     W6j(wa, wb, wc, wd, we, wf)
 end
 
@@ -931,8 +930,22 @@ end
 """
 function  evaluateNumerical(w6j::W6j)
     a = Float64(w6j.a);   b  = Float64(w6j.b);   c = Float64(w6j.c)
-    d = Float64(w6j.e);   ex = Float64(w6j.e);   f = Float64(w6j.f)
+    d = Float64(w6j.d);   ex = Float64(w6j.e);   f = Float64(w6j.f)
     wa = AngularMomentum.Wigner_6j(a,b,c, d,ex,f)
+    return( wa )
+end
+
+
+"""
+`RacahAlgebra.evaluateNumerical(w9j::W9j)`
+    ... attempts to evaluates  a Wigner 9-j symbol numerically; it is supposed that all angular momenta are given numerically.
+        A wa::Float64 is returned.
+"""
+function  evaluateNumerical(w9j::W9j)
+    a = Float64(w9j.a);   b = Float64(w9j.b);   c = Float64(w9j.c)
+    d = Float64(w9j.d);   e = Float64(w9j.e);   f = Float64(w9j.f)
+    g = Float64(w9j.g);   h = Float64(w9j.h);   i = Float64(w9j.i)
+    wa = AngularMomentum.Wigner_9j(a,b,c, d,e,f, g,h,i)
     return( wa )
 end
 
