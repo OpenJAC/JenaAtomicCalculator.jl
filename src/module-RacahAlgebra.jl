@@ -872,6 +872,7 @@ function  evaluate(rx::RacahExpression; special::Bool=false)
             
             newrex = RacahAlgebra.simplifyDeltas(newrex)
             newrex = RacahAlgebra.simplifyTriangles(newrex)
+            newrex = RacahAlgebra.simplifyTrivialSummations(newrex)
             
             if  cont    else     return(newrex)    end
         end
@@ -1828,7 +1829,7 @@ function simplifyDeltas(rex::RacahExpression)
     for  delta  in  rex.deltas     
         newSummations = nrex.summations;    newPhase = nrex.phase;     newWeight    = nrex.weight;     newDeltas = nrex.deltas;    
         newTriangles  = nrex.triangles;     newW3js  = nrex.w3js;      newW6js      = nrex.w6js;       newW9js   = nrex.w9js
-        newYlms       = nrex.ylms;          newDjpqs = nrex.djpqs;     newIntegrals = nrex.djpqs
+        newYlms       = nrex.ylms;          newDjpqs = nrex.djpqs;     newIntegrals = nrex.integrals
 
         if  delta.i == delta.k  &&  (delta.i in newSummations  ||   -delta.i in newSummations)
             newDeltas = Kronecker[]
@@ -1954,7 +1955,56 @@ end
 
 
 """
-`RacahAlgebra.subs(list::Array{Basic,1}, wold::Basic, wnew::Basic)`  
+`RacahAlgebra.simplifyTrivialSummations(rex::RacahExpression)`
+    ... removes a summation index that no longer occurs anywhere else in rex (not in its phase, weight, deltas,
+        triangles, W3j/W6j/W9j symbols, Ylm's, Djpq's or integrals), replacing Sum_m [...] by (2j+1)*[...]
+        where j is the total angular momentum that m is the projection of.
+
+        This module names a magnetic projection after its own total angular momentum with a leading m/M:
+        ma/mb/mc project ja/jb/jc, m1/M12 project j1/J12, and mL1/mXp1/mS12 project L1/Xp1/S12 unchanged (no
+        leading j/J to strip). A rule that discards the LAST Wigner symbol carrying some m can leave m
+        stranded in the summation list with no remaining link to its own j -- which is what happened for
+        example-Ga.jl's Feynman-Goldstone branch, left as `Sum_[mb] ...` though nothing in the final expression
+        any longer depended on mb.
+
+        Only a leading m/M is tried, against BOTH of the module's own naming patterns (dropping the leading
+        character, or replacing it with j/J), and ONLY when EXACTLY ONE of the two candidate names is still
+        present elsewhere in rex -- an ambiguous or absent match is left untouched rather than guessed at.
+        A new nrex::RacahExpression is returned.
+"""
+function simplifyTrivialSummations(rex::RacahExpression)
+    isUnused(v) = RacahAlgebra.hasNoVars([v], rex.phase)     &&  RacahAlgebra.hasNoVars([v], rex.weight)     &&
+                  RacahAlgebra.hasNoVars([v], rex.deltas)    &&  RacahAlgebra.hasNoVars([v], rex.triangles)  &&
+                  RacahAlgebra.hasNoVars([v], rex.w3js)      &&  RacahAlgebra.hasNoVars([v], rex.w6js)       &&
+                  RacahAlgebra.hasNoVars([v], rex.w9js)      &&  RacahAlgebra.hasNoVars([v], rex.ylms)       &&
+                  RacahAlgebra.hasNoVars([v], rex.djpqs)     &&  RacahAlgebra.hasNoVars([v], rex.integrals)
+
+    newSummations = Basic[];    newWeight = rex.weight
+    for  s  in  rex.summations
+        sName = string(s)
+        if  !isUnused(s)    ||    !(sName[1] in ('m', 'M'))
+            push!(newSummations, s);    continue
+        end
+
+        root1 = sName[2:end];    root2 = sName[1] == 'm'  ?  "j" * root1  :  "J" * root1
+        candidates = String[]
+        !isUnused(Basic(Symbol(root1)))    &&    push!(candidates, root1)
+        !isUnused(Basic(Symbol(root2)))    &&    push!(candidates, root2)
+
+        if  length(candidates) == 1
+            newWeight = newWeight * (2*Basic(Symbol(candidates[1])) + 1)
+        else
+            push!(newSummations, s)
+        end
+    end
+    wa = RacahExpression( newSummations, rex.integrals, rex.phase, newWeight, rex.deltas, rex.triangles, rex.w3js, rex.w6js, rex.w9js, rex.ylms, rex.djpqs )
+
+    return( wa )
+end
+
+
+"""
+`RacahAlgebra.subs(list::Array{Basic,1}, wold::Basic, wnew::Basic)`
     ... substitutes in list all occasions of wold by wnew; a newList::Array{Basic,1} is returned.
 """
 function subs(list::Array{Basic,1}, wold::Basic, wnew::Basic)
