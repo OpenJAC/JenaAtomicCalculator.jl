@@ -812,7 +812,7 @@ function sumRulesForTwoW3jOneW6j(rex::RacahAlgebra.RacahExpression)
                                 testPhase  = newPhase - wwa.jc - wwc.c - wwb.ma - wwa.ma  
                                 testPhase  = RacahAlgebra.rewritePhase(testPhase, zPhases, [wwa.jc, wwa.mc]; printout=false, from=">>> two W3j & one W6j -- Sum(l3, n3):")
                                 newWeight  = rex.weight * xaRex.weight * xbRex.weight * xcRex.weight;  testWeight = newWeight / (2*wwb.jc+1)
-                                newW3js    = W3j[];    newW6js    = W6j[];    m3 = Basic(:m3)
+                                newW3js    = W3j[];    newW6js    = W6j[];    m3 = RacahAlgebra.freshIndex(rex, "m3")
                                 for (idW3j, dW3j) in enumerate(rex.w3js)  if  idW3j != iaW3j &&  idW3j != ibW3j   push!(newW3js, dW3j)   end   end
                                 for (idW6j, dW6j) in enumerate(rex.w6js)  if  idW6j != icW6j                      push!(newW6js, dW6j)   end   end
                                 #
@@ -1460,7 +1460,7 @@ function sumRulesForFourW3j(rex::RacahAlgebra.RacahExpression)
                                     specialdW3j = W3j(wwc.jc, wwd.jb, wwa.ja, wwd.ma, wwd.mb, -wwa.ma)
                                     #
                                     if  wwa == specialaW3j  &&  wwb == specialbW3j  &&  wwc == specialcW3j  &&  wwd == specialdW3j 
-                                        j9 = Basic(:j9);   m9 = Basic(:m9)
+                                        j9 = RacahAlgebra.freshIndex(rex, "j9");   m9 = RacahAlgebra.freshIndex(rex, "m9")
                                         newPhase  = rex.phase  + xaRex.phase  + xbRex.phase  + xcRex.phase  + xdRex.phase
                                         testPhase = newPhase + wwa.ma + wwb.ma + wwc.ma + wwd.ma - wwa.ja - 2*wwa.jc - wwb.jc - wwa.jb - wwd.jb + j9 - m9  
                                         testPhase = RacahAlgebra.rewritePhase(testPhase, zPhases, [wwa.ma, wwb.ma, wwc.ma, wwd.ma]; printout=false, 
@@ -1554,7 +1554,7 @@ function sumRulesForFourW6j(rex::RacahAlgebra.RacahExpression)
                                     specialcW6j = W6j(wwb.d, wwb.e, wwa.c, wwc.d, wwc.e, wwc.f)
                                     specialdW6j = W6j(wwc.d, wwc.e, wwa.c, wwa.b, wwa.a, wwd.f)
                                     if  wwa == specialaW6j  &&  wwb == specialbW6j  &&  wwc == specialcW6j  &&  wwd == specialdW6j 
-                                        Y = Basic(:Y)
+                                        Y = RacahAlgebra.freshIndex(rex, "Y")
                                         newPhase   = rex.phase  + xaRex.phase  + xbRex.phase  + xcRex.phase  + xdRex.phase
                                         testPhase  = expand(newPhase + wwa.c - wwa.d - wwa.e - wwc.d - wwc.e - wwa.f - wwb.f - wwc.f - wwd.f + 2*Y)
                                         testPhase  = RacahAlgebra.rewritePhase(testPhase, zPhases, [wwa.c]; printout=true, from=">>> four W6j -- Sum(X) [X]  (-1)^R-X:")
@@ -1593,7 +1593,7 @@ function sumRulesForFourW6j(rex::RacahAlgebra.RacahExpression)
                                     specialcW6j = W6j(wwb.d, wwb.e, wwa.c, wwc.d, wwc.e, wwc.f)
                                     specialdW6j = W6j(wwc.d, wwc.e, wwa.c, wwa.a, wwa.b, wwd.f)
                                     if  wwa == specialaW6j  &&  wwb == specialbW6j  &&  wwc == specialcW6j  &&  wwd == specialdW6j 
-                                        X = Basic(:X)
+                                        X = RacahAlgebra.freshIndex(rex, "X")
                                         newPhase   = rex.phase  + xaRex.phase  + xbRex.phase  + xcRex.phase  + xdRex.phase;     
                                         testPhase  = RacahAlgebra.rewritePhase(newPhase, zPhases, [wwa.c]; printout=false, from=">>> four W6j -- Sum(X) [X]:")
                                         newWeight  = rex.weight * xaRex.weight * xbRex.weight * xcRex.weight * xdRex.weight;    testWeight = newWeight / (2*wwa.c + 1)
@@ -2037,7 +2037,7 @@ function sumRulesForTwoW6jTwoW9j(rex::RacahAlgebra.RacahExpression)
                                     specialcW9j = W9j(wwa.a, wwa.b, wwa.c, wwb.a, wwb.b, wwb.c, wwc.g, wwc.h, wwc.i)
                                     specialdW9j = W9j(wwa.e, wwa.d, wwa.c, wwb.e, wwb.d, wwb.c, wwd.g, wwd.h, wwc.i)
                                     if  wwa == specialaW6j  &&  wwb == specialbW6j  &&  wwc == specialcW9j  &&  wwd == specialdW9j 
-                                        Z          = Basic(:Z)
+                                        Z          = RacahAlgebra.freshIndex(rex, "Z")
                                         newPhase   = rex.phase  + xaRex.phase  + xbRex.phase  + xcRex.phase  + xdRex.phase;     
                                         testPhase  = newPhase - wwa.c - wwb.c + wwa.f  + wwb.f + wwa.a + wwb.a + wwc.g - wwc.i - wwb.d - wwd.h + Z
                                         testPhase  = RacahAlgebra.rewritePhase(testPhase, zPhases, [wwa.c, wwb.c]; printout=false, 
@@ -2224,7 +2224,8 @@ function sumRulesForFiveW3j(rex::RacahAlgebra.RacahExpression)
                                             specialdW3j = W3j(wwc.jc, wwd.jb, wwd.jc, wwd.ma, wwd.mb, -wwe.ma)
                                             specialeW3j = W3j(wwd.jc, wwe.jb, wwa.ja, wwe.ma, wwe.mb, -wwa.ma)
                                             if  wwa == specialaW3j  &&  wwb == specialbW3j  &&  wwc == specialcW3j  &&  wwd == specialdW3j  &&  wwe == specialeW3j  
-                                                x = Basic(:x);   xi = Basic(:xi);   y = Basic(:y);   eta = Basic(:eta)
+                                                x = RacahAlgebra.freshIndex(rex, "x");   xi = RacahAlgebra.freshIndex(rex, "xi")
+                                                y = RacahAlgebra.freshIndex(rex, "y");   eta = RacahAlgebra.freshIndex(rex, "eta")
                                                 newPhase  = rex.phase  + xaRex.phase  + xbRex.phase  + xcRex.phase  + xdRex.phase  + xeRex.phase
                                                 testPhase = newPhase + wwa.ma + wwb.ma + wwc.ma + wwd.ma + wwe.ma - 2*wwa.ja - wwb.jb - wwa.jb - wwd.jb -
                                                                         wwc.jb - wwb.ja - wwc.ja - wwd.ja + x - xi + y - eta
@@ -2351,7 +2352,9 @@ function sumRulesForSixW3j(rex::RacahAlgebra.RacahExpression)
                                                     specialfW3j = W3j(wwe.jc, wwf.jb, wwa.ja, wwf.ma, wwf.mb, -wwa.ma)
                                                     if  wwa == specialaW3j   &&   wwb == specialbW3j   &&   wwc == specialcW3j   &&  
                                                         wwd == specialdW3j   &&   wwe == specialeW3j   &&   wwf == specialfW3j  
-                                                        x = Basic(:x);  xi = Basic(:xi);  y = Basic(:y);  eta = Basic(:eta);  z = Basic(:z);  zeta = Basic(:zeta)
+                                                        x = RacahAlgebra.freshIndex(rex, "x");    xi = RacahAlgebra.freshIndex(rex, "xi")
+                                                        y = RacahAlgebra.freshIndex(rex, "y");    eta = RacahAlgebra.freshIndex(rex, "eta")
+                                                        z = RacahAlgebra.freshIndex(rex, "z");    zeta = RacahAlgebra.freshIndex(rex, "zeta")
                                                         newPhase  = rex.phase + xaRex.phase + xbRex.phase + xcRex.phase + xdRex.phase + xeRex.phase + xfRex.phase
                                                         testPhase = newPhase + wwa.ma + wwb.ma + wwc.ma + wwd.ma + wwe.ma + wwf.ma - wwa.ja - wwb.ja - wwb.jc - wwd.ja 
                                                         testPhase = testPhase - wwd.jc - wwe.jc + x - xi + y - eta + z - zeta

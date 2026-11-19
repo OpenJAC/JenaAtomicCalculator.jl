@@ -1143,7 +1143,56 @@ end
 
 
 """
-`RacahAlgebra.purifyPhase(phase::SymEngine.Basic)`  
+`RacahAlgebra.usedVariableNames(rex::RacahAlgebra.RacahExpression)`
+    ... collects the name of every (symbolic) variable that occurs anywhere in rex -- its summations, integrals,
+        phase, weight, deltas, triangles, W3j/W6j/W9j symbols, Ylm's and Djpq's. A names::Set{String} is returned.
+"""
+function usedVariableNames(rex::RacahAlgebra.RacahExpression)
+    vars = Basic[];    append!(vars, rex.summations);    push!(vars, rex.phase);    push!(vars, rex.weight)
+    for  ntg      in rex.integrals    push!(vars, ntg.var);      push!(vars, ntg.low);     push!(vars, ntg.up)       end
+    for  delta    in rex.deltas       push!(vars, delta.i);      push!(vars, delta.k)                                end
+    for  triangle in rex.triangles    push!(vars, triangle.ja);  push!(vars, triangle.jb); push!(vars, triangle.jc)  end
+    for  w3j      in rex.w3js         push!(vars, w3j.ja);   push!(vars, w3j.jb);   push!(vars, w3j.jc)
+                                       push!(vars, w3j.ma);   push!(vars, w3j.mb);   push!(vars, w3j.mc)              end
+    for  w6j      in rex.w6js         push!(vars, w6j.a);    push!(vars, w6j.b);    push!(vars, w6j.c)
+                                       push!(vars, w6j.d);    push!(vars, w6j.e);    push!(vars, w6j.f)               end
+    for  w9j      in rex.w9js         push!(vars, w9j.a);    push!(vars, w9j.b);    push!(vars, w9j.c)
+                                       push!(vars, w9j.d);    push!(vars, w9j.e);    push!(vars, w9j.f)
+                                       push!(vars, w9j.g);    push!(vars, w9j.h);    push!(vars, w9j.i)               end
+    for  ylm      in rex.ylms         push!(vars, ylm.l);    push!(vars, ylm.m);    push!(vars, ylm.theta)
+                                       push!(vars, ylm.phi)                                                          end
+    for  djpq     in rex.djpqs        push!(vars, djpq.j);   push!(vars, djpq.p);   push!(vars, djpq.q)
+                                       push!(vars, djpq.beta)                                                        end
+
+    names = Set{String}()
+    for  v in vars    for  s in SymEngine.free_symbols(v)    push!(names, string(s))    end    end
+
+    return( names )
+end
+
+
+"""
+`RacahAlgebra.freshIndex(rex::RacahAlgebra.RacahExpression, baseName::AbstractString)`
+    ... returns a new (symbolic) index, named baseName if that name does not already occur anywhere in rex
+        (RacahAlgebra.usedVariableNames), and baseName with an increasing numerical suffix ("_1", "_2", ...)
+        otherwise. A sum rule that needs to introduce a genuinely NEW coupling variable -- one that is not one
+        of the caller's own quantum numbers -- must use this rather than a literal Basic(:name): a literal can,
+        and did, collide with a caller's own variable of the same name, leaving a (symbolic) result in which
+        that name is simultaneously a free argument and a summed-over index. A newIndex::Basic is returned.
+"""
+function freshIndex(rex::RacahAlgebra.RacahExpression, baseName::AbstractString)
+    used = RacahAlgebra.usedVariableNames(rex)
+    name = baseName;    k = 0
+    while  name in used
+        k = k + 1;    name = baseName * "_$k"
+    end
+
+    return( Basic(Symbol(name)) )
+end
+
+
+"""
+`RacahAlgebra.purifyPhase(phase::SymEngine.Basic)`
     ... purifies the phase so that all contributions of 'a' are in the range -a, a, 2a ,3a
         An equivalent newphase::SymEngine.Basic is returned.
 """
