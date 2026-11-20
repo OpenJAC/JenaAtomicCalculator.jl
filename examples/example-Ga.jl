@@ -74,9 +74,10 @@ elseif  false
     rex  = RacahAlgebra.evaluate(rex);   @show rex
     rex  = RacahAlgebra.evaluate(rex)
     #
-elseif  false
+elseif  true
     # Last visit:  07-Nov-2026
-    # Last successful:  unknown ...
+    # Last successful:  20-Nov-2026   ## closes cleanly: (-1)^(-ja+jb+jr-js) * (1+2*L2)^(-1) * delta(L2,L1) *
+    # delta(L2,ja,jr) * delta(jb,js,L2), no leftover summation and no W6j left -- the fix landed in 6a4bee66
     # Evaluate the Racah expression for the Feynman-Goldstone diagram; from Racah-02.ps
     ja   = Basic(:ja);    jb = Basic(:jb);    jr = Basic(:jr);    js = Basic(:js);    L1 = Basic(:L1);    L2 = Basic(:L2)
     ma   = Basic(:ma);    mb = Basic(:mb);    mr = Basic(:mr);    ms = Basic(:ms);    M1 = Basic(:M1);    M2 = Basic(:M2)
@@ -110,7 +111,7 @@ elseif  false
     ## wd  = RacahAlgebra.evaluateNumerical(wb);           println("\nlhs-numerical     = $wd")
     ## we  = RacahAlgebra.evaluateNumerical(wc);           println("\nrhs-numerical     = $we")
     #
-elseif  true
+elseif  false
     # Last successful:  19-Nov-2026   ## reduces to one W6j; substituting a=5/2,b=2,c=1/2,d=1,ee=3/2,f=1/2,g=3/2,h=3/2
     # gives 0.0322749 against the exact Wigner_9j 0.0322749, sign-stable over 5 independent equivalentForm draws (e4f1605c)
     # Test for special values of the Wigner 9-j symbols; selectW6j(1..2)
