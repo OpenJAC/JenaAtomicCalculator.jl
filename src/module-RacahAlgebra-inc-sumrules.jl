@@ -15,8 +15,8 @@ function sumRulesForOneW3j(rex::RacahAlgebra.RacahExpression)
         for  xaRex in aRexList
             ww = xaRex.w3js[1]
             #
-            #   Rule:                  -m   ( j  j J )         -j
-            #   ----        Sum(m) (-1)     (        )  =  (-1)    (2j + 1)  delta(J,0)  delta(M,0)
+            #   Rule:                  -m   ( j  j J )         -j            1/2
+            #   ----        Sum(m) (-1)     (        )  =  (-1)    (2j + 1)       delta(J,0)  delta(M,0)
             #                               ( m -m M )
             #
             specialW3j = W3j(ww.ja, ww.ja, ww.jc, ww.ma, -ww.ma, ww.mc)
@@ -35,7 +35,7 @@ function sumRulesForOneW3j(rex::RacahAlgebra.RacahExpression)
                     RacahAlgebra.hasNoVars([ww.ma], rex.integrals)
                     newSummations = RacahAlgebra.removeIndex(ww.ma, rex.summations)
                     newDeltas = rex.deltas;      push!( newDeltas, Kronecker(ww.jc, 0));     push!( newDeltas, Kronecker(ww.mc, 0))
-                    wa = RacahExpression( newSummations, rex.integrals, RacahAlgebra.purifyPhase(newPhase + ww.ma - ww.ja), newWeight * (2*ww.ja+1), 
+                    wa = RacahExpression( newSummations, rex.integrals, RacahAlgebra.purifyPhase(newPhase + ww.ma - ww.ja), newWeight * sqrt(2*ww.ja+1),
                                             newDeltas, rex.triangles, newW3js, rex.w6js, rex.w9js, rex.ylms, rex.djpqs )
                     println(">> Apply sum rule for one W3j -- Sum(m) (-1)^m ...")
                     wa = RacahAlgebra.rewritePhase(wa, zPhases; printout=false, from=">>> one W3j -- Sum(m) (-1)^m:")
