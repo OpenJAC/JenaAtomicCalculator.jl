@@ -18,6 +18,7 @@ makedocs(;
         "For pedestrians"               => "for-pedestrians.md", 
         "How do I ...?"                 => "how-to.md",
         "Self-consistent fields"        => "scf-routes.md",
+        "Validation vs. other codes"    => "validation.md",
         "Demos"                         => "demos.md",
         "Examples"                      => "examples.md",
         "News"                          => "news.md",

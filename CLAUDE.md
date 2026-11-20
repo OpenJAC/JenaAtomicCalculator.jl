@@ -557,6 +557,27 @@ gitignored and therefore reaches nobody.
    The hand-recorded number that goes quietly stale is this project's most repeated failure: the 28-Aug Stobbe
    comparison hid a factor of two for a fortnight because its own scatter was measured on a code state that had
    since improved.
+3a. **`julia --project=. tools/crossCheckBenchmark.jl --write`** re-derives the cross-code validation table of
+   `docs/src/validation.md` and the machine-readable `docs/src/validation-rows.csv` beside it, rewriting only
+   the region between the markers. Added 20-Nov-2026. It takes about **80 s**, of which roughly half is Julia
+   starting up, so compute is never the reason to skip it.
+
+   **IT IS THE ONLY CHECK IN THIS PROCEDURE WHOSE REFERENCE DOES NOT COME FROM JAC.** The suite compares against
+   approved files JAC itself produced; the cancellation factor and the gauge ratio are formed from the very
+   amplitudes they judge. This step compares against a closed-form Dirac energy (tier 0) and against GRASP2018
+   (tier 1), the partner being pinned at one commit which every row records.
+
+   **READ THE ROWS THAT DID NOT AGREE, AND READ THEM BY TIER, because the tiers mean opposite things.** A
+   `DIFFERS` at **tier 1** is a defect in one of the two codes and nothing else -- the nucleus, the Hamiltonian
+   and the CSF list are identical by construction -- so it BLOCKS the release until it is understood. A tier-0
+   row marked `REFERENCE-LIMITED` is the opposite and must not be read as a defect: it means the Float64
+   reference formula carries as much error as the deviation, which is true below about Z = 18, where
+   `Basics.computeDiracEnergy` loses five digits to the `1/wa - 1` cancellation.
+
+   **DO NOT "FIX" A DIFFERENCE BY TUNING JAC UNTIL IT MATCHES.** That destroys the independence the step exists
+   for, and it is the most likely way this becomes decoration. **And do not add a third partner** -- the ceiling
+   is two, one for structure and one eventually for the process side, because each one is a standing obligation
+   to keep building somebody else's code.
 4. **`julia --project=docs docs/make.jl`** must exit 0. Two failures are worth expecting: a `@example` block
    breaking through ordinary API drift — the blocks are CHAINED, so one break cascades and Documenter stops at
    the first — and `HTMLSizeThresholdError`, where a page passed 1 MB and should be split rather than have the

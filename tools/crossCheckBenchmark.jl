@@ -123,6 +123,74 @@ settings = AsfSettings(AsfSettings(); generateScf=true, scField=Basics.NuclearFi
                        eeInteraction=CoulombInteraction(), eeInteractionCI=CoulombInteraction(),
                        qedModel=NoneQed())
 
+#####  THE ROW SCHEMA  #####
+
+"""
+`struct BenchmarkRow`
+    ... ONE comparison, in the form the whole benchmark is keyed by.  The field names are part of the
+        deliverable and not an implementation detail:  the same row is printed for a reader, written to
+        `docs/src/validation-rows.csv` for any other harness to read, and rendered into the published page, so
+        they are expected to stay stable.
+
+        THE ORDER OF THE KEYS IS THE ARRANGEMENT, and it is deliberate.  `tier` comes first because it says HOW
+        a row must be read -- the same 1e-7 difference means "a bug" at tier 1 and "expected, and explained" at
+        tier 2 -- and a table that mixes the two says nothing.  `quantity` comes second because that is what a
+        reader actually asks about ("can I trust JAC's E1 rates?"), not which partner was used.  And the PARTNER
+        IS A FIELD RATHER THAN A SECTION, because the most valuable rows are those where two partners cover one
+        quantity, and grouping by code would separate exactly those.
+
+    + tier           ::Int64     ... 0 against a closed form, 1 same formalism (a difference is a BUG), 2 a
+                                     different method (a difference is informative, never decisive).
+    + quantity       ::String    ... what is compared, e.g. "level-energy".
+    + system         ::String    ... the ion, e.g. "U91+".
+    + Z              ::Float64
+    + configuration  ::String
+    + level          ::String    ... the level or subshell the row is about.
+    + model          ::String    ... nucleus, mean field, ee-interaction and QED, in one string.
+    + grid           ::String    ... rnt, h, hp, NoPoints, rbox -- the discretization the JAC value was got on.
+    + jacValue       ::Float64
+    + partner        ::String    ... "exact-dirac-formula" at tier 0, otherwise the code's name.
+    + partnerVersion ::String    ... the pinned commit, or "closed form".  A number whose code state is unknown
+                                     is not evidence.
+    + partnerValue   ::Float64
+    + relDiff        ::Float64
+    + tolerance      ::Float64
+    + verdict        ::String    ... AGREES, DIFFERS, REFERENCE-LIMITED, or RAISED.
+    + note           ::String    ... one sentence where the verdict needs one;  empty otherwise.
+"""
+struct BenchmarkRow
+    tier           ::Int64
+    quantity       ::String
+    system         ::String
+    Z              ::Float64
+    configuration  ::String
+    level          ::String
+    model          ::String
+    grid           ::String
+    jacValue       ::Float64
+    partner        ::String
+    partnerVersion ::String
+    partnerValue   ::Float64
+    relDiff        ::Float64
+    tolerance      ::Float64
+    verdict        ::String
+    note           ::String
+end
+
+const CSV_FIELDS = ["tier", "quantity", "system", "Z", "configuration", "level", "model", "grid",
+                    "jac_value", "partner", "partner_version", "partner_value", "rel_diff", "tolerance",
+                    "verdict", "note"]
+
+"""
+`csvCell(x)`
+    ... renders one field for the machine-readable file, quoting a string that contains a comma or a quote and
+        giving a float enough digits to be re-checked rather than merely read;  a String is returned.
+"""
+csvCell(x::AbstractString) = occursin(r"[,\"]", x) ? "\"" * replace(x, "\"" => "\"\"") * "\"" : String(x)
+csvCell(x::Integer)        = string(x)
+csvCell(x::AbstractFloat)  = @sprintf("%.12g", x)
+
+
 function runTier0(cases, settings)
     println("\n" * "="^104)
     println("  TIER 0 of the cross-code benchmark:  JAC through perform() against the EXACT point-nucleus Dirac energy")
@@ -132,7 +200,7 @@ function runTier0(cases, settings)
             "ion", "subshell", "E(JAC) [a.u.]", "E(Dirac) [a.u.]", "JAC dev.", "formula", "rbox, rnt, NoPoints")
     println("  " * "-"^102)
 
-    worst = 0.0;   worstWhat = "";   rows = 0
+    worst = 0.0;   worstWhat = "";   rows = 0;   out = BenchmarkRow[];   tol = 1.0e-7
 
     for (label, Z, confString, subshellStrings) in cases
         configs = [Configuration(confString)]
@@ -169,21 +237,45 @@ function runTier0(cases, settings)
             if  dev > worst   worst = dev;   worstWhat = "$label  $shString"   end
             @printf("  %-14s %-9s %18.10f %18.10f %11.2e %11.2e   %.2f, %.0e, %d\n",
                     label, shString, en, Float64(exact), dev, devF64, grid.r[end], grid.rnt, grid.NoPoints)
+            # TIER 0 MEASURES AND DOES NOT GRADE, and the first version of this got it wrong.  Giving tier 0 a
+            # pass/fail threshold is circular: the tier-1 tolerance is READ OFF this tier's worst row, so
+            # judging tier 0 by that same number stamps the one informative row `AGREES` and hides it.  The
+            # U91+ 1s offset of 1.275e-4 Ha was reported as agreement exactly so, on 20-Nov-2026.  A tolerance
+            # of 0 in a tier-0 row therefore means "no threshold: this row is a measurement".
+            # REFERENCE-LIMITED is the separate statement that the Float64 reference carries as much error as
+            # the deviation, which is true below about Z = 18 and is NOT a defect of the code.
+            verdict = devF64 >= dev ? "REFERENCE-LIMITED" : "MEASURED"
+            push!(out, BenchmarkRow(0, "level-energy", replace(strip(label), r"\s+" => " "), Z, confString, shString,
+                                    "point nucleus; bare nuclear field; Coulomb; no QED",
+                                    @sprintf("rnt=%.1e h=%.4g hp=%.4g N=%d rbox=%.3f",
+                                             grid.rnt, grid.h, grid.hp, grid.NoPoints, grid.r[end]),
+                                    en, "exact-dirac-formula", "closed form", Float64(exact), dev, 0.0, verdict,
+                                    verdict == "REFERENCE-LIMITED" ?
+                                        "the Float64 reference formula's own error is " *
+                                        @sprintf("%.2e", devF64) * ", so this row bounds the reference" : ""))
         end
     end
 
     println("  " * "-"^102)
+    # The floor is the worst row the REFERENCE can still resolve;  a reference-limited row bounds the formula.
+    floorRows = filter(r -> r.verdict != "REFERENCE-LIMITED", out)
+    floor     = isempty(floorRows) ? 0.0 : maximum(r -> r.relDiff, floorRows)
+    floorAt   = isempty(floorRows) ? "" :
+                floorRows[argmax([r.relDiff for r in floorRows])].system * " " *
+                floorRows[argmax([r.relDiff for r in floorRows])].level
     @printf("  %d rows.  WORST relative deviation %.2e, at %s.\n", rows, worst, worstWhat)
+    @printf("  MEASURED FLOOR, excluding the %d reference-limited rows: %.2e, at %s.\n",
+            length(out) - length(floorRows), floor, floorAt)
+    println("  Tier 0 MEASURES and does not grade:  there is no pass/fail here, because tier 1's tolerance is")
+    println("  read off this floor and judging tier 0 by it would be circular.")
     println("  The `formula` column is the Float64 reference's OWN error against 200-bit arithmetic;  where it is")
     println("  comparable to the JAC column, that row measures the REFERENCE and not the code -- see the header.")
     println("  THAT IS THE TIER-1 FLOOR: an agreement between two codes closer than this compares discretizations,")
     println("  not implementations.  It bounds a ONE-ELECTRON radial problem only -- see the header.")
     println("="^104 * "\n")
 
-    return( (rows = rows, worst = worst, worstWhat = worstWhat) )
+    return( (rows = rows, worst = worst, worstWhat = worstWhat, out = out) )
 end
-
-runTier0(cases, settings)
 
 
 #####  TIER 1:  many-electron Dirac-Hartree-Fock levels against GRASP2018  #####
@@ -196,6 +288,21 @@ tier1cases = [ ("He-like  Z = 18", 18.0, "1s^2",            "1s(2,*)",          
                ("Be-like  Z = 54", 54.0, "1s^2 2s^2",       "1s(2,*)2s(2,*)",           "1s,2s",    "0,0", 0, Basics.plus),
                ("Ne-like  Z = 26", 26.0, "1s^2 2s^2 2p^6",  "1s(2,*)2s(2,*)2p(6,*)",    "1s,2s,2p", "0,0", 0, Basics.plus),
                ("Ne-like  Z = 54", 54.0, "1s^2 2s^2 2p^6",  "1s(2,*)2s(2,*)2p(6,*)",    "1s,2s,2p", "0,0", 0, Basics.plus) ]
+
+"""
+`graspOracleCommit()`
+    ... reads the pinned commit of the GRASP oracle clone, so that every partner value carries the code state
+        it came from;  a short hash::String is returned, or "unknown" where the clone cannot be read.
+"""
+function graspOracleCommit()
+    dir = get(ENV, "GRASP_BINDIR", joinpath(homedir(), "grasp-oracle", "bin"))
+    return( try
+        strip(read(`git -C $(dirname(dir)) rev-parse --short HEAD`, String))
+    catch
+        "unknown"
+    end )
+end
+
 
 """
 `graspLevelEnergy(Z::Float64, conf::String, active::String, jrange::String)`
@@ -233,7 +340,8 @@ function runTier1(cases, settings)
             "ion", "configuration", "E(JAC) [a.u.]", "E(GRASP) [a.u.]", "rel. diff", "verdict")
     println("  " * "-"^102)
 
-    worst = 0.0;   worstWhat = "";   rows = 0;   tol = 1.0e-7
+    worst = 0.0;   worstWhat = "";   rows = 0;   tol = 1.0e-7;   out = BenchmarkRow[]
+    oracle = graspOracleCommit()
 
     for (label, Z, jacConf, graspConf, active, jrange, twoJ, parity) in cases
         configs = [Configuration(jacConf)]
@@ -256,8 +364,17 @@ function runTier1(cases, settings)
         dev  = abs(enJac - enGrasp) / abs(enGrasp)
         rows += 1
         if  dev > worst   worst = dev;   worstWhat = "$label  $jacConf"   end
+        verdict = dev <= tol ? "AGREES" : "DIFFERS"
         @printf("  %-16s %-16s %19.10f %19.10f %12.2e %10s\n",
-                label, jacConf, enJac, enGrasp, dev, dev <= tol ? "AGREES" : "DIFFERS")
+                label, jacConf, enJac, enGrasp, dev, verdict)
+        push!(out, BenchmarkRow(1, "level-energy", replace(strip(label), r"\s+" => " "), Z, jacConf, "2J = " * jrange,
+                                "point nucleus; average-level Dirac-Fock; Coulomb; no Breit; no QED; 1 CSF",
+                                @sprintf("JAC rnt=%.1e h=%.4g hp=%.4g N=%d rbox=%.3f; GRASP on its own default",
+                                         grid.rnt, grid.h, grid.hp, grid.NoPoints, grid.r[end]),
+                                enJac, "GRASP2018", oracle, enGrasp, dev, tol, verdict,
+                                verdict == "DIFFERS" ?
+                                    "the Hamiltonian and the CSF list are identical by construction, so this " *
+                                    "is a defect in one of the two codes" : ""))
     end
 
     println("  " * "-"^102)
@@ -267,10 +384,86 @@ function runTier1(cases, settings)
     println("  the Hamiltonian and the CSF list are identical by construction.")
     println("="^104 * "\n")
 
-    return( (rows = rows, worst = worst, worstWhat = worstWhat) )
+    return( (rows = rows, worst = worst, worstWhat = worstWhat, out = out) )
 end
 
 tier1settings = AsfSettings(AsfSettings(); generateScf=true, scField=Basics.ALField(),
                             eeInteraction=CoulombInteraction(), eeInteractionCI=CoulombInteraction(),
                             qedModel=NoneQed())
-runTier1(tier1cases, tier1settings)
+
+#####  OUTPUTS:  the machine-readable file, and the published page  #####
+
+"""
+`writeBenchmarkOutputs(rows::Vector{BenchmarkRow}; write::Bool=false)`
+    ... writes `docs/src/validation-rows.csv`, one line per comparison with the field names of `CSV_FIELDS`,
+        and -- only with `write = true` -- rewrites the region between the markers in `docs/src/validation.md`.
+        Nothing outside the markers is touched;  that text is prose and stays under human control.  The path of
+        the file written is returned.
+
+        WHY A MACHINE-READABLE FILE AND NOT ONLY A TABLE.  A page can be read by a person and by nobody else.
+        The point of a standing cross-code comparison is that ANOTHER project's harness can pick ours up, add
+        its own column and compare without asking us anything, so the row carries its own model, its own grid,
+        its own tolerance and the partner's pinned commit, under names that are expected not to change.
+"""
+function writeBenchmarkOutputs(rows::Vector{BenchmarkRow}; write::Bool=false)
+    docs = normpath(joinpath(@__DIR__, "..", "docs", "src"))
+    csv  = joinpath(docs, "validation-rows.csv")
+    open(csv, "w") do io
+        println(io, join(CSV_FIELDS, ","))
+        for r in rows
+            println(io, join(csvCell.([r.tier, r.quantity, r.system, r.Z, r.configuration, r.level, r.model,
+                                       r.grid, r.jacValue, r.partner, r.partnerVersion, r.partnerValue,
+                                       r.relDiff, r.tolerance, r.verdict, r.note]), ","))
+        end
+    end
+    println("\n>> ", csv, "  --  ", length(rows), " rows")
+
+    commit = try   strip(read(`git rev-parse --short HEAD`, String))   catch;  "unknown"   end
+    md = IOBuffer()
+    println(md, "<!-- BEGIN generated: cross-code validation -->")
+    for tier in sort(unique(r.tier for r in rows))
+        these = filter(r -> r.tier == tier, rows)
+        println(md, "\n#### Tier ", tier, " — ",
+                tier == 0 ? "against a closed form (this tier measures the floor; it does not grade)" :
+                tier == 1 ? "same formalism, same CSF list: a difference is a defect" :
+                            "a different method: a difference is informative, not decisive", "\n")
+        println(md, "| system | level | quantity | JAC | partner | partner value | rel. diff | verdict |")
+        println(md, "|---|---|---|---|---|---|---|---|")
+        for r in these
+            println(md, @sprintf("| %s | %s | %s | %.10g | %s `%s` | %.10g | %.2e | %s |",
+                                 r.system, r.level, r.quantity, r.jacValue, r.partner, r.partnerVersion,
+                                 r.partnerValue, r.relDiff, r.verdict))
+        end
+    end
+    nDiff = count(r -> r.verdict == "DIFFERS", rows)
+    println(md, "\n", length(rows), " comparisons, ", nDiff, " marked `DIFFERS`.  Measured ",
+            Libc.strftime("%d %B %Y", time()), " at commit `", commit,
+            "`; regenerate with `julia --project=. tools/crossCheckBenchmark.jl --write`.")
+    println(md, "<!-- END generated: cross-code validation -->")
+    block = String(take!(md))
+
+    if  write
+        page = joinpath(docs, "validation.md")
+        isfile(page)  ||  error("writeBenchmarkOutputs(): $page does not exist;  create the page with its two " *
+                                "markers before running with --write.")
+        text = read(page, String)
+        a = findfirst("<!-- BEGIN generated: cross-code validation -->", text)
+        b = findfirst("<!-- END generated: cross-code validation -->", text)
+        if  a === nothing  ||  b === nothing
+            error("writeBenchmarkOutputs(): the markers are missing from $page;  add them around the table " *
+                  "before running with --write.")
+        end
+        Base.write(page, text[1:first(a)-1] * block * text[last(b)+1:end])
+        println(">> ", page, "  updated between the markers.")
+    else
+        println("\n", block)
+        println("\n>> run with --write to replace the region between the markers in docs/src/validation.md.")
+    end
+
+    return( csv )
+end
+
+
+t0 = runTier0(cases, settings)
+t1 = runTier1(tier1cases, tier1settings)
+writeBenchmarkOutputs(vcat(t0.out, t1.out); write = ("--write" in ARGS))
