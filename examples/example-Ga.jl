@@ -37,7 +37,8 @@ elseif  false
 elseif  false
     # Last visit:  07-Nov-2026
     # Last visit:  18-Oct-2026
-    # Last successful:  unknown ...
+    # Last successful:  20-Nov-2026   ## reduces to one W6j both ways (direct evaluate and equivalentForm+special);
+    # substituting a=1,b=2,c=1,d=2,ee=2,f=2 gives -0.0305505 against the exact Wigner_9j -0.0305505 (e4f1605c)
     # Look for special value for Wigner 9j symbol
     a   = Basic(:a);    b = Basic(:b);    c = Basic(:c);    d = Basic(:d);    ee = Basic(:ee);    f = Basic(:f)
     w9j = W9j(a, b, ee, c, d, ee, f, f, Basic(0))
@@ -60,9 +61,10 @@ elseif  false
     rex  = RacahAlgebra.evaluate(rex);   @show rex
     rex  = RacahAlgebra.evaluate(rex)
     #
-elseif  false   
+elseif  true
     # Last visit:  07-Nov-2026
-    # Last successful:  unknown ...
+    # Last successful:  20-Nov-2026   ## closes cleanly to the textbook Racah form: (-1)^(3*Jab-L-jb-jc) *
+    # delta(Jab,Jcd) * delta(-Mab,-Mcd) * W6j{jc,jd,Jab;jb,ja,L}, no leftover 3j/CG/summation; byte-identical on rerun
     # Evaluate the Racah expression for the Coulomb interaction strength; from Racah-02.ps
     ja   = Basic(:ja);    jb = Basic(:jb);    jc = Basic(:jc);    jd = Basic(:jd);    Jab = Basic(:Jab);    Jcd = Basic(:Jcd);    L = Basic(:L)
     ma   = Basic(:ma);    mb = Basic(:mb);    mc = Basic(:mc);    md = Basic(:md);    Mab = Basic(:Mab);    Mcd = Basic(:Mcd);    M = Basic(:M)
@@ -74,7 +76,7 @@ elseif  false
     rex  = RacahAlgebra.evaluate(rex);   @show rex
     rex  = RacahAlgebra.evaluate(rex)
     #
-elseif  true
+elseif  false
     # Last visit:  07-Nov-2026
     # Last successful:  20-Nov-2026   ## closes cleanly: (-1)^(-ja+jb+jr-js) * (1+2*L2)^(-1) * delta(L2,L1) *
     # delta(L2,ja,jr) * delta(jb,js,L2), no leftover summation and no W6j left -- the fix landed in 6a4bee66
