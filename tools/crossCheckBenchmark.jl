@@ -61,6 +61,32 @@
 # not measure convergence by refining `hp` alone (`Radial.Grid(grid; hp=)` keeps `NoPoints` fixed, so the box
 # SHRINKS), and do not use points-per-oscillation as a criterion -- it is measured non-monotone.
 #
+#
+# TIER 1 -- ADDED 20-Nov-2026:  the same MANY-ELECTRON Dirac-Hartree-Fock level against GRASP2018.
+#
+# This is the first test that exercises the ELECTRON-ELECTRON INTERACTION and the ANGULAR ALGEBRA,
+# to which Tier 0 is completely blind.  Everything that could differ between the two codes is
+# pinned:  a POINT nucleus (two finite-nucleus models are not identical, and the difference would
+# read as a code difference), Coulomb only with NO Breit and NO QED, and a SINGLE reference
+# configuration so that the CSF list is trivially identical in both codes.  JAC uses
+# `Basics.ALField()`, the average-level Dirac-Fock field -- NOT `DFSField()`, which is the local
+# Dirac-Fock-Slater approximation and a different operator -- and for one CSF that is the same
+# functional GRASP's `rmcdhf` minimises.
+#
+# THE GRIDS ARE DELIBERATELY *NOT* MADE IDENTICAL, AND THAT IS A CORRECTION TO THE FIRST PLAN.
+# GRASP's default point-nucleus grid is RNT = exp(-65/16)/Z, H = 0.0625, HP = 0 and N = 220, which
+# on a purely exponential mesh puts its outer boundary near 175 a.u. at Z = 92 -- against the 0.196
+# a.u. that `Basics.recommendedGrid` chooses there.  Copying GRASP's four numbers into JAC would
+# STARVE its fixed B-spline basis, which is Rule 12's own warning about a box far larger than the
+# orbitals.  The four parameters simply do not mean the same thing to a finite-difference
+# integrator, which carries a point at every radius, as they do to a basis-set solver.  So each
+# code is run on a grid adequate FOR IT and the comparison rests on the Hamiltonian and the CSF
+# list being identical, which is what makes a disagreement a bug.
+#
+# THE GRASP NUMBERS ARE NOT TYPED IN.  `tools/graspLevels.sh` is called for every row, so the
+# partner's value is re-derived on every run together with the oracle's commit -- a hand-recorded
+# number that nothing re-measures is this project's most repeated failure.
+#
 using JenaAtomicCalculator, Printf
 setprecision(BigFloat, 200)
 
@@ -158,3 +184,93 @@ function runTier0(cases, settings)
 end
 
 runTier0(cases, settings)
+
+
+#####  TIER 1:  many-electron Dirac-Hartree-Fock levels against GRASP2018  #####
+
+# Each case is ONE reference configuration, so the CSF list is a single CSF in both codes.  The
+# GRASP columns name the configuration in GRASP's own nonrelativistic notation and its active set.
+tier1cases = [ ("He-like  Z = 18", 18.0, "1s^2",            "1s(2,*)",                  "1s",       "0,0", 0, Basics.plus),
+               ("He-like  Z = 54", 54.0, "1s^2",            "1s(2,*)",                  "1s",       "0,0", 0, Basics.plus),
+               ("Be-like  Z = 18", 18.0, "1s^2 2s^2",       "1s(2,*)2s(2,*)",           "1s,2s",    "0,0", 0, Basics.plus),
+               ("Be-like  Z = 54", 54.0, "1s^2 2s^2",       "1s(2,*)2s(2,*)",           "1s,2s",    "0,0", 0, Basics.plus),
+               ("Ne-like  Z = 26", 26.0, "1s^2 2s^2 2p^6",  "1s(2,*)2s(2,*)2p(6,*)",    "1s,2s,2p", "0,0", 0, Basics.plus),
+               ("Ne-like  Z = 54", 54.0, "1s^2 2s^2 2p^6",  "1s(2,*)2s(2,*)2p(6,*)",    "1s,2s,2p", "0,0", 0, Basics.plus) ]
+
+"""
+`graspLevelEnergy(Z::Float64, conf::String, active::String, jrange::String)`
+    ... runs `tools/graspLevels.sh` for one case and returns the first level energy::Float64 in
+        Hartree, or `nothing` where GRASP raised or printed nothing parsable.  The partner's value
+        is re-derived on every run rather than stored, so it cannot go stale against the oracle.
+"""
+function graspLevelEnergy(Z::Float64, conf::String, active::String, jrange::String)
+    script = joinpath(@__DIR__, "graspLevels.sh")
+    isfile(script)  ||  return( nothing )
+    out = try
+        read(`bash $script $(Int(Z)) $conf $active $jrange`, String)
+    catch
+        return( nothing )
+    end
+    for line in split(out, '\n')
+        startswith(strip(line), "#")  &&  continue
+        m = match(r"(-?\d+\.\d+)[DdEe]([+-]\d+)", line)
+        isnothing(m)  &&  continue
+
+        return( parse(Float64, m.captures[1]) * 10.0^parse(Int, m.captures[2]) )
+    end
+
+    return( nothing )
+end
+
+
+function runTier1(cases, settings)
+    println("\n" * "="^104)
+    println("  TIER 1:  many-electron Dirac-Hartree-Fock levels, JAC against GRASP2018")
+    println("  point nucleus, Coulomb only, no Breit, no QED, ONE reference configuration -- so the CSF list")
+    println("  is a single CSF in both codes and only the implementations differ")
+    println("="^104)
+    @printf("  %-16s %-16s %19s %19s %12s %10s\n",
+            "ion", "configuration", "E(JAC) [a.u.]", "E(GRASP) [a.u.]", "rel. diff", "verdict")
+    println("  " * "-"^102)
+
+    worst = 0.0;   worstWhat = "";   rows = 0;   tol = 1.0e-7
+
+    for (label, Z, jacConf, graspConf, active, jrange, twoJ, parity) in cases
+        configs = [Configuration(jacConf)]
+        nm      = Nuclear.Model(Z, Nuclear.PointNucleus())
+        grid    = Basics.recommendedGrid(configs, nm)
+        comp    = Atomic.Computation(Atomic.Computation(); name="tier1", nuclearModel=nm, grid=grid,
+                                     configs=configs, asfSettings=settings)
+        enJac = try
+            results = redirect_stdout(devnull) do;  Basics.perform(comp; output=true)   end
+            results[ResultKeys.Multiplet].levels[1].energy
+        catch err
+            @printf("  %-16s %-16s   JAC RAISED: %s\n", label, jacConf, first(sprint(showerror, err), 50))
+            continue
+        end
+        enGrasp = graspLevelEnergy(Z, graspConf, active, jrange)
+        if  isnothing(enGrasp)
+            @printf("  %-16s %-16s %19.10f   GRASP gave no parsable energy\n", label, jacConf, enJac)
+            continue
+        end
+        dev  = abs(enJac - enGrasp) / abs(enGrasp)
+        rows += 1
+        if  dev > worst   worst = dev;   worstWhat = "$label  $jacConf"   end
+        @printf("  %-16s %-16s %19.10f %19.10f %12.2e %10s\n",
+                label, jacConf, enJac, enGrasp, dev, dev <= tol ? "AGREES" : "DIFFERS")
+    end
+
+    println("  " * "-"^102)
+    @printf("  %d rows at a tolerance of %.0e, read off the Tier-0 floor.  WORST %.2e, at %s.\n",
+            rows, tol, worst, worstWhat)
+    println("  A row marked DIFFERS is a BUG in one code or the other, NOT a modelling difference --")
+    println("  the Hamiltonian and the CSF list are identical by construction.")
+    println("="^104 * "\n")
+
+    return( (rows = rows, worst = worst, worstWhat = worstWhat) )
+end
+
+tier1settings = AsfSettings(AsfSettings(); generateScf=true, scField=Basics.ALField(),
+                            eeInteraction=CoulombInteraction(), eeInteractionCI=CoulombInteraction(),
+                            qedModel=NoneQed())
+runTier1(tier1cases, tier1settings)
