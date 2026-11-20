@@ -24,21 +24,21 @@ elseif  false
     rex = RacahAlgebra.equivalentForm(w3j);     @show rex
     RacahAlgebra.evaluate(rex, special=true)
     #
-elseif  true    
+elseif  false
     # Last visit:  07-Nov-2026
     # Last successful:  13May2024
-    # Look for special value for Wigner 6j symbol 
+    # Look for special value for Wigner 6j symbol
     a   = Basic(:a);     b  = Basic(:b);    c  = Basic(:c)
     w6j = W6j( a, b, c, 2, c-2, b-2)
     rex = RacahAlgebra.evaluate(w6j);           @show rex
     rex = RacahAlgebra.equivalentForm(w6j);     @show rex
     RacahAlgebra.evaluate(rex, special=true)
     #
-elseif  true    
+elseif  false
     # Last visit:  07-Nov-2026
     # Last visit:  18-Oct-2026
     # Last successful:  unknown ...
-    # Look for special value for Wigner 9j symbol 
+    # Look for special value for Wigner 9j symbol
     a   = Basic(:a);    b = Basic(:b);    c = Basic(:c);    d = Basic(:d);    ee = Basic(:ee);    f = Basic(:f)
     w9j = W9j(a, b, ee, c, d, ee, f, f, Basic(0))
     rex = RacahAlgebra.evaluate(w9j);           @show rex
@@ -74,7 +74,7 @@ elseif  false
     rex  = RacahAlgebra.evaluate(rex);   @show rex
     rex  = RacahAlgebra.evaluate(rex)
     #
-elseif  true   
+elseif  false
     # Last visit:  07-Nov-2026
     # Last successful:  unknown ...
     # Evaluate the Racah expression for the Feynman-Goldstone diagram; from Racah-02.ps
@@ -111,7 +111,8 @@ elseif  false
     ## we  = RacahAlgebra.evaluateNumerical(wc);           println("\nrhs-numerical     = $we")
     #
 elseif  true
-    # Last successful:  unknown ...
+    # Last successful:  19-Nov-2026   ## reduces to one W6j; substituting a=5/2,b=2,c=1/2,d=1,ee=3/2,f=1/2,g=3/2,h=3/2
+    # gives 0.0322749 against the exact Wigner_9j 0.0322749, sign-stable over 5 independent equivalentForm draws (e4f1605c)
     # Test for special values of the Wigner 9-j symbols; selectW6j(1..2)
     w9j = RacahAlgebra.selectW9j(2);                    println("w9j-original        = $w9j")
     rex = RacahAlgebra.equivalentForm(w9j);             println("rex-equivalent      = $rex")
