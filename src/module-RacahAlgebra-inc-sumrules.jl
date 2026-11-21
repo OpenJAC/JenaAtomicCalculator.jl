@@ -1055,7 +1055,7 @@ function sumRulesForTwoW6jOneW9j(rex::RacahAlgebra.RacahExpression)
                                 testPhase  = RacahAlgebra.rewritePhase(testPhase, zPhases, [wwa.b, wwb.b, wwa.c]; printout=false, 
                                                                         from=">>> two W6j & one W9j -- Sum(X,Y,Z)  [X,Y,Z]:")
                                 newWeight  = rex.weight * xaRex.weight * xbRex.weight * xcRex.weight
-                                testWeight = newWeight / ((2*wwa.b + 1)*(2*wwb.b + 1)*(2*wwa.c + 1)) / (2*wwa.d + 1)
+                                testWeight = newWeight / ((2*wwa.b + 1)*(2*wwb.b + 1)*(2*wwa.c + 1)) * (2*wwa.d + 1)
                                 newW6js    = W6j[];     newW9js    = W9j[];     
                                 for (idW6j, dW6j) in enumerate(rex.w6js)   if  idW6j != iaW6j &&  idW6j != ibW6j   push!(newW6js, dW6j)   end   end
                                 for (idW9j, dW9j) in enumerate(rex.w9js)   if  idW9j != icW9j                      push!(newW9js, dW9j)   end   end
