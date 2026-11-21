@@ -7,6 +7,8 @@
         A (istrue, rex)::Tuple{Bool, RacahExpression} is returned but where rex has no meaning for !istrue.
 """
 function sumRulesForOneW3j(rex::RacahAlgebra.RacahExpression)
+    # AUDITED 21-Nov-2026: brute-force verified against AngularMomentum.Wigner_3j via selectRacahExpression(1); one bug
+    # found and fixed here (missing sqrt in the weight, `b180ad63`) -- see project_racah_equivalentform_nondeterminism.md
     zPhases = RacahAlgebra.zeroPhases(rex)
     
     # Loop through all Wigner 3j symbols
@@ -56,6 +58,8 @@ end
         A (istrue, rex)::Tuple{Bool, RacahExpression} is returned but where rex has no meaning for !istrue.
 """
 function sumRulesForOneW6j(rex::RacahAlgebra.RacahExpression)
+    # AUDITED 21-Nov-2026: brute-force verified against AngularMomentum.Wigner_6j via selectRacahExpression(2-3);
+    # no bug found -- see project_racah_equivalentform_nondeterminism.md
     zPhases = RacahAlgebra.zeroPhases(rex)
     
     # Loop through all Wigner 6-j symbols
@@ -133,6 +137,8 @@ end
         A (istrue, rex)::Tuple{Bool, RacahExpression} is returned but where rex has no meaning for !istrue.
 """
 function sumRulesForOneW9j(rex::RacahAlgebra.RacahExpression)
+    # AUDITED 21-Nov-2026: brute-force verified against AngularMomentum.Wigner_9j via selectRacahExpression(4-5);
+    # no bug found -- see project_racah_equivalentform_nondeterminism.md
     zPhases = RacahAlgebra.zeroPhases(rex)
     
     # Loop through all Wigner 9-j symbols
@@ -213,6 +219,8 @@ end
         A (istrue, rex)::Tuple{Bool, RacahExpression} is returned but where rex has no meaning for !istrue.
 """
 function sumRulesForTwoW3j(rex::RacahAlgebra.RacahExpression)
+    # AUDITED 21-Nov-2026: brute-force verified against AngularMomentum.Wigner_3j via selectRacahExpression(6-8);
+    # no bug found -- see project_racah_equivalentform_nondeterminism.md
     # Make sure that the sum rule could apply at all
     if  length(rex.summations) < 2  ||  length(rex.w3js) < 2     return( (false, RacahExpression()) )    end
     zPhases = RacahAlgebra.zeroPhases(rex)
@@ -344,6 +352,8 @@ end
                                 ( c  d  p )   ( a  b  q )       [p]
 """
 function sumRulesForTwoW6j(rex::RacahAlgebra.RacahExpression)
+    # AUDITED 21-Nov-2026: brute-force verified against AngularMomentum.Wigner_6j via selectRacahExpression(9-11);
+    # no bug found -- see project_racah_equivalentform_nondeterminism.md
     zPhases = RacahAlgebra.zeroPhases(rex)
     
     # Loop through all Wigner 6-j symbols
@@ -462,6 +472,8 @@ end
         A (istrue, rex)::Tuple{Bool, RacahExpression} is returned but where rex has no meaning for !istrue.
 """
 function sumRulesForOneW6jOneW9j(rex::RacahAlgebra.RacahExpression)
+    # AUDITED 21-Nov-2026: brute-force verified against AngularMomentum.Wigner_6j/Wigner_9j via selectRacahExpression(12-14);
+    # no bug found -- see project_racah_equivalentform_nondeterminism.md
     zPhases = RacahAlgebra.zeroPhases(rex)
     
     # Loop through all Wigner 6j and 9j symbols
@@ -587,6 +599,8 @@ end
         A (istrue, rex)::Tuple{Bool, RacahExpression} is returned but where rex has no meaning for !istrue.
 """
 function sumRulesForTwoW9j(rex::RacahAlgebra.RacahExpression)
+    # AUDITED 21-Nov-2026: brute-force verified against AngularMomentum.Wigner_9j via selectRacahExpression(15-17);
+    # no bug found -- see project_racah_equivalentform_nondeterminism.md
     zPhases = RacahAlgebra.zeroPhases(rex)
     
     # Loop through all Wigner 6-j symbols
@@ -709,6 +723,8 @@ end
         A (istrue, rex)::Tuple{Bool, RacahExpression} is returned but where rex has no meaning for !istrue.
 """
 function sumRulesForThreeW3j(rex::RacahAlgebra.RacahExpression)
+    # AUDITED 21-Nov-2026: brute-force verified against AngularMomentum.Wigner_3j/Wigner_6j via selectRacahExpression(18);
+    # no bug found -- see project_racah_equivalentform_nondeterminism.md
     # Make sure that the sum rule could apply at all
     if  length(rex.summations) < 2  ||  length(rex.w3js) < 2     return( (false, RacahExpression()) )    end
     zPhases = RacahAlgebra.zeroPhases(rex)
@@ -783,6 +799,8 @@ end
         A (istrue, rex)::Tuple{Bool, RacahExpression} is returned but where rex has no meaning for !istrue.
 """
 function sumRulesForTwoW3jOneW6j(rex::RacahAlgebra.RacahExpression)
+    # AUDITED 21-Nov-2026: brute-force verified against AngularMomentum.Wigner_3j/Wigner_6j via selectRacahExpression(19);
+    # no bug found -- see project_racah_equivalentform_nondeterminism.md
     # Make sure that the sum rule could apply at all
     if  length(rex.summations) < 2  ||  length(rex.w3js) < 2  ||  length(rex.w6js) < 1     return( (false, RacahExpression()) )    end
     zPhases = RacahAlgebra.zeroPhases(rex)
@@ -851,6 +869,8 @@ end
         A (istrue, rex)::Tuple{Bool, RacahExpression} is returned but where rex has no meaning for !istrue.
 """
 function sumRulesForThreeW6j(rex::RacahAlgebra.RacahExpression)
+    # AUDITED 21-Nov-2026: brute-force verified against AngularMomentum.Wigner_6j/Wigner_9j via selectRacahExpression(20-23);
+    # no bug found -- see project_racah_equivalentform_nondeterminism.md
     # Make sure that the sum rule could apply at all
     if  length(rex.summations) < 1  ||  length(rex.w6js) < 3     return( (false, RacahExpression()) )    end
     zPhases = RacahAlgebra.zeroPhases(rex)
@@ -1025,6 +1045,9 @@ end
         A (istrue, rex)::Tuple{Bool, RacahExpression} is returned but where rex has no meaning for !istrue.
 """
 function sumRulesForTwoW6jOneW9j(rex::RacahAlgebra.RacahExpression)
+    # AUDITED 21-Nov-2026: brute-force verified against AngularMomentum.Wigner_6j/Wigner_9j via selectRacahExpression(24-27);
+    # one bug found and fixed here (rule 1's [d] factor divided instead of multiplied, `c29a8c8d`)
+    # -- see project_racah_equivalentform_nondeterminism.md
     # Make sure that the sum rule could apply at all
     if  length(rex.summations) < 2  ||  length(rex.w6js) < 2 ||  length(rex.w9js) < 1     return( (false, RacahExpression()) )    end
     zPhases = RacahAlgebra.zeroPhases(rex)
@@ -1202,6 +1225,8 @@ end
         A (istrue, rex)::Tuple{Bool, RacahExpression} is returned but where rex has no meaning for !istrue.
 """
 function sumRulesForOneW6jTwoW9j(rex::RacahAlgebra.RacahExpression)
+    # AUDITED 21-Nov-2026: brute-force verified against AngularMomentum.Wigner_6j/Wigner_9j via selectRacahExpression(28-30);
+    # no bug found -- see project_racah_equivalentform_nondeterminism.md
     # Make sure that the sum rule could apply at all
     if  length(rex.summations) < 2  ||  length(rex.w6js) < 1  ||  length(rex.w9js) < 2     return( (false, RacahExpression()) )    end
     zPhases = RacahAlgebra.zeroPhases(rex)
@@ -1346,6 +1371,8 @@ end
         A (istrue, rex)::Tuple{Bool, RacahExpression} is returned but where rex has no meaning for !istrue.
 """
 function sumRulesForThreeW9j(rex::RacahAlgebra.RacahExpression)
+    # AUDITED 21-Nov-2026: brute-force verified against AngularMomentum.Wigner_9j via selectRacahExpression(31);
+    # no bug found -- see project_racah_equivalentform_nondeterminism.md
     # Make sure that the sum rule could apply at all
     if  length(rex.summations) < 3  ||  length(rex.w9js) < 3     return( (false, RacahExpression()) )    end
     zPhases = RacahAlgebra.zeroPhases(rex)
@@ -1415,6 +1442,8 @@ end
         A (istrue, rex)::Tuple{Bool, RacahExpression} is returned but where rex has no meaning for !istrue.
 """
 function sumRulesForFourW3j(rex::RacahAlgebra.RacahExpression)
+    # AUDITED 21-Nov-2026: brute-force verified against AngularMomentum.Wigner_3j/Wigner_6j via selectRacahExpression(32);
+    # no bug found -- see project_racah_equivalentform_nondeterminism.md
     # Make sure that the sum rule could apply at all
     if  length(rex.summations) < 4  ||  length(rex.w3js) < 4     return( (false, RacahExpression()) )    end
     zPhases = RacahAlgebra.zeroPhases(rex)
@@ -1516,6 +1545,9 @@ end
         A (istrue, rex)::Tuple{Bool, RacahExpression} is returned but where rex has no meaning for !istrue.
 """
 function sumRulesForFourW6j(rex::RacahAlgebra.RacahExpression)
+    # AUDITED 21-Nov-2026: brute-force verified against AngularMomentum.Wigner_6j/Wigner_9j via selectRacahExpression(33-37);
+    # one bug found and fixed here (rule 2 dropped the new summation's [X] weight, `a1092c45`)
+    # -- see project_racah_equivalentform_nondeterminism.md
     # Make sure that the sum rule could apply at all
     if  length(rex.w6js) < 4     return( (false, RacahExpression()) )    end
     zPhases = RacahAlgebra.zeroPhases(rex)
@@ -1760,6 +1792,8 @@ end
         A (istrue, rex)::Tuple{Bool, RacahExpression} is returned but where rex has no meaning for !istrue.
 """
 function sumRulesForThreeW6jOneW9j(rex::RacahAlgebra.RacahExpression)
+    # AUDITED 21-Nov-2026: brute-force verified against AngularMomentum.Wigner_6j/Wigner_9j via selectRacahExpression(38-40);
+    # no bug found -- see project_racah_equivalentform_nondeterminism.md
     if  length(rex.summations) < 2  ||  length(rex.w6js) < 3     return( (false, RacahExpression()) )    end
     zPhases = RacahAlgebra.zeroPhases(rex)
     
@@ -1867,6 +1901,9 @@ end
         A (istrue, rex)::Tuple{Bool, RacahExpression} is returned but where rex has no meaning for !istrue.
 """
 function sumRulesForTwoW6jTwoW9j(rex::RacahAlgebra.RacahExpression)
+    # AUDITED 21-Nov-2026: brute-force verified against AngularMomentum.Wigner_6j/Wigner_9j via selectRacahExpression(41-44);
+    # one bug found and fixed here (rule 4's phase was missing a term, `wwa.d`/"f" in the comment's own labeling,
+    # `936f17a8`) -- see project_racah_equivalentform_nondeterminism.md
     # Make sure that the sum rule could apply at all
     if  length(rex.summations) < 2  ||  length(rex.w6js) < 2  ||  length(rex.w9js) < 2     return( (false, RacahExpression()) )    end
     zPhases = RacahAlgebra.zeroPhases(rex)
@@ -2089,6 +2126,8 @@ end
         A (istrue, rex)::Tuple{Bool, RacahExpression} is returned but where rex has no meaning for !istrue.
 """
 function sumRulesForOneW6jThreeW9j(rex::RacahAlgebra.RacahExpression)
+    # AUDITED 21-Nov-2026: brute-force verified against AngularMomentum.Wigner_6j/Wigner_9j via selectRacahExpression(45);
+    # no bug found -- see project_racah_equivalentform_nondeterminism.md
     # Make sure that the sum rule could apply at all
     if  length(rex.summations) < 3  ||  length(rex.w9js) < 3     return( (false, RacahExpression()) )    end
     zPhases = RacahAlgebra.zeroPhases(rex)
@@ -2169,6 +2208,8 @@ end
         A (istrue, rex)::Tuple{Bool, RacahExpression} is returned but where rex has no meaning for !istrue.
 """
 function sumRulesForFiveW3j(rex::RacahAlgebra.RacahExpression)
+    # AUDITED 21-Nov-2026: brute-force verified against AngularMomentum.Wigner_3j/Wigner_6j via selectRacahExpression(46);
+    # no bug found -- see project_racah_equivalentform_nondeterminism.md
     # Make sure that the sum rule could apply at all
     if  length(rex.summations) < 5  ||  length(rex.w3js) < 5     return( (false, RacahExpression()) )    end
     zPhases = RacahAlgebra.zeroPhases(rex)
@@ -2287,6 +2328,10 @@ end
         A (istrue, rex)::Tuple{Bool, RacahExpression} is returned but where rex has no meaning for !istrue.
 """
 function sumRulesForSixW3j(rex::RacahAlgebra.RacahExpression)
+    # AUDITED 21-Nov-2026: brute-force verified against AngularMomentum.Wigner_3j/Wigner_6j via selectRacahExpression(47);
+    # one bug found and fixed here (the RacahExpression(...) constructor call was missing its last two arguments,
+    # `rex.ylms, rex.djpqs`, so this rule crashed with a MethodError whenever it fired, `fadb3729`) -- see
+    # project_racah_equivalentform_nondeterminism.md
     # Make sure that the sum rule could apply at all
     if  length(rex.summations) < 6  ||  length(rex.w3js) < 6     return( (false, RacahExpression()) )    end
     zPhases = RacahAlgebra.zeroPhases(rex)

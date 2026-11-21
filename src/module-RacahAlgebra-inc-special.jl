@@ -7,6 +7,9 @@
         special value is returned in rex. For istrue = false, rex has no meaning.
 """
 function specialValue(w3j::RacahAlgebra.W3j)
+    # AUDITED 20-Nov-2026: brute-force verified against AngularMomentum.Wigner_3j for every rule; nine bugs found and
+    # fixed here (a crash, 3 missing-parens, 5 sign/duplicated-term errors, `519de579`) -- see
+    # project_racah_equivalentform_nondeterminism.md
     deltas = Kronecker[];    triangles = Triangle[];   integrals = Integral[]
     w3js = W3j[];   w6js = W6j[];   w9js = W9j[];   ylms = Ylm[];    djpqs = Djpq[]
 
@@ -231,6 +234,9 @@ end
         special value is returned in rex. For istrue = false, rex has no meaning.
 """
 function specialValue(w6j::RacahAlgebra.W6j)
+    # AUDITED 20-Nov-2026: brute-force verified against AngularMomentum.Wigner_6j for every rule; eight bugs found and
+    # fixed here (4 missing-parens, a duplicated denominator factor, a missing (s+1) numerator factor, an operator
+    # typo, `519de579`) -- see project_racah_equivalentform_nondeterminism.md
     deltas = Kronecker[];    triangles = Triangle[];   integrals = Integral[]
     w3js = W3j[];   w6js = W6j[];   w9js = W9j[];   ylms = Ylm[];    djpqs = Djpq[]
 
@@ -599,6 +605,9 @@ end
         special value is returned in rex. For istrue = false, rex has no meaning.
 """
 function specialValue(w9j::RacahAlgebra.W9j)
+    # AUDITED 19/20-Nov-2026: brute-force verified against AngularMomentum.Wigner_9j for every rule; three bugs found
+    # and fixed here (rule 1's unreachable match pattern + illegal 3-arg Kronecker call, rule 2's sign-flip from the
+    # wrong four fields in its extra phase, `e4f1605c`) -- see project_racah_equivalentform_nondeterminism.md
     deltas = Kronecker[];    triangles = Triangle[];   integrals = Integral[]
     w3js= W3j[];   w6js = W6j[];   w9js = W9j[];   ylms = Ylm[];    djpqs = Djpq[]
 
