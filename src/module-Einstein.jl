@@ -107,7 +107,8 @@ end
     + initialLevel   ::Level            ... initial-(state) level
     + finalLevel     ::Level            ... final-(state) level
     + omega          ::Float64          ... photon energy = transition energy
-    + photonRate     ::EmProperty       ... Total rate of this line.
+    + photonRate     ::EmProperty       ... Einstein A coefficient of this line, in atomic units;  the same
+                                            quantity and the same prefactor as PhotoEmission.Line.photonRate.
     + angularBeta    ::EmProperty       ... Angular beta_2 coefficient.
     + channels       ::Array{Einstein.Channel,1}   ... List of radiative (photon) channels.
 """
@@ -191,8 +192,15 @@ function  computeAmplitudesProperties(line::Einstein.Line, grid::Radial.Grid, se
         end
     end
     # Calculate the photonrate and angular beta if requested
-    wa = 8.0pi * Defaults.getDefaults("alpha") * line.omega / (Basics.twice(line.initialLevel.J) + 1) * 
-                                                    (Basics.twice(line.finalLevel.J) + 1)
+    # THE (2J_f+1) THAT STOOD HERE IS REMOVED, 21-Nov-2026 -- the maintainer's decision, and it makes this
+    # field the Einstein A coefficient in atomic units, the same quantity PhotoEmission.Line.photonRate holds.
+    # The spurious factor was taken out of the DISPLAY path on 7-Sep-2026 (see the note at `chRate` below, which
+    # records the hydrogen Lyman-alpha check) but was left standing here, so the module disagreed with itself:
+    # the A column was right while `photonRate` and the RADIATIVE LIFETIMES built from it were too large by
+    # (2J_f+1).  Measured on Li-like Fe before the change, the printed lifetime of 1s^2 2p_1/2 was 2.3096e-10 s
+    # against the 4.6192e-10 s implied by the A coefficient printed two tables above it in the same output.
+    # Gauge ratios are unaffected, the factor cancelling in Babushkin/Coulomb.
+    wa = 8.0pi * Defaults.getDefaults("alpha") * line.omega / (Basics.twice(line.initialLevel.J) + 1)
     photonrate  = EmProperty(wa * rateC, wa * rateB)    
     angularBeta = EmProperty(-9., -9.)
     line = Einstein.Line( line.initialLevel, line.finalLevel, line.omega, photonrate, angularBeta, newChannels)
