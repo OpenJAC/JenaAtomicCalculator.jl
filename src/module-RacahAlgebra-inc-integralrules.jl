@@ -44,6 +44,67 @@ end
 
 
 """
+`RacahAlgebra.integralRulesForTwoYlm(rex::RacahAlgebra.RacahExpression)`
+    ... attempts to find a simplification of the given Racah expression by using the orthonormality integration
+        rule for two spherical harmonics, both taken at the same (theta,phi), over the full solid angle
+        (Varshalovich et al. 1988, Eq. 5.9.2). Once a simplification is found, no attempt is made to find
+        another simplifcation for this set of rules.
+        A (istrue, rex)::Tuple{Bool, RacahExpression} is returned but where rex has no meaning for !istrue.
+
+    NOTE ON THE SIGN: `RacahAlgebra.Ylm(l, m, theta, phi, true)` already rewrites a complex-conjugated Y*_lm as
+    the PLAIN Y_{l,-m} with an extra (-1)^(-m) folded into the surrounding RacahExpression's phase -- so by the
+    time a Ylm reaches rex.ylms it is never itself conjugated, and the identity this rule implements must be
+    stated for two PLAIN (unconjugated) harmonics: Int dOmega Y_l1m1 Y_l2m2 = (-1)^m1 delta(l1,l2) delta(m1,-m2),
+    which is the textbook Int dOmega Y*_lm Y_l'm' = delta_ll' delta_mm' with m2 -> -m2 and the matching (-1)^m
+    from Y_{l2,-m2} = (-1)^m2 Y*_{l2,m2} made explicit instead of hidden in a star flag.
+
+    AUDITED 21-Nov-2026: numerically verified by quadrature against AngularMomentum.sphericalYlm via
+    RacahAlgebra.selectRacahIntegral(2); see project_racah_equivalentform_nondeterminism.md
+"""
+function integralRulesForTwoYlm(rex::RacahAlgebra.RacahExpression)
+    # Make sure that the rule could apply at all
+    if  length(rex.ylms) < 2     return( (false, RacahExpression()) )    end
+    #
+    # Loop through all pairs of spherical harmonics taken at the same (theta,phi)
+    for  (iaYlm, aYlm) in enumerate(rex.ylms)
+        for  (ibYlm, bYlm) in enumerate(rex.ylms)
+            if  ibYlm == iaYlm    continue    end
+            if  bYlm.theta != aYlm.theta  ||  bYlm.phi != aYlm.phi    continue    end
+            #
+            #   Rule:      2pi          pi
+            #   ----      Int    dphi  Int    dtheta  sin(theta)  Y_{l1 m1}(theta,phi)  Y_{l2 m2}(theta,phi)
+            #               0            0
+            #
+            #                  m1
+            #           =  (-1)    delta(l1,l2)  delta(m1,-m2)
+            #
+            thetaIntegral = Integral(aYlm.theta, Basic(0), SymEngine.PI)
+            phiIntegral   = Integral(aYlm.phi,   Basic(0), 2*SymEngine.PI)
+            if  thetaIntegral in rex.integrals   &&   phiIntegral in rex.integrals
+                testWeight = rex.weight / sin(aYlm.theta)
+                newYlms    = Ylm[];   for (icYlm, cYlm) in enumerate(rex.ylms)  if  icYlm != iaYlm && icYlm != ibYlm   push!(newYlms, cYlm)   end   end
+                newIntegrals = RacahAlgebra.removeIntegral(phiIntegral, RacahAlgebra.removeIntegral(thetaIntegral, rex.integrals))
+                #
+                if  RacahAlgebra.hasNoVars([aYlm.theta, aYlm.phi], rex.phase)        &&    RacahAlgebra.hasNoVars([aYlm.theta, aYlm.phi], testWeight)      &&
+                    RacahAlgebra.hasNoVars([aYlm.theta, aYlm.phi], rex.deltas)       &&    RacahAlgebra.hasNoVars([aYlm.theta, aYlm.phi], rex.triangles)   &&
+                    RacahAlgebra.hasNoVars([aYlm.theta, aYlm.phi], rex.w3js)         &&    RacahAlgebra.hasNoVars([aYlm.theta, aYlm.phi], rex.w6js)        &&
+                    RacahAlgebra.hasNoVars([aYlm.theta, aYlm.phi], rex.w9js)         &&    RacahAlgebra.hasNoVars([aYlm.theta, aYlm.phi], newYlms)         &&
+                    RacahAlgebra.hasNoVars([aYlm.theta, aYlm.phi], rex.djpqs)        &&    RacahAlgebra.hasNoVars([aYlm.theta, aYlm.phi], newIntegrals)
+                    newDeltas = rex.deltas;   push!(newDeltas, Kronecker(aYlm.l, bYlm.l));   push!(newDeltas, Kronecker(aYlm.m, -bYlm.m))
+                    wa = RacahExpression( rex.summations, newIntegrals, RacahAlgebra.purifyPhase(rex.phase + aYlm.m), testWeight, newDeltas, rex.triangles,
+                                            rex.w3js, rex.w6js, rex.w9js, newYlms, rex.djpqs )
+                    println(">> Apply integral rule for two Ylm -- Int dOmega Y_l1m1 Y_l2m2 ...")
+                    return( (true, wa) )
+                end
+            end
+        end
+    end
+
+    return( (false, RacahExpression()) )
+end
+
+
+"""
 `RacahAlgebra.integralRulesForThreeYlm(rex::RacahAlgebra.RacahExpression)`
     ... attempts to find a simplification of the given Racah expression by using the Gaunt-type integration rule
         for three spherical harmonics, all taken at the same (theta,phi), over the full solid angle (Varshalovich
@@ -52,7 +113,7 @@ end
         A (istrue, rex)::Tuple{Bool, RacahExpression} is returned but where rex has no meaning for !istrue.
 
     AUDITED 21-Nov-2026: numerically verified by quadrature against AngularMomentum.sphericalYlm via
-    RacahAlgebra.selectRacahIntegral(2); see project_racah_equivalentform_nondeterminism.md
+    RacahAlgebra.selectRacahIntegral(3); see project_racah_equivalentform_nondeterminism.md
 """
 function integralRulesForThreeYlm(rex::RacahAlgebra.RacahExpression)
     # Make sure that the rule could apply at all
