@@ -2392,8 +2392,8 @@ function sumRulesForSixW3j(rex::RacahAlgebra.RacahExpression)
                                                             push!(newW6js,  W6j(wwc.jb,      y, wwd.jb, wwd.jc, wwd.ja, wwc.ja))
                                                             push!(newW6js,  W6j(wwe.jb,      z, wwf.jb, wwa.ja, wwe.jc, wwe.ja))
                                                             push!(newW6js,  W6j(      x,     y,      z, wwd.jc, wwa.ja, wwb.jc))
-                                                            wa = RacahExpression( newSummations, rex.integrals, testPhase, testWeight, 
-                                                                                    rex.deltas, rex.triangles, newW3js, newW6js, rex.w9js )
+                                                            wa = RacahExpression( newSummations, rex.integrals, testPhase, testWeight,
+                                                                                    rex.deltas, rex.triangles, newW3js, newW6js, rex.w9js, rex.ylms, rex.djpqs )
                                                             println(">> Apply sum rule for six W3j -- Sum(m1,m2,m3,m4,m5,m6) (-1)^-m1-m2-m3-m4-m5-m6  ...")
                                                             wa = RacahAlgebra.rewritePhase(wa, zPhases; printout=false, from=">>> six W3j -- Sum(m1,m2,m3,m4,m5,m6):")
                                                             return( (true, wa) )
