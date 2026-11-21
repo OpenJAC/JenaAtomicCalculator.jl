@@ -870,6 +870,7 @@ function  evaluate(rx::RacahExpression; special::Bool=false)
             wa = RacahAlgebra.integralRulesForTwoYlm(newrex);        if    wa[1]  newrex = wa[2];   cont = true  end
             wa = RacahAlgebra.integralRulesForThreeYlm(newrex);      if    wa[1]  newrex = wa[2];   cont = true  end
             wa = RacahAlgebra.integralRulesForOneDjpq(newrex);       if    wa[1]  newrex = wa[2];   cont = true  end
+            wa = RacahAlgebra.integralRulesForTwoDjpq(newrex);       if    wa[1]  newrex = wa[2];   cont = true  end
             
             newrex = RacahAlgebra.simplifyDeltas(newrex)
             newrex = RacahAlgebra.simplifyTriangles(newrex)
@@ -1843,7 +1844,14 @@ function selectRacahIntegral(n::Int64)
                         rex   = RacahExpression( Basic[], [Integral(alpha, Basic(0), 2*SymEngine.PI), Integral(gamma, Basic(0), 2*SymEngine.PI),
                                                             Integral(beta, Basic(0), SymEngine.PI)],
                                                 Basic(0), sin(beta) * exp(-im*p*alpha - im*q*gamma), Kronecker[], Triangle[], W3j[], W6j[], W9j[], Ylm[], [djpq] )
-    else    error("RacahAlgebra.selectRacahIntegral(): there is no test integral numbered $n. Valid: 1-4.")
+    # Integral rule for two Wigner D-functions
+    elseif  n ==  5     alpha = Basic(:alpha);    beta = Basic(:beta);    gamma = Basic(:gamma)
+                        j1 = Basic(:j1);    p1 = Basic(:p1);    q1 = Basic(:q1);    j2 = Basic(:j2);    p2 = Basic(:p2);    q2 = Basic(:q2)
+                        adjpq = Djpq(j1, p1, q1, beta);    bdjpq = Djpq(j2, p2, q2, beta)
+                        rex   = RacahExpression( Basic[], [Integral(alpha, Basic(0), 2*SymEngine.PI), Integral(gamma, Basic(0), 2*SymEngine.PI),
+                                                            Integral(beta, Basic(0), SymEngine.PI)],
+                                                Basic(0), sin(beta) * exp(-im*(p1+p2)*alpha - im*(q1+q2)*gamma), Kronecker[], Triangle[], W3j[], W6j[], W9j[], Ylm[], [adjpq, bdjpq] )
+    else    error("RacahAlgebra.selectRacahIntegral(): there is no test integral numbered $n. Valid: 1-5.")
     end
     
     return( rex )
@@ -2762,6 +2770,30 @@ function testIntegralRules(; short::Bool=true)
         expected = (j == 0 && p == 0 && q == 0) ? 8*pi^2 : 0.0
         ok       = isapprox(wa, expected; atol = 1.0)
         if  !ok    println(">> testIntegralRules: quadrature for (j,p,q) = ($j,$p,$q) gave $wa, expected $expected")    end
+        success  = success && ok
+    end
+
+    rex  = RacahAlgebra.selectRacahIntegral(5)
+    nrex = RacahAlgebra.evaluate(rex)
+    ok   = length(nrex.djpqs) == 0   &&   length(nrex.integrals) == 0   &&   length(nrex.deltas) == 3
+    if  !ok    println(">> testIntegralRules: rule 5 did not fully resolve the two Djpqs into three deltas: $nrex")    end
+    success = success && ok
+
+    # Numerical cross-check by (coarse) quadrature against the independent AngularMomentum.Wigner_dmatrix, for a
+    # few (j1,p1,q1,j2,p2,q2) -- the ORTHOGONAL pairs give (-1)^(p1-q1)/(2j1+1)*8pi^2, everything else vanishes.
+    # NOTE: this phase is (-1)^(p1-q1), NOT the manual's literal (-1)^(q1-q2) -- see the rule's own docstring.
+    for  (j1,p1,q1, j2,p2,q2) in [(1,1,0, 1,-1,0), (1,1,1, 1,-1,-1), (2,1,0, 2,-1,0), (1,1,0, 2,-1,0), (1,1,0, 1,0,0)]
+        wa = 0.0 + 0.0im
+        for  iAlpha = 1:nAlpha,  iGamma = 1:nGamma,  iBeta = 1:nBeta
+            alpha = (iAlpha - 0.5) * 2pi / nAlpha
+            gamma = (iGamma - 0.5) * 2pi / nGamma
+            beta  = (iBeta  - 0.5) * pi  / nBeta
+            wa    = wa + exp(-im*((p1+p2)*alpha + (q1+q2)*gamma)) * AngularMomentum.Wigner_dmatrix(j1, p1, q1, beta) *
+                         AngularMomentum.Wigner_dmatrix(j2, p2, q2, beta) * sin(beta) * (2pi/nAlpha) * (2pi/nGamma) * (pi/nBeta)
+        end
+        expected = (j1 == j2 && p2 == -p1 && q2 == -q1) ? (-1.0)^(p1-q1) / (2j1+1) * 8*pi^2 : 0.0
+        ok       = isapprox(wa, expected; atol = 1.0)
+        if  !ok    println(">> testIntegralRules: quadrature for (j1,p1,q1,j2,p2,q2) = ($j1,$p1,$q1,$j2,$p2,$q2) gave $wa, expected $expected")    end
         success  = success && ok
     end
 
