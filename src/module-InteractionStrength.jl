@@ -371,10 +371,37 @@ end
 
         THE GAUGES, following Grant, J. Phys. B 7, 12 (1974): `Coulomb` is the velocity form and `Babushkin` the length form of the electric
         multipole operator; `Magnetic` is the single form of a magnetic one. For exact one-body eigenfunctions the two electric forms must
-        agree
-        at the physical photon energy, and here they do -- H 1s-2p gives Coulomb/Babushkin = 1.000000 on shell. Away from that energy they
-        legitimately differ: the length form scales with the omega it is given, while the velocity form carries the level difference through
-        <f|p|i> = i m (E_f - E_i) <f|r|i>, so an OFF-SHELL call is not gauge invariant and must not be expected to be.
+        agree at the physical photon energy, and here they do. Away from that energy they legitimately differ: the length form scales with
+        the omega it is given, while the velocity form carries the level difference through <f|p|i> = i m (E_f - E_i) <f|r|i>, so an
+        OFF-SHELL call is not gauge invariant and must not be expected to be.
+
+        THAT AGREEMENT IS AN EXACT SELF-TEST OF THIS FUNCTION, AND IT IS WORTH RUNNING BEFORE SUSPECTING IT. On a ONE-ELECTRON system the
+        orbitals ARE the exact Dirac orbitals, so |Coulomb/Babushkin - 1| measures nothing but this function's own error -- no second code,
+        no correlation model, no tolerance anybody chose. Measured 21-Nov-2026 on 1s-2p of H-like ions, point nucleus, and independent of
+        the grid:
+
+            Z            1         18         26         54         92
+            |ratio-1|  3.0e-09    5.9e-12    1.5e-11    2.8e-10    4.3e-08
+
+        So the operator, the Grant radial integrals and the prefactors below are right to 1e-08 or better at every Z. The error is not
+        monotonic in Z, so run it at the Z of interest rather than interpolating.
+
+        AND THE TWO GAUGES ARE NOT EQUALLY SENSITIVE TO THE ORBITALS, which is the thing most worth knowing here. Read the branches below:
+        `Babushkin` is carried by `GrantJL` = int j_L(qr) (P_a P_b + Q_a Q_b) dr, a LARGE-times-LARGE product, while `Coulomb` is built
+        ENTIRELY from `GrantILplus`/`GrantILminus` = int j_L(qr) (P_a Q_b +- Q_a P_b) dr, which are LARGE-times-SMALL only. The velocity
+        form therefore probes the orbitals' SMALL components at full weight and the length form feels them only at O(alpha^2). Two
+        consequences: a velocity-gauge rate is the most mean-field-sensitive quantity in a structure calculation, so a disagreement that is
+        large in velocity and absent in length need not mean a defect anywhere; and since A ~ omega |M|^2 while M_Babushkin itself carries a
+        factor omega and M_Coulomb does not, a small error in the transition energy moves the length rate as omega^3 and the velocity rate
+        as omega^1 -- which can masquerade as a gauge problem.
+
+        THE PRACTICAL USE OF ALL THIS: A COULOMB-GAUGE RATE IS A SENSITIVE DIAGNOSTIC OF ORBITAL CONVERGENCE, and measurably more so than
+        either an energy or a length-form rate. Measured 21-Nov-2026 on Li-like Fe23+ 2s-2p against GRASP2018, tightening `accuracyScf`
+        from JAC's default 1e-6 to 1e-10 and changing nothing else: the level energy improved 3.7e-07 -> 5.0e-08, the transition energy
+        3.6e-04 -> 5.1e-05, the Babushkin rate 1.6e-03 -> 2.6e-04 -- and the Coulomb rate 6.6e-02 -> 1.2e-02. The velocity form was reading
+        an SCF that had stopped while the orbitals were still moving, and was the only quantity in which that was conspicuous. So where a
+        Coulomb-gauge rate disagrees with a reference by per cent while the Babushkin one agrees to 1e-04, suspect the CONVERGENCE of the
+        orbitals before suspecting this function.
 
         THE VALUE IS REAL, and this deserves a word because the literature usually writes it as complex. The Racah phase of the angular
         factor is (-1)^(j_b + 1/2); j_b is half-integer, so that exponent is an integer and the phase is +-1, alternating with j_b. Until
