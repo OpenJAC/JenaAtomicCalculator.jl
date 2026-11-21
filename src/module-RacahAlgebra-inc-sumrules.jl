@@ -1596,7 +1596,7 @@ function sumRulesForFourW6j(rex::RacahAlgebra.RacahExpression)
                                         X = RacahAlgebra.freshIndex(rex, "X")
                                         newPhase   = rex.phase  + xaRex.phase  + xbRex.phase  + xcRex.phase  + xdRex.phase;     
                                         testPhase  = RacahAlgebra.rewritePhase(newPhase, zPhases, [wwa.c]; printout=false, from=">>> four W6j -- Sum(X) [X]:")
-                                        newWeight  = rex.weight * xaRex.weight * xbRex.weight * xcRex.weight * xdRex.weight;    testWeight = newWeight / (2*wwa.c + 1)
+                                        newWeight  = rex.weight * xaRex.weight * xbRex.weight * xcRex.weight * xdRex.weight;    testWeight = newWeight / (2*wwa.c + 1) * (2*X + 1)
                                         newW6js    = W6j[];    newW9js    = W9j[];    
                                         for (ieW6j, eW6j) in enumerate(rex.w6js)  
                                             if  ieW6j != iaW6j &&  ieW6j != ibW6j &&  ieW6j != icW6j &&  ieW6j != idW6j   push!(newW6js, eW6j)   end   
