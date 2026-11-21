@@ -23,10 +23,24 @@
 #     is the one thing no partner other than GRASP allows.
 #   * GRASP'S OWN DEFAULT GRID, left untouched.  For a point nucleus that is
 #     RNT = exp(-65/16)/Z, H = 0.0625, HP = 0 (PURELY EXPONENTIAL) and N = 220
-#     -- see src/appl/rmcdhf90/getscd.f90.  The JAC side is then given these same four numbers,
-#     rather than GRASP being driven off its default path through the interactive grid prompts.
-#     NOTE that this is NOT JAC's own default grid (rnt = 2e-6, h = 0.05, hp != 0), so a run of
-#     either code on its own recommended grid is NOT a matched comparison.
+#     -- see src/appl/rmcdhf90/getscd.f90 -- rather than GRASP being driven off its default path
+#     through the interactive grid prompts.
+#
+#     THE GRIDS ARE NOT MATCHED, AND THIS LINE USED TO CLAIM THEY WERE.  Until 21-Nov-2026 it said
+#     "the JAC side is then given these same four numbers"; that is NOT what the harness does.  Both
+#     `runTier1` and `runTier1E1` in tools/crossCheckBenchmark.jl call `Basics.recommendedGrid`, so
+#     JAC runs on its own log-linear grid (rnt = 2e-6, h = 0.05, hp != 0, ~570 points) against GRASP
+#     on a 220-point purely exponential one.
+#
+#     AND IT WAS MEASURED NOT TO MATTER, 21-Nov-2026, which is why the fix is this comment and not a
+#     code change:  JAC re-run on GRASP's four numbers reproduced its own E1 rates in BOTH gauges to
+#     five digits -- He-like Z = 54  A_C/GRASP 0.99703 -> 0.99702 -- even though the B-spline count
+#     falls from 89 to 39.  (Those runs predate the accuracyScf repair below, so the absolute ratios
+#     have since moved;  what was measured here, and still holds, is that MATCHING THE GRID MOVES
+#     NOTHING.)  The velocity-gauge disagreement that remains at high Z is therefore not a grid
+#     mismatch:  it survives matching the grid, refining `hp` eightfold, and a thousandfold change
+#     in `rnt`.
+#     Do not "repair" this by forcing JAC onto GRASP's grid and expecting a number to move.
 #
 # The binaries are expected at $GRASP_BINDIR, or at ~/grasp-oracle/bin.  The commit of the oracle
 # is printed, because a number whose code state is unknown is not evidence.

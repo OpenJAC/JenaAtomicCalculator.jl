@@ -155,7 +155,12 @@ settings = AsfSettings(AsfSettings(); generateScf=true, scField=Basics.NuclearFi
     + partnerValue   ::Float64
     + relDiff        ::Float64
     + tolerance      ::Float64
-    + verdict        ::String    ... AGREES, DIFFERS, REFERENCE-LIMITED, or RAISED.
+    + verdict        ::String    ... AGREES, DIFFERS, REFERENCE-LIMITED, PARTNER-LIMITED, or RAISED.
+                                     The two "-LIMITED" words both say that a deviation is understood and that the
+                                     OTHER side carries it:  REFERENCE-LIMITED at tier 0, where the Float64 closed
+                                     form is as inaccurate as the deviation, and PARTNER-LIMITED at tier 1, where
+                                     the partner code is.  Neither is ever DERIVED by this harness -- see
+                                     `PARTNER_LIMITED` below for why attribution is not a tool's to make.
     + note           ::String    ... one sentence where the verdict needs one;  empty otherwise.
 """
 struct BenchmarkRow
@@ -287,7 +292,16 @@ tier1cases = [ ("He-like  Z = 18", 18.0, "1s^2",            "1s(2,*)",          
                ("Be-like  Z = 18", 18.0, "1s^2 2s^2",       "1s(2,*)2s(2,*)",           "1s,2s",    "0,0", 0, Basics.plus),
                ("Be-like  Z = 54", 54.0, "1s^2 2s^2",       "1s(2,*)2s(2,*)",           "1s,2s",    "0,0", 0, Basics.plus),
                ("Ne-like  Z = 26", 26.0, "1s^2 2s^2 2p^6",  "1s(2,*)2s(2,*)2p(6,*)",    "1s,2s,2p", "0,0", 0, Basics.plus),
-               ("Ne-like  Z = 54", 54.0, "1s^2 2s^2 2p^6",  "1s(2,*)2s(2,*)2p(6,*)",    "1s,2s,2p", "0,0", 0, Basics.plus) ]
+               ("Ne-like  Z = 54", 54.0, "1s^2 2s^2 2p^6",  "1s(2,*)2s(2,*)2p(6,*)",    "1s,2s,2p", "0,0", 0, Basics.plus),
+               # THE OPEN-SHELL ROWS, added 21-Nov-2026, and they are the point rather than more of the same.
+               # Every case above is a CLOSED shell with J = 0, so until now the oracle had never compared an
+               # open-shell level at all -- and an open shell is where the AVERAGE-LEVEL functional, and which
+               # levels it averages over, can differ between two codes that agree perfectly on a closed one.
+               # A 2J = 1 ground term of 1s^2 2s is still a SINGLE CSF, so tier 1's "the same CSF list" stays
+               # automatic and the mean field is the only thing left that can differ.  This is the cheap test
+               # of whether the velocity-gauge E1 disagreement at high Z is a setup difference.
+               ("Li-like  Z = 26", 26.0, "1s^2 2s",         "1s(2,*)2s(1,*)",           "1s,2s",    "1,1", 1, Basics.plus),
+               ("Li-like  Z = 54", 54.0, "1s^2 2s",         "1s(2,*)2s(1,*)",           "1s,2s",    "1,1", 1, Basics.plus) ]
 
 """
 `graspOracleCommit()`
@@ -387,16 +401,275 @@ function runTier1(cases, settings)
     return( (rows = rows, worst = worst, worstWhat = worstWhat, out = out) )
 end
 
+# accuracyScf IS SET EXPLICITLY, AND LEAVING IT AT THE DEFAULT WAS A REAL DEFECT OF THIS HARNESS
+# (found 21-Nov-2026).  `SelfConsistent.solveAverageLevelField`'s own docstring says the default 1e-6
+# is an overlap defect, QUADRATIC in the orbital change, so it "accepts orbitals that are still moving
+# by 1.4e-3" and leaves the argon energy 6.2e-05 Ha short.  A cross-code comparison must not be limited
+# by one side's stopping criterion:  until this was set, the oracle was measuring JAC's SCF truncation
+# and calling it a disagreement with GRASP.  Measured, going from 1e-6 to 1e-10:
+#     He-like Z = 18   transition energy  3.34e-06 -> 1.32e-08,  A_Coulomb 2.2e-04 -> 2.5e-05,
+#                      A_Babushkin 6.6e-05 -> 1.000000 exactly
+#     Li-like Z = 26   transition energy  3.59e-04 -> 5.1e-05,   A_Coulomb 6.6e-02 -> 1.2e-02,
+#                      A_Babushkin 1.6e-03 -> 2.5e-04
+# THIS IS NOT TUNING JAC TOWARD GRASP, which Rule 17 step 3a forbids:  the energy and BOTH gauges
+# improve together, which a fitted knob does not do, and converging an SCF is the right choice here
+# whatever the partner says.  1e-12 buys nothing over 1e-10 (measured, both cases).
 tier1settings = AsfSettings(AsfSettings(); generateScf=true, scField=Basics.ALField(),
                             eeInteraction=CoulombInteraction(), eeInteractionCI=CoulombInteraction(),
-                            qedModel=NoneQed())
+                            qedModel=NoneQed(), accuracyScf=1.0e-10,
+                            scfRoute=Basics.AverageLevelRoute(2000))
+
+
+#####  TIER 1:  E1 transition rates against GRASP2018  #####
+
+# WHY THE FIGURE OF MERIT IS THE CODE-AGAINST-CODE RATIO PER GAUGE, AND NOT THE GAUGE RATIO.
+# The register's section G settles this and it is worth not re-deriving: the Babushkin/Coulomb
+# ratio "warns on a neutral system and is BLIND on a highly charged one", it is undefined for a
+# transition INSIDE one configuration (the velocity form of an electric multipole is structurally
+# zero between two orbitals of the same subshell), and a detector watching it move is reading
+# noise.  So each gauge is compared SEPARATELY between the two codes, and the gauge ratio is
+# carried only as a secondary note.
+#
+# AND THE TRANSITIONS MUST CONNECT DIFFERENT CONFIGURATIONS, for the same reason.
+#
+# TWO TRAPS IN ONE FIELD, BOTH MEASURED HERE ON 21-Nov-2026.
+#
+#  (1) `Einstein.Line.photonRate` is in ATOMIC UNITS, not inverse seconds -- read as 1/s it is low
+#      by 1/AU_TIME = 4.13e16.
+#
+#  (2) AND IT ONCE WAS NOT THE EINSTEIN A COEFFICIENT -- A DEFECT THIS HARNESS FOUND IN `src/`.
+#      Until 21-Nov-2026 `module-Einstein.jl` formed
+#          wa = 8 pi alpha omega / (2J_initial+1) * (2J_final+1)
+#      while `module-PhotoEmission.jl` formed the same quantity WITHOUT the last factor.  The
+#      second is the standard Einstein A, so one field name carried two quantities differing by
+#      (2J_final+1), and photonRate/AU_TIME equalled A only when the LOWER level had J = 0.  That
+#      is why this harness looked correct on the He-like cases (J_final = 0) and reported a
+#      spurious factor 2.13 on the Li-like ones (J_final = 1/2).
+#      FIXED in commit 24469284:  the two modules now agree and photonRate IS the A coefficient in
+#      atomic units.  So do NOT divide by (2J_final+1) here again -- doing so would restore the
+#      very error this paragraph records, and on the He-like rows it would again be invisible.
+const AU_TIME = 2.4188843265e-17        # s;  one atomic unit of time
+
+"""
+`einsteinA(line)`
+    ... returns the Einstein A coefficients of `line` in 1/s as the NamedTuple `(coulomb, babushkin)`.
+        `Einstein.Line.photonRate` is the A coefficient in ATOMIC UNITS, so only the unit conversion
+        is applied;  see trap (2) in the note above for why nothing else may be.
+"""
+function einsteinA(line)
+    return( (coulomb   = line.photonRate.Coulomb  /AU_TIME,
+             babushkin = line.photonRate.Babushkin/AU_TIME) )
+end
+
+#  THE PARTNER-LIMITED ATTRIBUTIONS -- AN EXPLICIT LIST, AND DELIBERATELY NOT A CRITERION.
+#
+#  A row is PARTNER-LIMITED when the deviation has been traced to the PARTNER code.  That is a physics
+#  judgement about somebody else's code, and this harness must not make it:  the same reasoning as Rule 7's,
+#  where `Last successful` is never machine-written because reproduction proves stability and not correctness.
+#  A mechanical rule -- "length agrees and velocity does not" -- would be exactly the self-certifying detector
+#  that cost a day on 21-Nov-2026:  that pattern LOCALISES a difference to the velocity amplitude, it does NOT
+#  say whose.  So each entry below is added by hand, with the evidence that earned it, and nothing is inferred.
+#
+#  WHAT THIS WOULD MISS, stated because a quiet detector gets believed:  it says nothing at all about rows not
+#  listed, and it CANNOT notice that an attribution has gone stale -- if the partner is ever upgraded past the
+#  pinned commit, every entry here must be re-derived rather than trusted.  The oracle commit is recorded on
+#  every row for exactly that reason.
+#
+#  Keyed by (quantity, system);  both fine-structure lines of a case are covered by one entry.
+const PARTNER_LIMITED = [
+    (quantity = "E1-rate-coulomb", system = "He-like Z = 54", oracle = "9006157",
+     why = "traced to GRASP2018, 21-Nov-2026, by four measurements: (1) the LENGTH form agrees to 5e-05 and is "   *
+           "FLAT in Z (1.000047/1.000055 at Z = 54, 1.000049/1.000054 at Z = 92) -- and it uses the SAME orbitals " *
+           "and the SAME CI mixing as the velocity form, so the orbitals agree and the many-electron assembly is "  *
+           "validated; (2) JAC's one-body velocity form satisfies the EXACT gauge identity to 4.3e-08 at Z = 92; "  *
+           "(3) the two codes agree in the velocity gauge to 2e-05 at Z = 18, 26 and 36, the divergence setting "   *
+           "in progressively from Z ~ 47, which is numerics and not algebra; (4) (A_C/A_B - 1)*Z must be smooth "   *
+           "and vanish as Z -> infinity, the orbitals becoming exactly hydrogenic -- JAC gives 0.861, 0.835, "      *
+           "0.823, 0.824, 0.829, 0.847, 0.878, 0.924 over Z = 18..92 while GRASP gives 0.862, 0.835, 0.823, "       *
+           "0.772, 0.631, -0.646, -5.509, -13.331, reversing sign above Z ~ 60. GRASP's SCF is converged (11 "      *
+           "digits). The mechanism -- a finite-difference solver losing the SMALL components as 1s becomes "        *
+           "compact, which only the velocity form reads at full weight -- is INFERRED FROM BEHAVIOUR; GRASP's "     *
+           "source was not read."),
+                   ]
+
+"""
+`partnerLimited(quantity::AbstractString, system::AbstractString, oracle::AbstractString)`
+    ... says whether a DIFFERS row has been attributed BY HAND to the partner code, returning the justification
+        string, or `nothing` where it has not.  An attribution is only honoured for the oracle commit it was
+        made against, so upgrading the partner retires every attribution instead of silently carrying it over.
+"""
+#  AbstractString throughout:  `oracle` arrives as a SubString from `strip(read(...))`.
+function partnerLimited(quantity::AbstractString, system::AbstractString, oracle::AbstractString)
+    for  e  in  PARTNER_LIMITED
+        if  e.quantity == quantity  &&  e.system == system  &&  e.oracle == oracle    return( e.why )    end
+    end
+
+    return( nothing )
+end
+
+
+e1cases = [("He-like  Z = 18", 18.0, ["1s^2", "1s 2p"], "1s(2,*);1s(1,*)2p(1,*)", "1s,2p",    "0,4"),
+           ("He-like  Z = 26", 26.0, ["1s^2", "1s 2p"], "1s(2,*);1s(1,*)2p(1,*)", "1s,2p",    "0,4"),
+           ("He-like  Z = 54", 54.0, ["1s^2", "1s 2p"], "1s(2,*);1s(1,*)2p(1,*)", "1s,2p",    "0,4"),
+           ("Li-like  Z = 26", 26.0, ["1s^2 2s", "1s^2 2p"], "1s(2,*)2s(1,*);1s(2,*)2p(1,*)",
+                                                             "1s,2s,2p", "1,3")]
+
+"""
+`graspE1Lines(Z::Float64, confs::String, active::String, jrange::String)`
+    ... runs `tools/graspTransitions.sh` and returns the E1 lines it reports as a vector of
+        NamedTuples `(energy, aCoulomb, aBabushkin)` with the energy in cm^-1 and the rates in
+        1/s;  an empty vector where GRASP produced nothing parsable.
+"""
+function graspE1Lines(Z::Float64, confs::String, active::String, jrange::String)
+    script = joinpath(@__DIR__, "graspTransitions.sh")
+    isfile(script)  ||  return( NamedTuple[] )
+    out = try
+        read(`bash $script $(Int(Z)) $confs $active $jrange`, String)
+    catch
+        return( NamedTuple[] )
+    end
+    rows = NamedTuple[]
+    for line in split(out, '\n')
+        startswith(strip(line), "#")  &&  continue
+        f = split(strip(line))
+        length(f) == 7  ||  continue
+        push!(rows, (energy = parse(Float64, f[5]), aCoulomb = parse(Float64, f[6]),
+                     aBabushkin = parse(Float64, f[7])))
+    end
+
+    return( rows )
+end
+
+
+"""
+`runTier1E1(cases, settings)`
+    ... computes the E1 lines of each case in JAC, pairs them with GRASP's by TRANSITION ENERGY,
+        and compares the two rates in each gauge separately;  returns the rows for the schema.
+
+        The pairing is by energy because the two codes order and index their levels differently.  The
+        window is wide (2e-3) rather than tight, and that is deliberate: measured 21-Nov-2026, the two
+        codes' transition energies agree to 9e-10 for the He-like cases but only to 3.5e-04 for the
+        Li-like ones, so a window set from the closed-shell agreement would drop the open-shell lines
+        entirely.  The window is still far tighter than the spacing between any two lines of these
+        cases, so the match stays unambiguous -- and the energy itself is now COMPARED as its own
+        `transition-energy` row rather than merely used for pairing and discarded, which is what let a
+        3.5e-04 disagreement sit unseen underneath the rate rows it partly explains.
+"""
+function runTier1E1(cases, settings)
+    println("\n" * "="^104)
+    println("  TIER 1:  E1 transition rates, JAC against GRASP2018")
+    println("  one orbital set in both codes, so no biorthogonal transformation enters either side;")
+    println("  each GAUGE compared separately -- the Babushkin/Coulomb ratio is NOT the figure of merit")
+    println("="^104)
+    @printf("  %-16s %11s %11s %9s %12s %12s %9s %12s %12s %9s\n", "ion",
+            "E JAC", "E GRASP", "dE", "A_C JAC", "A_C GRASP", "ratio", "A_B JAC", "A_B GRASP", "ratio")
+    println("  " * "-"^102)
+
+    out = BenchmarkRow[];   tol = 1.0e-3;   worst = 0.0;   worstWhat = "";   oracle = graspOracleCommit()
+    # THE TRANSITION ENERGY IS COMPARED TOO, AND AT THE LEVEL TIER'S OWN 1e-7 -- not at the rate tolerance.
+    # It is reachable: the tier-1 levels agree to ~2e-10 relative, i.e. ~6e-08 Ha absolute, so a transition
+    # energy of 1.8 Ha inherits ~6e-08 relative and one of 115 Ha far less.  Where this row says DIFFERS the
+    # two codes' ORBITALS differ, and that must be settled before the rate rows beside it can be read at all,
+    # since A_B ~ omega^3 while A_C ~ omega^1 -- the same energy error moves the two gauges by different
+    # amounts and so shows up as a false gauge-selective disagreement.  Do NOT widen it to match the rates.
+    tolE = 1.0e-7
+
+    for (label, Z, jacConfs, graspConfs, active, jrange) in cases
+        configs = [Configuration(c) for c in jacConfs]
+        nm      = Nuclear.Model(Z, Nuclear.PointNucleus())
+        grid    = Basics.recommendedGrid(configs, nm)
+        comp    = Atomic.Computation(Atomic.Computation(); name="tier1e1", nuclearModel=nm, grid=grid,
+                                     configs=configs, asfSettings=settings,
+                                     propertySettings=[Einstein.Settings([E1], false, LineSelection(),
+                                                                         0., 0., 1.0e6)])
+        jacLines = try
+            res = redirect_stdout(devnull) do;  Basics.perform(comp; output=true)   end
+            res[Einstein.Settings]
+        catch err
+            @printf("  %-16s   JAC RAISED: %s\n", label, first(sprint(showerror, err), 50))
+            continue
+        end
+        gLines = graspE1Lines(Z, graspConfs, active, jrange)
+        if  isempty(gLines)
+            @printf("  %-16s   GRASP produced no parsable E1 line\n", label);   continue
+        end
+
+        for g in gLines
+            # pair by transition energy;  1e-4 relative is far tighter than any line spacing here
+            best = nothing;  bestd = Inf
+            for l in jacLines
+                e = l.omega*219474.6313702
+                d = abs(e - g.energy)/g.energy
+                if  d < bestd   bestd = d;  best = l   end
+            end
+            # A PAIRING FAILURE IS REPORTED, NOT SKIPPED.  The first version of this dropped any
+            # GRASP line it could not match and printed nothing, so the Li-like doublet vanished
+            # from the table and the run looked clean -- a detector that goes quiet when it fails
+            # is the worst kind.  The window is 2e-3 rather than 1e-4 because a 2s-2p transition
+            # energy is a SMALL DIFFERENCE of two large totals:  the levels agree to 1e-6, the
+            # splitting between them to only a few 1e-4.  It is still far tighter than the
+            # spacing between any two lines of these cases, so the match stays unambiguous.
+            if  best === nothing  ||  bestd > 2.0e-3
+                @printf("  %-16s %10.0f   NO JAC LINE within 2e-3 of this GRASP line (closest %.1e)\n",
+                        label, g.energy, bestd)
+                continue
+            end
+            aj = einsteinA(best);   jc = aj.coulomb;   jb = aj.babushkin
+            (jc <= 0.0 || g.aCoulomb <= 0.0)  &&  continue
+            rc = jc/g.aCoulomb;   rb = jb/g.aBabushkin
+            jacE = best.omega * 219474.6313702
+            devE = abs(jacE/g.energy - 1.0)
+            @printf("  %-16s %11.0f %11.0f %9.1e %12.5e %12.5e %9.6f %12.5e %12.5e %9.6f\n",
+                    label, jacE, g.energy, devE, jc, g.aCoulomb, rc, jb, g.aBabushkin, rb)
+            if  devE > worst   worst = devE;   worstWhat = "$label  transition energy"   end
+            push!(out, BenchmarkRow(1, "transition-energy", replace(strip(label), r"\s+" => " "), Z,
+                                    join(jacConfs, " + "), @sprintf("%.0f cm^-1 (JAC)", jacE),
+                                    "point nucleus; average-level Dirac-Fock; Coulomb; no Breit; no QED; one orbital set",
+                                    @sprintf("JAC rnt=%.1e h=%.4g hp=%.4g N=%d rbox=%.3f; GRASP on its own default",
+                                             grid.rnt, grid.h, grid.hp, grid.NoPoints, grid.r[end]),
+                                    jacE, "GRASP2018", oracle, g.energy, devE, tolE,
+                                    devE <= tolE ? "AGREES" : "DIFFERS",
+                                    devE > tolE ? "a transition energy is a SMALL DIFFERENCE of two large " *
+                                        "totals, so it is the sharpest one-CSF test of the two codes' orbitals; " *
+                                        "settle this row before reading the rate rows beside it" : ""))
+            for (gauge, jv, gv, rr) in (("coulomb", jc, g.aCoulomb, rc), ("babushkin", jb, g.aBabushkin, rb))
+                dev = abs(rr - 1.0)
+                if  dev > worst   worst = dev;   worstWhat = "$label  $gauge"   end
+                quantity = "E1-rate-" * gauge
+                system   = replace(strip(label), r"\s+" => " ")
+                #  A DIFFERS row may have been attributed BY HAND to the partner;  nothing here infers it.
+                why      = dev > tol ? partnerLimited(quantity, system, oracle) : nothing
+                verdict  = dev <= tol ? "AGREES" : (isnothing(why) ? "DIFFERS" : "PARTNER-LIMITED")
+                note     = dev <= tol ? "" :
+                           isnothing(why) ? "the CSF list and the Hamiltonian are identical by construction, " *
+                                            "so this is a defect in one of the two codes" : why
+                push!(out, BenchmarkRow(1, quantity, system, Z,
+                                        join(jacConfs, " + "), @sprintf("%.0f cm^-1", g.energy),
+                                        "point nucleus; average-level Dirac-Fock; Coulomb; no Breit; no QED; one orbital set",
+                                        @sprintf("JAC rnt=%.1e h=%.4g hp=%.4g N=%d rbox=%.3f; GRASP on its own default",
+                                                 grid.rnt, grid.h, grid.hp, grid.NoPoints, grid.r[end]),
+                                        jv, "GRASP2018", oracle, gv, dev, tol, verdict, note))
+            end
+        end
+    end
+
+    println("  " * "-"^102)
+    @printf("  %d rows;  rates at a tolerance of %.0e, transition energies at %.0e.  WORST deviation = %.2e, at %s.\n",
+            length(out), tol, tolE, worst, worstWhat)
+    println("  The JAC column is the Einstein A from `einsteinA()`:  photonRate is the A coefficient")
+    println("  in atomic units, so the unit conversion is the only thing applied to it.")
+
+    return( (out = out, worst = worst) )
+end
+
 
 #####  OUTPUTS:  the machine-readable file, and the published page  #####
 
 """
 `writeBenchmarkOutputs(rows::Vector{BenchmarkRow}; write::Bool=false)`
-    ... writes `docs/src/validation-rows.csv`, one line per comparison with the field names of `CSV_FIELDS`,
-        and -- only with `write = true` -- rewrites the region between the markers in `docs/src/validation.md`.
+    ... with `write = true`, writes `docs/src/validation-rows.csv` (one line per comparison, with the field
+        names of `CSV_FIELDS`) and rewrites the region between the markers in `docs/src/validation.md`;  with
+        `write = false` it forms the rows and writes NEITHER, so a diagnostic run leaves `docs/` untouched.
         Nothing outside the markers is touched;  that text is prose and stays under human control.  The path of
         the file written is returned.
 
@@ -408,15 +681,24 @@ tier1settings = AsfSettings(AsfSettings(); generateScf=true, scField=Basics.ALFi
 function writeBenchmarkOutputs(rows::Vector{BenchmarkRow}; write::Bool=false)
     docs = normpath(joinpath(@__DIR__, "..", "docs", "src"))
     csv  = joinpath(docs, "validation-rows.csv")
-    open(csv, "w") do io
-        println(io, join(CSV_FIELDS, ","))
-        for r in rows
-            println(io, join(csvCell.([r.tier, r.quantity, r.system, r.Z, r.configuration, r.level, r.model,
-                                       r.grid, r.jacValue, r.partner, r.partnerVersion, r.partnerValue,
-                                       r.relDiff, r.tolerance, r.verdict, r.note]), ","))
+    # THE CSV IS GATED BEHIND `--write` TOO, AND IT WAS NOT UNTIL 21-Nov-2026.  It is a TRACKED file, so an
+    # ungated write meant that every diagnostic run of this harness -- and there were a dozen in one afternoon
+    # -- left `docs/` dirty with numbers nobody had decided to publish, inviting exactly the accidental commit
+    # that "docs only at release" exists to prevent.  The page was already gated;  the two now behave alike,
+    # which is also what keeps the CSV and the page from disagreeing with each other.
+    if  write
+        open(csv, "w") do io
+            println(io, join(CSV_FIELDS, ","))
+            for r in rows
+                println(io, join(csvCell.([r.tier, r.quantity, r.system, r.Z, r.configuration, r.level, r.model,
+                                           r.grid, r.jacValue, r.partner, r.partnerVersion, r.partnerValue,
+                                           r.relDiff, r.tolerance, r.verdict, r.note]), ","))
+            end
         end
+        println("\n>> ", csv, "  --  ", length(rows), " rows")
+    else
+        println("\n>> ", length(rows), " rows formed;  ", csv, " NOT written (pass --write).")
     end
-    println("\n>> ", csv, "  --  ", length(rows), " rows")
 
     commit = try   strip(read(`git rev-parse --short HEAD`, String))   catch;  "unknown"   end
     md = IOBuffer()
@@ -435,9 +717,16 @@ function writeBenchmarkOutputs(rows::Vector{BenchmarkRow}; write::Bool=false)
                                  r.partnerValue, r.relDiff, r.verdict))
         end
     end
+    #  PARTNER-LIMITED IS COUNTED SEPARATELY FROM DIFFERS, because the two say opposite things to a reader:
+    #  DIFFERS is an open question, PARTNER-LIMITED is a closed one whose answer was that the partner carries
+    #  the deviation.  Folding them together would hide the open rows among the settled ones, which is the
+    #  failure the tiers exist to prevent.
     nDiff = count(r -> r.verdict == "DIFFERS", rows)
-    println(md, "\n", length(rows), " comparisons, ", nDiff, " marked `DIFFERS`.  Measured ",
-            Libc.strftime("%d %B %Y", time()), " at commit `", commit,
+    nPart = count(r -> r.verdict == "PARTNER-LIMITED", rows)
+    print(md, "\n", length(rows), " comparisons, ", nDiff, " marked `DIFFERS`")
+    nPart > 0  &&  print(md, " and ", nPart, " `PARTNER-LIMITED` (understood, and traced to the partner -- ",
+                         "see the note on each such row)")
+    println(md, ".  Measured ", Libc.strftime("%d %B %Y", time()), " at commit `", commit,
             "`; regenerate with `julia --project=. tools/crossCheckBenchmark.jl --write`.")
     println(md, "<!-- END generated: cross-code validation -->")
     block = String(take!(md))
@@ -466,4 +755,5 @@ end
 
 t0 = runTier0(cases, settings)
 t1 = runTier1(tier1cases, tier1settings)
-writeBenchmarkOutputs(vcat(t0.out, t1.out); write = ("--write" in ARGS))
+t2 = runTier1E1(e1cases, tier1settings)
+writeBenchmarkOutputs(vcat(t0.out, t1.out, t2.out); write = ("--write" in ARGS))
