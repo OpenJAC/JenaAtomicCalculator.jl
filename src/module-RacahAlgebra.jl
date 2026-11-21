@@ -869,6 +869,7 @@ function  evaluate(rx::RacahExpression; special::Bool=false)
             wa = RacahAlgebra.integralRulesForOneYlm(newrex);        if    wa[1]  newrex = wa[2];   cont = true  end
             wa = RacahAlgebra.integralRulesForTwoYlm(newrex);        if    wa[1]  newrex = wa[2];   cont = true  end
             wa = RacahAlgebra.integralRulesForThreeYlm(newrex);      if    wa[1]  newrex = wa[2];   cont = true  end
+            wa = RacahAlgebra.integralRulesForOneDjpq(newrex);       if    wa[1]  newrex = wa[2];   cont = true  end
             
             newrex = RacahAlgebra.simplifyDeltas(newrex)
             newrex = RacahAlgebra.simplifyTriangles(newrex)
@@ -1836,7 +1837,13 @@ function selectRacahIntegral(n::Int64)
     elseif  n ==  3     aylm = Ylm(l1, m1, theta, phi);   bylm = Ylm(l2, m2, theta, phi);   cylm = Ylm(l3, m3, theta, phi)
                         rex = RacahExpression( Basic[], [Integral(theta, Basic(0), SymEngine.PI), Integral(phi, Basic(0), 2*SymEngine.PI)],
                                                 Basic(0), sin(theta), Kronecker[], Triangle[], W3j[], W6j[], W9j[], [aylm, bylm, cylm], Djpq[] )
-    else    error("RacahAlgebra.selectRacahIntegral(): there is no test integral numbered $n. Valid: 1-3.")
+    # Integral rule for one Wigner D-function
+    elseif  n ==  4     alpha = Basic(:alpha);    beta = Basic(:beta);    gamma = Basic(:gamma)
+                        djpq  = Djpq(j, p, q, beta)
+                        rex   = RacahExpression( Basic[], [Integral(alpha, Basic(0), 2*SymEngine.PI), Integral(gamma, Basic(0), 2*SymEngine.PI),
+                                                            Integral(beta, Basic(0), SymEngine.PI)],
+                                                Basic(0), sin(beta) * exp(-im*p*alpha - im*q*gamma), Kronecker[], Triangle[], W3j[], W6j[], W9j[], Ylm[], [djpq] )
+    else    error("RacahAlgebra.selectRacahIntegral(): there is no test integral numbered $n. Valid: 1-4.")
     end
     
     return( rex )
@@ -2732,6 +2739,29 @@ function testIntegralRules(; short::Bool=true)
         expected = sqrt( (2l1+1)*(2l2+1)*(2l3+1) / (4pi) ) * AngularMomentum.Wigner_3j(l1,l2,l3, 0,0,0) * AngularMomentum.Wigner_3j(l1,l2,l3, m1,m2,m3)
         ok       = isapprox(wa, expected; atol = 1.0e-3)
         if  !ok    println(">> testIntegralRules: quadrature for (l1,m1,l2,m2,l3,m3) = ($l1,$m1,$l2,$m2,$l3,$m3) gave $wa, expected $expected")    end
+        success  = success && ok
+    end
+
+    rex  = RacahAlgebra.selectRacahIntegral(4)
+    nrex = RacahAlgebra.evaluate(rex)
+    ok   = length(nrex.djpqs) == 0   &&   length(nrex.integrals) == 0   &&   length(nrex.deltas) == 3
+    if  !ok    println(">> testIntegralRules: rule 4 did not fully resolve the Djpq and its integrals: $nrex")    end
+    success = success && ok
+
+    # Numerical cross-check by (coarse) quadrature against the independent AngularMomentum.Wigner_dmatrix,
+    # for a few (j,p,q) -- only (0,0,0) gives 8pi^2, everything else must vanish
+    nAlpha = 30;   nGamma = 30;   nBeta = 30
+    for  (j,p,q) in [(0,0,0), (1,0,0), (1,1,0), (2,0,1)]
+        wa = 0.0 + 0.0im
+        for  iAlpha = 1:nAlpha,  iGamma = 1:nGamma,  iBeta = 1:nBeta
+            alpha = (iAlpha - 0.5) * 2pi / nAlpha
+            gamma = (iGamma - 0.5) * 2pi / nGamma
+            beta  = (iBeta  - 0.5) * pi  / nBeta
+            wa    = wa + exp(-im*(p*alpha + q*gamma)) * AngularMomentum.Wigner_dmatrix(j, p, q, beta) * sin(beta) * (2pi/nAlpha) * (2pi/nGamma) * (pi/nBeta)
+        end
+        expected = (j == 0 && p == 0 && q == 0) ? 8*pi^2 : 0.0
+        ok       = isapprox(wa, expected; atol = 1.0)
+        if  !ok    println(">> testIntegralRules: quadrature for (j,p,q) = ($j,$p,$q) gave $wa, expected $expected")    end
         success  = success && ok
     end
 

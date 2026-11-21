@@ -164,3 +164,82 @@ function integralRulesForThreeYlm(rex::RacahAlgebra.RacahExpression)
 
     return( (false, RacahExpression()) )
 end
+
+
+##### Integration rules for the Wigner D-functions / small-d rotation matrices #####
+
+
+"""
+`RacahAlgebra.integralRulesForOneDjpq(rex::RacahAlgebra.RacahExpression)`
+    ... attempts to find a simplification of the given Racah expression by using the normalization integration
+        rule for one Wigner D-function D^j_pq(alpha,beta,gamma) = exp(-i(p*alpha+q*gamma)) d^j_pq(beta) over the
+        full rotation-group volume (Varshalovich et al. 1988, Eq. 4.11.1). Once a simplification is found, no
+        attempt is made to find another simplifcation for this set of rules.
+        A (istrue, rex)::Tuple{Bool, RacahExpression} is returned but where rex has no meaning for !istrue.
+
+    A Djpq carries only (j,p,q,beta); the alpha and gamma it is multiplied by exp(-i*p*alpha-i*q*gamma) in (see
+    RacahAlgebra.DFunction) are NOT fields of Djpq, so unlike the Ylm rules above, this rule cannot read "its
+    own" alpha/gamma off the matched symbol. Instead it searches rex.integrals STRUCTURALLY: for each periodic
+    integral candidate (bounds 0 to 2*pi or 0 to 4*pi, for the extended-domain convention), it tests whether
+    dividing out exp(-i*p*var) [or exp(-i*q*var)] from the weight removes that candidate's own variable --
+    exactly the same division-and-hasNoVars pattern as everywhere else in this file, just applied to find WHICH
+    integral plays the alpha/gamma role rather than reading it off a struct field.
+
+    AUDITED 21-Nov-2026: numerically verified by quadrature against AngularMomentum.Wigner_dmatrix via
+    RacahAlgebra.selectRacahIntegral(4); see project_racah_equivalentform_nondeterminism.md
+"""
+function integralRulesForOneDjpq(rex::RacahAlgebra.RacahExpression)
+    # Loop through all small Wigner d-matrices
+    for  (iaDjpq, aDjpq) in enumerate(rex.djpqs)
+        #
+        #   Rule:      2pi            2pi            pi
+        #   ----      Int    dalpha  Int    dgamma  Int    dbeta  sin(beta)  exp(-i(p*alpha+q*gamma))  d^j_pq(beta)
+        #               0              0              0
+        #
+        #           =   8 pi^2  delta(j,0)  delta(p,0)  delta(q,0)
+        #
+        betaIntegral = Integral(aDjpq.beta, Basic(0), SymEngine.PI)
+        if  !(betaIntegral in rex.integrals)    continue    end
+        remaining = RacahAlgebra.removeIntegral(betaIntegral, rex.integrals)
+        #
+        # Search the remaining integrals structurally for the alpha- and gamma-roles
+        testWeight = rex.weight / sin(aDjpq.beta)
+        alphaNtg   = nothing;    gammaNtg = nothing
+        for  ntg in remaining
+            if  !(ntg.low == Basic(0)  &&  (ntg.up == 2*SymEngine.PI  ||  ntg.up == 4*SymEngine.PI))    continue    end
+            if  RacahAlgebra.hasNoVars([ntg.var], rex.weight)    continue    end
+            if  isnothing(alphaNtg)
+                probe = testWeight / exp(-im*aDjpq.p*ntg.var)
+                if  RacahAlgebra.hasNoVars([ntg.var], probe)    alphaNtg = ntg;    testWeight = probe;    continue    end
+            end
+            if  isnothing(gammaNtg)
+                probe = testWeight / exp(-im*aDjpq.q*ntg.var)
+                if  RacahAlgebra.hasNoVars([ntg.var], probe)    gammaNtg = ntg;    testWeight = probe    end
+            end
+        end
+        if  isnothing(alphaNtg)  ||  isnothing(gammaNtg)    continue    end
+        #
+        newDjpqs     = Djpq[];   for (ibDjpq, bDjpq) in enumerate(rex.djpqs)  if  iaDjpq != ibDjpq   push!(newDjpqs, bDjpq)   end   end
+        newIntegrals = RacahAlgebra.removeIntegral(gammaNtg, RacahAlgebra.removeIntegral(alphaNtg, remaining))
+        #
+        if  RacahAlgebra.hasNoVars([aDjpq.beta, alphaNtg.var, gammaNtg.var], rex.phase)        &&
+            RacahAlgebra.hasNoVars([aDjpq.beta, alphaNtg.var, gammaNtg.var], testWeight)       &&
+            RacahAlgebra.hasNoVars([aDjpq.beta, alphaNtg.var, gammaNtg.var], rex.deltas)       &&
+            RacahAlgebra.hasNoVars([aDjpq.beta, alphaNtg.var, gammaNtg.var], rex.triangles)    &&
+            RacahAlgebra.hasNoVars([aDjpq.beta, alphaNtg.var, gammaNtg.var], rex.w3js)         &&
+            RacahAlgebra.hasNoVars([aDjpq.beta, alphaNtg.var, gammaNtg.var], rex.w6js)         &&
+            RacahAlgebra.hasNoVars([aDjpq.beta, alphaNtg.var, gammaNtg.var], rex.w9js)         &&
+            RacahAlgebra.hasNoVars([aDjpq.beta, alphaNtg.var, gammaNtg.var], rex.ylms)         &&
+            RacahAlgebra.hasNoVars([aDjpq.beta, alphaNtg.var, gammaNtg.var], newDjpqs)         &&
+            RacahAlgebra.hasNoVars([aDjpq.beta, alphaNtg.var, gammaNtg.var], newIntegrals)
+            newDeltas = rex.deltas;   push!(newDeltas, Kronecker(aDjpq.j, 0));   push!(newDeltas, Kronecker(aDjpq.p, 0));   push!(newDeltas, Kronecker(aDjpq.q, 0))
+            newWeight = testWeight * 2 * (alphaNtg.up - alphaNtg.low) * (gammaNtg.up - gammaNtg.low)
+            wa = RacahExpression( rex.summations, newIntegrals, rex.phase, newWeight, newDeltas, rex.triangles,
+                                    rex.w3js, rex.w6js, rex.w9js, rex.ylms, newDjpqs )
+            println(">> Apply integral rule for one Djpq -- Int dOmega D^j_pq ...")
+            return( (true, wa) )
+        end
+    end
+
+    return( (false, RacahExpression()) )
+end
