@@ -867,6 +867,7 @@ function  evaluate(rx::RacahExpression; special::Bool=false)
             wa = RacahAlgebra.sumRulesForSixW3j(newrex);             if    wa[1]  newrex = wa[2];   cont = true  end
             
             wa = RacahAlgebra.integralRulesForOneYlm(newrex);        if    wa[1]  newrex = wa[2];   cont = true  end
+            wa = RacahAlgebra.integralRulesForThreeYlm(newrex);      if    wa[1]  newrex = wa[2];   cont = true  end
             # wa = RacahAlgebra.integralRulesForTwoYlm(newrex);        if    wa[1]  newrex = wa[2];   cont = true  end   # not yet implemented
             
             newrex = RacahAlgebra.simplifyDeltas(newrex)
@@ -1821,12 +1822,17 @@ function selectRacahIntegral(n::Int64)
     r = Basic(:r);    s = Basic(:s);    t = Basic(:t);    X = Basic(:X);     Y   = Basic(:Y);     Z  = Basic(:Z);
     
     theta = Basic(:theta);    phi = Basic(:phi)
+    l1 = Basic(:l1);    l2 = Basic(:l2);    l3 = Basic(:l3);    m1 = Basic(:m1);    m2 = Basic(:m2);    m3 = Basic(:m3)
 
     # Integral rules for one Ylm symbol
     if      n ==  1     ylm = Ylm(l, m, theta, phi)
                         rex = RacahExpression( Basic[], [Integral(theta, Basic(0), SymEngine.PI), Integral(phi, Basic(0), 2*SymEngine.PI)],
                                                 Basic(0), sin(theta), Kronecker[], Triangle[], W3j[], W6j[], W9j[], [ylm], Djpq[] )
-    else    error("RacahAlgebra.selectRacahIntegral(): there is no test integral numbered $n. Valid: 1.")
+    # Integral rules for three Ylm symbols
+    elseif  n ==  2     aylm = Ylm(l1, m1, theta, phi);   bylm = Ylm(l2, m2, theta, phi);   cylm = Ylm(l3, m3, theta, phi)
+                        rex = RacahExpression( Basic[], [Integral(theta, Basic(0), SymEngine.PI), Integral(phi, Basic(0), 2*SymEngine.PI)],
+                                                Basic(0), sin(theta), Kronecker[], Triangle[], W3j[], W6j[], W9j[], [aylm, bylm, cylm], Djpq[] )
+    else    error("RacahAlgebra.selectRacahIntegral(): there is no test integral numbered $n. Valid: 1-2.")
     end
     
     return( rex )
@@ -2681,7 +2687,29 @@ function testIntegralRules(; short::Bool=true)
         if  !ok    println(">> testIntegralRules: quadrature for (l,m) = ($l,$m) gave $wa, expected $expected")    end
         success  = success && ok
     end
-    
+
+    rex  = RacahAlgebra.selectRacahIntegral(2)
+    nrex = RacahAlgebra.evaluate(rex)
+    ok   = length(nrex.ylms) == 0   &&   length(nrex.integrals) == 0   &&   length(nrex.w3js) == 2
+    if  !ok    println(">> testIntegralRules: rule 2 did not fully resolve the three Ylms into two W3js: $nrex")    end
+    success = success && ok
+
+    # Numerical cross-check by (coarse) quadrature against the independent AngularMomentum.sphericalYlm and
+    # Wigner_3j, for a few (l1,m1,l2,m2,l3,m3), including one combination whose triangle fails (expect zero)
+    for  (l1,m1, l2,m2, l3,m3) in [(1,0, 1,0, 0,0), (1,1, 1,-1, 0,0), (2,1, 1,0, 1,-1), (1,0, 1,0, 3,0)]
+        wa = 0.0 + 0.0im
+        for  iTheta = 1:nTheta,  iPhi = 1:nPhi
+            theta = (iTheta - 0.5) * pi   / nTheta
+            phi   = (iPhi   - 0.5) * 2pi  / nPhi
+            wa    = wa + sin(theta) * AngularMomentum.sphericalYlm(l1, m1, theta, phi) * AngularMomentum.sphericalYlm(l2, m2, theta, phi) *
+                         AngularMomentum.sphericalYlm(l3, m3, theta, phi) * (pi/nTheta) * (2pi/nPhi)
+        end
+        expected = sqrt( (2l1+1)*(2l2+1)*(2l3+1) / (4pi) ) * AngularMomentum.Wigner_3j(l1,l2,l3, 0,0,0) * AngularMomentum.Wigner_3j(l1,l2,l3, m1,m2,m3)
+        ok       = isapprox(wa, expected; atol = 1.0e-3)
+        if  !ok    println(">> testIntegralRules: quadrature for (l1,m1,l2,m2,l3,m3) = ($l1,$m1,$l2,$m2,$l3,$m3) gave $wa, expected $expected")    end
+        success  = success && ok
+    end
+
     return( success )
 end
 
