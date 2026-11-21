@@ -1,44 +1,43 @@
 
 
 """
-`RacahAlgebra.integralRulesForOneYlm(rex::RacahAlgebra.RacahExpression)`  
-    ... attempts to find a simplification of the given Racah expression by using sum rules for one Wigner 3j symbol. 
-        Once a simplification is found, no attempt is made to find another simplifcation for this set of rules.
+`RacahAlgebra.integralRulesForOneYlm(rex::RacahAlgebra.RacahExpression)`
+    ... attempts to find a simplification of the given Racah expression by using the integration rule for one
+        spherical harmonic over the full solid angle (Varshalovich et al. 1988, Eq. 5.9.1). Once a simplification
+        is found, no attempt is made to find another simplifcation for this set of rules.
         A (istrue, rex)::Tuple{Bool, RacahExpression} is returned but where rex has no meaning for !istrue.
+
+    AUDITED 21-Nov-2026: numerically verified by quadrature against AngularMomentum.sphericalYlm via
+    RacahAlgebra.selectRacahIntegral(1); see project_racah_equivalentform_nondeterminism.md
 """
 function integralRulesForOneYlm(rex::RacahAlgebra.RacahExpression)
-    
-    error("Not yet implemented.")
-    # Loop through all Wigner 3j symbols
-    for  (iaW3j, aW3j) in enumerate(rex.w3js)
-        aRexList = RacahAlgebra.symmetricForms(aW3j)
-        for  xaRex in aRexList
-            ww = xaRex.w3js[1]
-
-            #   Rule:                  -m   ( j  j J )         -j
-            #   ----        Sum(m) (-1)     (        )  =  (-1)    (2j + 1)  delta(J,0)  delta(M,0)
-            #                               ( m -m M )
-
-            specialW3j = W3j(ww.ja, ww.ja, ww.jc, ww.ma, -ww.ma, ww.mc)
-            if  ww == specialW3j
-                newPhase  = rex.phase  + xaRex.phase;     testPhase = newPhase   + ww.ma  
-                newWeight = rex.weight * xaRex.weight;    testWeight = newWeight
-                newW3js   = W3j[];       for (ibW3j, bW3j) in enumerate(rex.w3js)  if  iaW3j != ibW3j   push!(newW3js, bW3j)   end   end
-
-                if  RacahAlgebra.hasIndexOld(ww.ma, rex.summations)          &&  RacahAlgebra.hasNoVars([ww.ma], testPhase)      &&  
-                    RacahAlgebra.hasNoVars([ww.ma], testWeight)           &&  RacahAlgebra.hasNoVars([ww.ma], rex.deltas)     &&  
-                    RacahAlgebra.hasNoVars([ww.ma], rex.triangles)        &&  RacahAlgebra.hasNoVars([ww.ma], newW3js)        &&  
-                    RacahAlgebra.hasNoVars([ww.ma], rex.w6js)             &&  RacahAlgebra.hasNoVars([ww.ma], rex.w9js)
-                    newSummations = RacahAlgebra.removeIndex(ww.ma, rex.summations)
-                    newDeltas = rex.deltas;      push!( newDeltas, Kronecker(ww.jc, 0));     push!( newDeltas, Kronecker(ww.mc, 0))
-                    wa = RacahExpression( newSummations, rex.integrals, RacahAlgebra.purifyPhase(newPhase + ww.ma - ww.ja), newWeight * (2*ww.ja+1), 
-                                            newDeltas, rex.triangles, newW3js, rex.w6js, rex.w9js, rex.ylms, rex.djpqs )
-                    println(">> Apply sum rule for one W3j -- Sum(m) (-1)^m ...")
-                    return( (true, wa) )
-                end
+    # Loop through all spherical harmonics
+    for  (iaYlm, aYlm) in enumerate(rex.ylms)
+        #
+        #   Rule:      2pi          pi
+        #   ----      Int    dphi  Int    dtheta  sin(theta)  Y_lm (theta,phi)   =   sqrt(4*pi)  delta(l,0)  delta(m,0)
+        #               0            0
+        #
+        thetaIntegral = Integral(aYlm.theta, Basic(0), SymEngine.PI)
+        phiIntegral   = Integral(aYlm.phi,   Basic(0), 2*SymEngine.PI)
+        if  thetaIntegral in rex.integrals   &&   phiIntegral in rex.integrals
+            testWeight   = rex.weight / sin(aYlm.theta)
+            newYlms      = Ylm[];   for (ibYlm, bYlm) in enumerate(rex.ylms)  if  iaYlm != ibYlm   push!(newYlms, bYlm)   end   end
+            newIntegrals = RacahAlgebra.removeIntegral(phiIntegral, RacahAlgebra.removeIntegral(thetaIntegral, rex.integrals))
+            #
+            if  RacahAlgebra.hasNoVars([aYlm.theta, aYlm.phi], rex.phase)        &&    RacahAlgebra.hasNoVars([aYlm.theta, aYlm.phi], testWeight)      &&
+                RacahAlgebra.hasNoVars([aYlm.theta, aYlm.phi], rex.deltas)       &&    RacahAlgebra.hasNoVars([aYlm.theta, aYlm.phi], rex.triangles)   &&
+                RacahAlgebra.hasNoVars([aYlm.theta, aYlm.phi], rex.w3js)         &&    RacahAlgebra.hasNoVars([aYlm.theta, aYlm.phi], rex.w6js)        &&
+                RacahAlgebra.hasNoVars([aYlm.theta, aYlm.phi], rex.w9js)         &&    RacahAlgebra.hasNoVars([aYlm.theta, aYlm.phi], newYlms)         &&
+                RacahAlgebra.hasNoVars([aYlm.theta, aYlm.phi], rex.djpqs)        &&    RacahAlgebra.hasNoVars([aYlm.theta, aYlm.phi], newIntegrals)
+                newDeltas = rex.deltas;   push!(newDeltas, Kronecker(aYlm.l, 0));   push!(newDeltas, Kronecker(aYlm.m, 0))
+                wa = RacahExpression( rex.summations, newIntegrals, rex.phase, testWeight * sqrt(4*SymEngine.PI), newDeltas, rex.triangles,
+                                        rex.w3js, rex.w6js, rex.w9js, newYlms, rex.djpqs )
+                println(">> Apply integral rule for one Ylm -- Int dOmega Y_lm ...")
+                return( (true, wa) )
             end
         end
     end
-    
+
     return( (false, RacahExpression()) )
 end

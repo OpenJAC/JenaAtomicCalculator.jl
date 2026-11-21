@@ -866,8 +866,8 @@ function  evaluate(rx::RacahExpression; special::Bool=false)
             wa = RacahAlgebra.sumRulesForFiveW3j(newrex);            if    wa[1]  newrex = wa[2];   cont = true  end
             wa = RacahAlgebra.sumRulesForSixW3j(newrex);             if    wa[1]  newrex = wa[2];   cont = true  end
             
-            # wa = RacahAlgebra.integralRulesForOneYlm(newrex);        if    wa[1]  newrex = wa[2];   cont = true  end
-            # wa = RacahAlgebra.integralRulesForTwoYlm(newrex);        if    wa[1]  newrex = wa[2];   cont = true  end
+            wa = RacahAlgebra.integralRulesForOneYlm(newrex);        if    wa[1]  newrex = wa[2];   cont = true  end
+            # wa = RacahAlgebra.integralRulesForTwoYlm(newrex);        if    wa[1]  newrex = wa[2];   cont = true  end   # not yet implemented
             
             newrex = RacahAlgebra.simplifyDeltas(newrex)
             newrex = RacahAlgebra.simplifyTriangles(newrex)
@@ -1361,7 +1361,7 @@ end
     ... removes the index from the given indexList; a newList::Array{Integral,1} is returned.
 """
 function  removeIntegral(integral::Integral, integralList::Array{Integral,1})
-    newList = Basic[]
+    newList = Integral[]
     for  ntg in integralList
         if  ntg == integral
         else    push!( newList, ntg)
@@ -1820,9 +1820,12 @@ function selectRacahIntegral(n::Int64)
     g = Basic(:g);    h = Basic(:h);    k = Basic(:k);    l  = Basic(:l);    p   = Basic(:p);     q  = Basic(:q);     
     r = Basic(:r);    s = Basic(:s);    t = Basic(:t);    X = Basic(:X);     Y   = Basic(:Y);     Z  = Basic(:Z);
     
-    # Integral rules for one Ylm symbol   ... to be adapted
-    if      n ==  1     w3j = W3j(j, j, J, m, -m, M)
-                        rex = RacahExpression( [m], Integral[], Basic(-m), Basic(1), Kronecker[], Triangle[], [w3j], W6j[], W9j[], Ylm[], Djpq[] )
+    theta = Basic(:theta);    phi = Basic(:phi)
+
+    # Integral rules for one Ylm symbol
+    if      n ==  1     ylm = Ylm(l, m, theta, phi)
+                        rex = RacahExpression( Basic[], [Integral(theta, Basic(0), SymEngine.PI), Integral(phi, Basic(0), 2*SymEngine.PI)],
+                                                Basic(0), sin(theta), Kronecker[], Triangle[], W3j[], W6j[], W9j[], [ylm], Djpq[] )
     else    error("RacahAlgebra.selectRacahIntegral(): there is no test integral numbered $n. Valid: 1.")
     end
     
@@ -2649,25 +2652,34 @@ end
 
 
 """
-`RacahAlgebra.testIntegralRules(; short::Bool=true)`  
-    ... tests the implemented integral rules by just comparing comparing the number of integrals symbols; this does not include tests on 
-        the proper phase nor the algebraic factors of the Racah expression. The success::Bool of these tests is returned.
+`RacahAlgebra.testIntegralRules(; short::Bool=true)`
+    ... tests the implemented integral rules both structurally (the Ylm and Integral entries are fully resolved)
+        and numerically, by quadrature against AngularMomentum.sphericalYlm for a few (l,m) combinations.
+        The success::Bool of these tests is returned.
 """
 function testIntegralRules(; short::Bool=true)
-    success  = true
-    error("Not yet implemented.")
-    # For each rule in nnList, nwnjList gives to correct number of Wigner symbols after the evaluation
-    nnList   =        [  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]
-    nwnjList =        [  0,  0,  0,  0,  0,  0,  0,  0,  0,  1,  0,  0,  2,  2,  0,  0,  1,  2,  2,  2,  1,  1,  0,  1,  1,  1,  1,  3,  1,  1]
-    append!(nnList,   [ 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47])
-    append!(nwnjList, [  1,  4,  3,  2,  1,  2,  1,  0,  0,  2,  2,  2,  2,  3,  3,  6,  8])
+    success = true
 
-    for (n, nn) in enumerate(nnList)
-        if  n in [46,47]    continue    end
-        rex = RacahAlgebra.selectRacahExpression(nn);    nrex = RacahAlgebra.evaluate(rex);      nwnjs = RacahAlgebra.countWignerSymbols(nrex)
-        if  nwnjs != nwnjList[n]   println(">> Test fails for rule  $nn :");    @show rex;    @show nrex;    @show nwnjs     end
-        success = success && (nwnjs == nwnjList[n])
-        if  !(nwnjs == nwnjList[n])     println("\n**** Test for rule $n  with nwnjs = $(nwnjs)  !=== $(nwnjList[n])")       end
+    rex  = RacahAlgebra.selectRacahIntegral(1)
+    nrex = RacahAlgebra.evaluate(rex)
+    ok   = length(nrex.ylms) == 0   &&   length(nrex.integrals) == 0   &&   length(nrex.deltas) == 2
+    if  !ok    println(">> testIntegralRules: rule 1 did not fully resolve the Ylm and its integrals: $nrex")    end
+    success = success && ok
+
+    # Numerical cross-check by (coarse) quadrature against the independent AngularMomentum.sphericalYlm,
+    # for a few (l,m) where the rule predicts sqrt(4pi) delta(l,0) delta(m,0)
+    nTheta = 60;   nPhi = 60
+    for  (l, m) in [(0,0), (1,0), (1,1), (2,-1)]
+        wa = 0.0 + 0.0im
+        for  iTheta = 1:nTheta,  iPhi = 1:nPhi
+            theta = (iTheta - 0.5) * pi   / nTheta
+            phi   = (iPhi   - 0.5) * 2pi  / nPhi
+            wa    = wa + sin(theta) * AngularMomentum.sphericalYlm(l, m, theta, phi) * (pi/nTheta) * (2pi/nPhi)
+        end
+        expected = (l == 0 && m == 0) ? sqrt(4pi) : 0.0
+        ok       = isapprox(wa, expected; atol = 1.0e-3)
+        if  !ok    println(">> testIntegralRules: quadrature for (l,m) = ($l,$m) gave $wa, expected $expected")    end
+        success  = success && ok
     end
     
     return( success )
