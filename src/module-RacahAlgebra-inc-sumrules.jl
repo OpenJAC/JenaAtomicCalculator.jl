@@ -2028,7 +2028,7 @@ function sumRulesForTwoW6jTwoW9j(rex::RacahAlgebra.RacahExpression)
                                     #   ----    Sum(X,Y) (-1)    [X,Y] {( c  d  Y )} {( g  h  Y )} {(         )} {(         )}
                                     #                                   ( p  q  s )   ( r  t  s )   ( f  e  k )   ( h  g  l )
                                     #
-                                    #                                               k+l+a+c+p-s-h-t+Z       ( c  g  l )   ( f  b  k )   ( p  r  Z )
+                                    #                                             k+l+a+c+p-s-h-t-f+Z       ( c  g  l )   ( f  b  k )   ( p  r  Z )
                                     #                                 =  Sum(Z) (-1)                   [Z] {( a  e  k )} {( h  d  l )} {(         )}
                                     #                                                                       ( p  r  Z )   ( t  q  Z )   ( t  q  s )
                                     #
@@ -2039,7 +2039,7 @@ function sumRulesForTwoW6jTwoW9j(rex::RacahAlgebra.RacahExpression)
                                     if  wwa == specialaW6j  &&  wwb == specialbW6j  &&  wwc == specialcW9j  &&  wwd == specialdW9j 
                                         Z          = RacahAlgebra.freshIndex(rex, "Z")
                                         newPhase   = rex.phase  + xaRex.phase  + xbRex.phase  + xcRex.phase  + xdRex.phase;     
-                                        testPhase  = newPhase - wwa.c - wwb.c + wwa.f  + wwb.f + wwa.a + wwb.a + wwc.g - wwc.i - wwb.d - wwd.h + Z
+                                        testPhase  = newPhase - wwa.c - wwb.c + wwa.f  + wwb.f + wwa.a + wwb.a + wwc.g - wwc.i - wwb.d - wwd.h - wwa.d + Z
                                         testPhase  = RacahAlgebra.rewritePhase(testPhase, zPhases, [wwa.c, wwb.c]; printout=false, 
                                                                                 from=">>> two W6j & two W9j -- Sum(X,Y) [X,Y]  (-1)^X+Y:")
                                         newWeight  = rex.weight * xaRex.weight * xbRex.weight * xcRex.weight * xdRex.weight;    
