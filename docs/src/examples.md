@@ -322,8 +322,10 @@ From this list, we easily see that the self-consistent field is by default based
 potential, a choice which we could overwrite by `meanCH` or any pre-defined potential. At present, however, 
 no full treatment of the exchange interaction has yet been implemented in this first release of the program. 
 The standard settings also show that the SCF is usually based on just the lowest level (cf. `levelScf`) as well as 
-on the accuracy `1.0e-6` to terminate the SCF computations. Moreover, the individual orbitals are improved due 
-to the standard subshell order (cf. `shellSequenceScf`).
+on the accuracy `1.0e-6` to terminate the SCF computations. Moreover, the individual orbitals are improved in the 
+order in which the subshells appear in the many-electron basis. Note that the `shellSequenceScf` field is read by no 
+SCF driver and is refused if set, so that it cannot be mistaken for a working choice; to hold particular subshells 
+fixed, use `frozenSubshells`, which is honoured.
 
 For the CI parameters, the treatment of the Breit and QED interaction is of particular interest. At present, the 
 defaults does not included neither Breit interactions nor QED. Such QED estimates can either be neglected (`NoneQed()`) 

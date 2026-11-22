@@ -338,6 +338,43 @@ end
 
 
 """
+`SelfConsistent.checkShellSequenceIsHonoured(settings::AsfSettings)`
+    ... raises where `settings.shellSequenceScf` has been set, because NO SCF driver in this module reads it;
+        nothing is returned where it is empty, which is the default.
+
+        A SETTING THAT IS SILENTLY IGNORED IS WORSE THAN ONE THAT DOES NOT EXIST, which is why this raises
+        rather than warns.  `shellSequenceScf` is declared in `AsfSettings`, carries the docstring "Sequence of
+        subshells to be optimized", is printed by `Base.show`, is compared by the equality test -- and is read
+        by nothing at all:  checked over the whole of `src/` on 22-Nov-2026, its only other mention is a comment
+        in the plasma line saying it is deliberately excluded there.  Its NEIGHBOUR `frozenSubshells` IS
+        honoured, so the two sit side by side in the same struct, one working and one not.  The published user
+        guide meanwhile tells the reader that "the individual orbitals are improved due to the standard subshell
+        order (cf. `shellSequenceScf`)".  A user who sets it today gets the standard order and no indication.
+
+        WHY IT IS NOT SIMPLY IMPLEMENTED HERE.  The order in which subshells are refined is not cosmetic: the
+        same-kappa orthogonality is imposed SEQUENTIALLY, each orbital being projected against the
+        already-processed ones of its own kappa, so the order changes the result whenever two same-kappa
+        subshells carry unequal generalised occupations -- the same condition that makes the average-level
+        solution non-stationary in the mixing angle (see `GBL_AL_SAME_KAPPA_ROTATION`).  Honouring the field
+        therefore means choosing and validating a semantics in three different drivers, which is real work and
+        not a stub.  Raising says so at the one point every SCF passes through, instead of leaving a documented
+        promise unkept.
+"""
+function checkShellSequenceIsHonoured(settings::AsfSettings)
+    isempty(settings.shellSequenceScf)   &&   return( nothing )
+    error("\n\nSelfConsistent.performSCF(): AsfSettings.shellSequenceScf is set, and NO SCF driver in this "   *
+          "module reads it.\n"                                                                                 *
+          ">>> The subshells are refined in the order they appear in the many-electron basis, whatever this "    *
+          "field says.\n"                                                                                      *
+          ">>> Remove the keyword to get that standard order explicitly.  To hold particular subshells fixed, "  *
+          "use\n    frozenSubshells, which IS honoured.\n"                                                     *
+          ">>> The order is not cosmetic -- same-kappa orthogonality is imposed sequentially, so it changes the " *
+          "result where two\n    same-kappa subshells carry unequal occupations -- which is why this field is "  *
+          "refused rather than quietly ignored.\n")
+end
+
+
+"""
 `SelfConsistent.checkScFieldIsSupported(scField::Basics.AbstractScField)`
     ... verifies that the given field is one that performSCF can actually iterate, and raises an explanatory
         error if it is not. Several members of Basics.AbstractScField are POTENTIALS rather than fields: they
@@ -480,6 +517,7 @@ function performSCF(configs::Array{Configuration,1}, nm::Nuclear.Model, grid::Ra
                     settings::AsfSettings; levelSymmetries::Array{LevelSymmetry,1}=LevelSymmetry[], printout::Bool=true)
     
     SelfConsistent.checkScFieldIsSupported(settings.scField)
+    SelfConsistent.checkShellSequenceIsHonoured(settings)
     # A system with ONE electron has no electron-electron interaction to average, so every self-consistent field
     # degenerates to the bare nuclear one -- except that a mean field built from the density would include this
     # electron's own charge and repel it from itself. The substitution is therefore not a fallback or a guess: it
@@ -582,6 +620,7 @@ function performSCF(basis::Basis, nm::Nuclear.Model, grid::Radial.Grid,
                     settings::AsfSettings; levelSymmetries::Array{LevelSymmetry,1}=LevelSymmetry[], printout::Bool=false)
     
     SelfConsistent.checkScFieldIsSupported(settings.scField)
+    SelfConsistent.checkShellSequenceIsHonoured(settings)
 
     # Generate primitives
     primitives = Bsplines.generatePrimitives(grid)    
