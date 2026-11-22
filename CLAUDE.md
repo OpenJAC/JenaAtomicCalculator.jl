@@ -559,8 +559,15 @@ gitignored and therefore reaches nobody.
    since improved.
 3a. **`julia --project=. tools/crossCheckBenchmark.jl --write`** re-derives the cross-code validation table of
    `docs/src/validation.md` and the machine-readable `docs/src/validation-rows.csv` beside it, rewriting only
-   the region between the markers. Added 20-Nov-2026. It takes about **80 s**, of which roughly half is Julia
-   starting up, so compute is never the reason to skip it.
+   the region between the markers. Added 20-Nov-2026; the E1 and transition-energy rows came 21/22-Nov and it now
+   forms **57 comparisons**. Measured on a QUIET machine, 22-Nov-2026: **82 s**, of which Julia's own start-up is
+   under 3 s -- the rest is the ten SCF runs and the partner's chain, so compute is never the reason to skip it.
+   (An earlier note here said roughly half was start-up; that was wrong, and a 1m40s figure measured the same
+   week was taken while the other session was running the test suite -- contended wall time is not evidence.)
+
+   **BOTH OUTPUTS ARE GATED BEHIND `--write`.** A bare run forms every row, prints the table and writes NOTHING,
+   so it is the safe way to look;  without the gate every diagnostic run left a tracked file under `docs/` dirty
+   with numbers nobody had decided to publish.
 
    **IT IS THE ONLY CHECK IN THIS PROCEDURE WHOSE REFERENCE DOES NOT COME FROM JAC.** The suite compares against
    approved files JAC itself produced; the cancellation factor and the gauge ratio are formed from the very
@@ -569,10 +576,23 @@ gitignored and therefore reaches nobody.
 
    **READ THE ROWS THAT DID NOT AGREE, AND READ THEM BY TIER, because the tiers mean opposite things.** A
    `DIFFERS` at **tier 1** is a defect in one of the two codes and nothing else -- the nucleus, the Hamiltonian
-   and the CSF list are identical by construction -- so it BLOCKS the release until it is understood. A tier-0
-   row marked `REFERENCE-LIMITED` is the opposite and must not be read as a defect: it means the Float64
-   reference formula carries as much error as the deviation, which is true below about Z = 18, where
+   and the CSF list are identical by construction -- so a BARE `DIFFERS` BLOCKS the release until it is
+   understood. A tier-0 row marked `REFERENCE-LIMITED` is the opposite and must not be read as a defect: it means
+   the Float64 reference formula carries as much error as the deviation, which is true below about Z = 18, where
    `Basics.computeDiracEnergy` loses five digits to the `1/wa - 1` cancellation.
+
+   **AND SINCE 22-Nov-2026 THERE ARE TWO WAYS A ROW CAN SAY "UNDERSTOOD", which is what that block was asking
+   for.** `PARTNER-LIMITED` means the deviation has been traced to the PARTNER code -- it is the tier-1 analogue
+   of `REFERENCE-LIMITED` and does NOT block. A `DIFFERS` whose note names a cause traced to OUR side does not
+   block either, but it owes an open item: the verdict stays `DIFFERS` deliberately, because the DEFAULT really
+   does differ and this page describes the default rather than the best setting reachable.
+
+   **NEITHER "-LIMITED" VERDICT MAY BE DERIVED BY THE HARNESS**, and that is the discipline that keeps them
+   honest. Both come from hand-maintained lists in `tools/crossCheckBenchmark.jl` (`PARTNER_LIMITED` and
+   `KNOWN_CAUSE`), each entry carrying the measurements that earned it, for the same reason Rule 7 keeps
+   `Last successful` out of a tool's hands: attributing a deviation to one code or the other is a physics
+   judgement. The mechanical pattern "the length form agrees and the velocity form does not" LOCALISES a
+   difference to the velocity amplitude; it does not say whose it is.
 
    **DO NOT "FIX" A DIFFERENCE BY TUNING JAC UNTIL IT MATCHES.** That destroys the independence the step exists
    for, and it is the most likely way this becomes decoration. **And do not add a third partner** -- the ceiling
