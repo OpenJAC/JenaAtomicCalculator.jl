@@ -148,7 +148,7 @@ export AbstractComputeTheme, AbstractConfigurationRestriction, AbstractConfigura
        RequestMinimumOccupation, ResonantInelastic, RestrictExcitations, RestrictMaximumDisplacements,
        RestrictNoElectronsTo, RestrictParity, RestrictToShellDoubles,
        SelfConsistent, Semiempirical, setDefaults, Shell, ShellSelection, SolidAngle,
-       SphericalMesh, SphericalTensor, SpinAngularGaigalas, SpinAngular, SpinAngularTables, StarkBroadening, StarkShift, StarkZeeman, StartFromHydrogenic,
+       SphericalMesh, SphericalMultipoles, SphericalTensor, SpinAngularGaigalas, SpinAngular, SpinAngularTables, StarkBroadening, StarkShift, StarkZeeman, StartFromHydrogenic,
        StartFromPrevious, StartFromThomasFermi, StaticField,
        StaticQuantizationAxis, Statistical, StrongField, Subshell, SuperConfigurations,
        tabulate, ThomasFermiField, ThreeBodyRecombination, ThreeParameterFermiNucleus, TimeHarmonicField, TotalAM,
@@ -329,6 +329,7 @@ include("module-ForPedestrians.jl");    using ..ForPedestrians
 if  incRacahAlgebra
 include("module-RacahAlgebra.jl");      using ..RacahAlgebra
 include("module-SphericalTensor.jl");   using ..SphericalTensor
+include("module-SphericalMultipoles.jl");   using ..SphericalMultipoles
 end
 
 if  incDeepLearning
