@@ -2863,6 +2863,7 @@ end
 include("module-RacahAlgebra-inc-special.jl")
 include("module-RacahAlgebra-inc-sumrules.jl")
 include("module-RacahAlgebra-inc-integralrules.jl")
+include("module-RacahAlgebra-inc-differentiationrules.jl")
 
 end # module
 
