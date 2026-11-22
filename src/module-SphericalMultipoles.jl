@@ -17,7 +17,7 @@ module  SphericalMultipoles
 
 using   SymEngine,  ..AngularMomentum, ..Basics,  ..Defaults,  ..RacahAlgebra
 
-export  BipolarHarmonic
+export  BipolarHarmonic, additionTheorem
 
 
 """
@@ -71,6 +71,28 @@ end
 
 function Base.show(io::IO, bh::BipolarHarmonic)
     print(io, Base.string(bh))
+end
+
+
+"""
+`SphericalMultipoles.additionTheorem(l::Basic, theta1::Basic, phi1::Basic, theta2::Basic, phi2::Basic)`
+    ... returns the bipolar harmonic {Y_l(theta1,phi1) x Y_l(theta2,phi2)}_00 -- the same-rank, zero-total-rank
+        special case of BipolarHarmonic, which is the spherical-harmonic ADDITION THEOREM in disguise:
+
+            {Y_l x Y_l}_00  =  (-1)^l  sqrt(2l+1)/(4*pi)  P_l(cos gamma)
+
+        where gamma is the angle between the two directions n1, n2 (cos gamma = cos theta1 cos theta2 +
+        sin theta1 sin theta2 cos(phi1-phi2)) and P_l is the ordinary Legendre polynomial. This single-rank
+        case is the most common real use of the bipolar harmonic: it is the multipole term behind
+        Mie-scattering phase functions (nano-optics) and photon/particle angular-correlation functions
+        (quantum optics, and atomic cascade correlations already within JAC's own scope). A
+        bh::SphericalMultipoles.BipolarHarmonic is returned, with l1 = l2 = l and L = M = 0.
+
+    AUDITED 22-Nov-2026: numerically verified against GSL.sf_legendre_Pl for l = 0..4; see
+    project_racah_equivalentform_nondeterminism.md
+"""
+function additionTheorem(l::Basic, theta1::Basic, phi1::Basic, theta2::Basic, phi2::Basic)
+    return( BipolarHarmonic(l, l, Basic(0), Basic(0), theta1, phi1, theta2, phi2) )
 end
 
 end # module
