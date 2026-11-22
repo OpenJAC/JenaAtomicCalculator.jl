@@ -68,6 +68,142 @@ end
 
 
 """
+`SelfConsistent.sameKappaRotationPairs(coeffs1p::Array{Coefficient1p,1}, subshells::Array{Subshell,1},
+                                       frozenSubshells::Array{Subshell,1})`
+    ... selects the pairs of subshells between which the average-level functional has a genuine rotational
+        degree of freedom:  equal kappa, and UNEQUAL generalised occupation.  An `Array{Tuple{Subshell,Subshell},1}`
+        is returned, empty where the configuration has no such pair -- which is the case for every closed shell.
+
+        THE OCCUPATION IS READ OFF THE RANK-0 DIAGONAL COEFFICIENT, which in JAC's convention IS the generalised
+        occupation (see Rule 18:  the sqrt(2j+1) sits inside the coefficient, so a rank-0 diagonal coefficient is
+        literally the occupation number).  Verified on Li-like Z = 26 over two configurations, where the
+        coefficients give 1s = 2.000000, 2s = 0.333333, 2p_1/2 = 0.333333, 2p_3/2 = 0.333333 and the occupation
+        averaged over the CSFs gives the same to every digit.  No separate machinery is needed, and `coeffs1p` is
+        already in the caller's hand.
+
+        WHY UNEQUAL OCCUPATIONS ARE THE TEST.  With EQUAL occupations the functional is invariant under the
+        rotation -- the standard Hartree-Fock invariance within a symmetry block -- so the angle is not a degree
+        of freedom at all and optimizing it is both pointless and ill-conditioned, the second derivative being
+        zero.  Measured:  Be-like 1s^2 2s^2 gives dF/dtheta = 5.0e-07 Ha/rad against Li-like 1s^2 2s + 1s^2 2p's
+        -0.17, i.e. 340,000 times flatter.  A FROZEN subshell is excluded for the reason the caller excludes it
+        from Anderson acceleration:  the rotation would move an orbital the caller has pinned.
+"""
+function sameKappaRotationPairs(coeffs1p::Array{Coefficient1p,1}, subshells::Array{Subshell,1},
+                                frozenSubshells::Array{Subshell,1})
+    occupation = Dict{Subshell,Float64}()
+    for  cf  in  coeffs1p
+        if  cf.nu == 0  &&  cf.a == cf.b     occupation[cf.a] = cf.T     end
+    end
+
+    pairs = Tuple{Subshell,Subshell}[]
+    for  i = 1:length(subshells),  j = i+1:length(subshells)
+        sa = subshells[i];    sb = subshells[j]
+        sa.kappa == sb.kappa                             ||  continue
+        (sa in frozenSubshells  ||  sb in frozenSubshells)  &&  continue
+        (haskey(occupation, sa)  &&  haskey(occupation, sb))  ||  continue
+        abs( occupation[sa] - occupation[sb] ) > 1.0e-8   ||  continue
+        push!(pairs, (sa, sb))
+    end
+
+    return( pairs )
+end
+
+
+"""
+`SelfConsistent.rotateOrbitalPair(orbitals::Dict{Subshell, Orbital}, sa::Subshell, sb::Subshell, theta::Float64)`
+    ... returns a copy of `orbitals` in which the pair `(sa, sb)` has been rotated into each other by `theta`.
+        Orthonormality is preserved EXACTLY rather than approximately:  the Gram matrix of two orthonormal
+        orbitals is the identity, and a rotation leaves it so, which is what makes every trial angle feasible
+        and the search safe.  A `Dict{Subshell, Orbital}` is returned.
+"""
+function rotateOrbitalPair(orbitals::Dict{Subshell, Orbital}, sa::Subshell, sb::Subshell, theta::Float64)
+    a = orbitals[sa];    b = orbitals[sb];    c = cos(theta);    sn = sin(theta)
+    n = min(length(a.P), length(a.Q), length(b.P), length(b.Q))
+    newA = Radial.Orbital(a.subshell, a.isBound, a.useStandardGrid, a.energy,
+                          c*a.P[1:n]      .+ sn*b.P[1:n],      c*a.Q[1:n]      .+ sn*b.Q[1:n],
+                          c*a.Pprime[1:n] .+ sn*b.Pprime[1:n], c*a.Qprime[1:n] .+ sn*b.Qprime[1:n], a.grid)
+    newB = Radial.Orbital(b.subshell, b.isBound, b.useStandardGrid, b.energy,
+                          -sn*a.P[1:n]      .+ c*b.P[1:n],      -sn*a.Q[1:n]      .+ c*b.Q[1:n],
+                          -sn*a.Pprime[1:n] .+ c*b.Pprime[1:n], -sn*a.Qprime[1:n] .+ c*b.Qprime[1:n], b.grid)
+    out = Dict{Subshell,Orbital}()
+    for  (sh, orb)  in  orbitals     out[sh] = orb     end
+    out[sa] = newA;    out[sb] = newB
+
+    return( out )
+end
+
+
+"""
+`SelfConsistent.optimizeSameKappaRotation(orbitals::Dict{Subshell, Orbital}, basis::Basis,
+                                          coeffs1p::Array{Coefficient1p,1}, coeffs2p::Array{Coefficient2p,1},
+                                          grid::Radial.Grid, nucPot::Radial.Potential,
+                                          frozenSubshells::Array{Subshell,1}; printout::Bool=false)`
+    ... rotates each exposed same-kappa pair of the CONVERGED orbitals to the angle that minimizes the
+        average-level functional, so that the result is STATIONARY with respect to that mixing and not merely
+        orthonormal.  A `Dict{Subshell, Orbital}` is returned, unchanged where no pair is exposed -- so a closed
+        shell passes through untouched.
+
+        **IT RUNS ONCE, AFTER THE SCF HAS CONVERGED, AND THAT PLACEMENT IS THE WHOLE POINT.**  Applying it inside
+        the iteration accomplishes nothing at all, which was measured before this was written the right way round:
+        each iteration re-derives every orbital by diagonalizing its own Fock matrix, so the angle is simply reset
+        on the next pass and the functional comes back to where it was.  The angle is not a quantity this
+        iteration carries -- which is also WHY its fixed point is not a minimum.  Imposing orthogonality through
+        the eigenproblem fixes the metric of a same-kappa pair and leaves the mixing angle wherever it falls;
+        making the angle stationary inside the iteration needs the off-diagonal Lagrange multipliers that GRASP
+        carries in `lagcon.f90`, which is a far larger piece of work.  This is the variational remedy that is
+        available without it:  the returned orbitals are orthonormal and LOWER in the functional, which is what
+        the average-level field exists to minimize, and they are not eigenvectors of a Fock matrix -- a property
+        the stationarity conditions never required of them.
+
+        MEASURED on Li-like Z = 26 over 1s^2 2s + 1s^2 2p, where 1s carries 2.0 and 2s carries 1/3:  the
+        functional falls by 1.75e-05 Ha at theta = 2.1e-04, and at that same angle the E1 velocity-gauge rate
+        moves from 1.2e-02 away from an independent code to 5e-04 while the length-gauge rate hardly moves.
+
+        Up to six safeguarded Newton steps per pair, the derivatives from three evaluations at `-h, 0, +h`.  A
+        step is taken only where the curvature is positive, is capped at 0.1 rad so a flat direction cannot throw
+        the orbitals across the space, and is kept only where it actually lowers the functional;  the search
+        stops as soon as a step fails to.
+"""
+function optimizeSameKappaRotation(orbitals::Dict{Subshell, Orbital}, basis::Basis,
+                                   coeffs1p::Array{Coefficient1p,1}, coeffs2p::Array{Coefficient2p,1},
+                                   grid::Radial.Grid, nucPot::Radial.Potential,
+                                   frozenSubshells::Array{Subshell,1}; printout::Bool=false)
+    pairs = SelfConsistent.sameKappaRotationPairs(coeffs1p, basis.subshells, frozenSubshells)
+    length(pairs) == 0  &&  return( orbitals )
+
+    newOrbitals = orbitals
+    for  (sa, sb)  in  pairs
+        total = 0.
+        for  step = 1:6
+            h  = 1.0e-3
+            f0 = SelfConsistent.computeFunctional(coeffs1p, coeffs2p, newOrbitals, grid, nucPot)
+            fp = SelfConsistent.computeFunctional(coeffs1p, coeffs2p,
+                                SelfConsistent.rotateOrbitalPair(newOrbitals, sa, sb,  h), grid, nucPot)
+            fm = SelfConsistent.computeFunctional(coeffs1p, coeffs2p,
+                                SelfConsistent.rotateOrbitalPair(newOrbitals, sa, sb, -h), grid, nucPot)
+            #  NOTE the explicit 2.0*f0:  `2f0` is a Float32 LITERAL in Julia, not two times f0, and writing
+            #  it that way made d2 come out negative and huge, so the guard below rejected every step and the
+            #  rotation silently never happened.
+            d1 = (fp - fm) / (2h);    d2 = (fp - 2.0*f0 + fm) / h^2
+            d2 > 0.               ||  break
+            theta = -d1 / d2
+            abs(theta) > 0.1      &&  break
+            abs(theta) < 1.0e-12  &&  break
+            trial = SelfConsistent.rotateOrbitalPair(newOrbitals, sa, sb, theta)
+            SelfConsistent.computeFunctional(coeffs1p, coeffs2p, trial, grid, nucPot) < f0  ||  break
+            newOrbitals = trial;    total = total + theta
+        end
+        if  printout  &&  abs(total) > 0.
+            println(">> [AL] same-kappa rotation $(string(sa))/$(string(sb)) by " *
+                    @sprintf("%.3e", total) * " rad to make the functional stationary.")
+        end
+    end
+
+    return( newOrbitals )
+end
+
+
+"""
 `SelfConsistent.solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primitives::Bsplines.Primitives,
                                        settings::AsfSettings; printout::Bool=true, andersonDepth::Int64=GBL_AL_ANDERSON_DEPTH)`
     ... solves the average-level (AL) self-consistent field, validated to 5+ significant figures against
@@ -398,6 +534,14 @@ function solveAverageLevelField(basis::Basis, nuclearModel::Nuclear.Model, primi
         Defaults.warn(AddWarning(), "SelfConsistent.solveAverageLevelField(): the AL field did NOT converge for " *
                       string(basis.subshells) * " -- overlap defect " * @sprintf("%.1e", lastDefect) *
                       " after $NoIterations iterations (maxIterationsScf).  The energies are NOT self-consistent.")
+    end
+
+    # THE SAME-KAPPA ROTATION, once, on the CONVERGED orbitals.  OFF by default;  see the note at
+    # SelfConsistent.GBL_AL_SAME_KAPPA_ROTATION for the measurement and for why switching it on is an editorial
+    # act, and the docstring of optimizeSameKappaRotation for why it cannot be done inside the iteration.
+    if  SelfConsistent.GBL_AL_SAME_KAPPA_ROTATION
+        orbitals = SelfConsistent.optimizeSameKappaRotation(orbitals, basis, coeffs1p, coeffs2p, grid, nucPot,
+                                                            frozenSubshells; printout=printout)
     end
 
     newBasis = Basis(true, basis.NoElectrons, basis.subshells, basis.csfs, basis.coreSubshells, orbitals)

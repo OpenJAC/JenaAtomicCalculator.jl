@@ -48,6 +48,39 @@ GBL_EOL_UNSCALED_OFFDIAGONAL = false
 # been called from anywhere.
 GBL_SCF_REORTHONORMALIZE = true
 
+# OPTIMISE THE SAME-KAPPA ROTATION ANGLES, which the average-level iteration otherwise leaves unoptimised.
+# DEFAULT false, so that no number moves unless this is asked for.
+#
+# THE DEFECT IT ADDRESSES, measured 21-Nov-2026 against GRASP2018 and then reference-free against JAC itself.
+# Two subshells of the SAME kappa span a two-dimensional space, and the mixing angle between them is a real
+# variational degree of freedom whenever they carry DIFFERENT generalised occupations -- the average-level
+# functional is NOT invariant under that rotation then.  `orthonormalizeSameKappa` makes the pair orthonormal,
+# which fixes the metric and does NOT make the angle stationary, and nothing else in this line optimises it.
+# So the iteration converges to a point that is not a minimum of its own functional.  GRASP is right here
+# because it carries off-diagonal Lagrange multipliers; this is the cheap equivalent, the angle being optimised
+# directly rather than through a multiplier.
+#
+# MEASURED, Li-like Z = 26 over 1s^2 2s + 1s^2 2p (1s at occupation 2.0, 2s at 1/3, both kappa = -1).  Every
+# block holds one CSF, so there is no CI and each level energy is a pure diagonal element:
+#     theta        0      1e-04      2e-04      3e-04   |   -1e-04        dF/dtheta ~ -0.17 Ha/rad at 0
+#     F - F(0)     0    -1.28e-05  -1.75e-05  -1.40e-05 |  +2.09e-05
+# and at that same theta ~ 2e-04 the E1 velocity-gauge rate moves from 1.2e-02 away from GRASP to 5e-04, while
+# the length-gauge rate hardly moves.  The functional's own minimum and agreement with an independent code
+# pick out the SAME orbitals, which is what makes this a defect and not a preference.
+#
+# THE CONTROL, which tests the mechanism rather than the conclusion: with EQUAL occupations the functional IS
+# invariant under the rotation, so nothing may move.  Be-like Z = 18, 1s^2 2s^2 (1s and 2s both at 2):
+# dF/dtheta = +5.0e-07 Ha/rad, flat to 5e-09 Ha over theta = +-1e-02 -- 340,000x flatter than the Li-like case.
+# Every closed-shell system this field was validated on is of that kind and therefore cannot move.
+#
+# WHY IT IS OFF BY DEFAULT.  60 % of the configurations written in `examples/` and `test/` carry an exposed
+# same-kappa pair, the approved references print 13 significant digits, and the shift is 2e-08 to 5e-08 in a
+# level energy -- so turning this on moves digit 8 or 9 of many approved numbers at once.  That is a deliberate
+# editorial act under the reference-update protocol and needs an independent check per reference, which exists
+# today only for the few systems the cross-code benchmark covers.  The physics gain is in AMPLITUDES, where the
+# same orbital error is LINEAR rather than quadratic and reaches 1e-02.
+GBL_AL_SAME_KAPPA_ROTATION = false
+
 # Anderson depth for the AVERAGE-LEVEL field, separate from the mean-field one above because the iterate is
 # different: there it is the screening potential, here the orbitals themselves.  0 = the plain damped
 # iteration exactly as before.
@@ -139,6 +172,20 @@ end
 """
 function setScfReorthonormalize(flag::Bool)
     global GBL_SCF_REORTHONORMALIZE = flag
+    return( nothing )
+end
+
+
+"""
+`SelfConsistent.setAlSameKappaRotation(flag::Bool)`  
+    ... sets the switch that optimizes the same-kappa rotation angles inside the average-level SCF, so that the
+        converged orbitals are stationary with respect to a mixing between two subshells of equal kappa and
+        unequal generalised occupation; nothing is returned.  It is OFF by default because switching it on
+        moves the eighth or ninth digit of every affected approved reference -- see the note at
+        `GBL_AL_SAME_KAPPA_ROTATION`.
+"""
+function setAlSameKappaRotation(flag::Bool)
+    global GBL_AL_SAME_KAPPA_ROTATION = flag
     return( nothing )
 end
 
