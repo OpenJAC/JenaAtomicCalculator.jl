@@ -490,7 +490,48 @@ const PARTNER_LIMITED = [
            "digits). The mechanism -- a finite-difference solver losing the SMALL components as 1s becomes "        *
            "compact, which only the velocity form reads at full weight -- is INFERRED FROM BEHAVIOUR; GRASP's "     *
            "source was not read."),
+    (quantity = "E1-rate-coulomb", system = "He-like Z = 66", oracle = "9006157",
+     why = "the same measurement set as the Z = 54 entry above, which swept Z = 18..92 in both codes: the "      *
+           "length form agrees to 5e-05 and is flat in Z while the velocity form departs progressively from "    *
+           "Z ~ 47, and (A_C/A_B - 1)*Z -- which must vanish as Z -> infinity, the orbitals becoming exactly "   *
+           "hydrogenic -- reverses SIGN in the partner above Z ~ 60 while JAC stays smooth at ~0.85/Z."),
+    (quantity = "E1-rate-coulomb", system = "He-like Z = 92", oracle = "9006157",
+     why = "the same measurement set as the Z = 54 entry above.  At this Z the partner's velocity rate differs "  *
+           "from JAC's by 5.5 % and 18 % on the two lines while the LENGTH rates agree to 4.9e-05 and 5.4e-05 "   *
+           "-- and the length form uses the SAME orbitals and the SAME CI mixing, so the orbitals agree and only " *
+           "the velocity amplitude does not.  JAC's own one-body gauge identity holds to 4.3e-08 here."),
                    ]
+
+#  A CAUSE WE HAVE TRACED TO OUR OWN SIDE.  The verdict stays DIFFERS, because the DEFAULT behaviour really
+#  does differ and a validation page must describe the default;  what changes is the NOTE, which says which code
+#  carries it and what to switch on.  Leaving the generic "a defect in one of the two codes" on a row whose cause
+#  is known would be true and useless.  Hand-maintained for the same reason as `PARTNER_LIMITED`:  attributing a
+#  deviation is a judgement and not something a harness may infer.
+const KNOWN_CAUSE = [
+    (quantity = "E1-rate-coulomb", system = "Li-like Z = 26",
+     why = "traced to JAC, 21/22-Nov-2026, and remediable:  the average-level field does not optimise the "      *
+           "ROTATION between two subshells of the same kappa carrying unequal generalised occupations (here 1s " *
+           "at 2.0 and 2s at 1/3), so its orbitals come out orthonormal but not stationary in that angle.  With " *
+           "`SelfConsistent.setAlSameKappaRotation(true)` this row reads 0.999998 instead, the functional "      *
+           "falling 1.75e-05 Ha to within 4.3e-07 Ha of the partner.  The default is OFF because switching it "  *
+           "on moves the eighth or ninth digit of many approved references at once;  see the note at "           *
+           "`SelfConsistent.GBL_AL_SAME_KAPPA_ROTATION`."),
+                    ]
+
+"""
+`knownCause(quantity::AbstractString, system::AbstractString)`
+    ... returns the recorded cause of a DIFFERS row where it has been traced BY HAND, or `nothing` where it has
+        not.  The verdict is deliberately left as DIFFERS:  the default behaviour does differ, and a validation
+        page describes the default rather than the best setting reachable.
+"""
+function knownCause(quantity::AbstractString, system::AbstractString)
+    for  e  in  KNOWN_CAUSE
+        if  e.quantity == quantity  &&  e.system == system    return( e.why )    end
+    end
+
+    return( nothing )
+end
+
 
 """
 `partnerLimited(quantity::AbstractString, system::AbstractString, oracle::AbstractString)`
@@ -511,6 +552,13 @@ end
 e1cases = [("He-like  Z = 18", 18.0, ["1s^2", "1s 2p"], "1s(2,*);1s(1,*)2p(1,*)", "1s,2p",    "0,4"),
            ("He-like  Z = 26", 26.0, ["1s^2", "1s 2p"], "1s(2,*);1s(1,*)2p(1,*)", "1s,2p",    "0,4"),
            ("He-like  Z = 54", 54.0, ["1s^2", "1s 2p"], "1s(2,*);1s(1,*)2p(1,*)", "1s,2p",    "0,4"),
+           # Z = 66 AND Z = 92 ARE HERE TO SHOW A TREND, not to lengthen the table.  The partner's
+           # velocity-gauge E1 rate degrades PROGRESSIVELY above Z ~ 40, and a single high-Z row would read as
+           # an isolated oddity;  the onset and the endpoint together show it is a trend with a direction.  The
+           # length-gauge rows beside them agree to 5e-05 at every Z and are what prove the orbitals agree, so
+           # each pair of rows carries its own control.
+           ("He-like  Z = 66", 66.0, ["1s^2", "1s 2p"], "1s(2,*);1s(1,*)2p(1,*)", "1s,2p",    "0,4"),
+           ("He-like  Z = 92", 92.0, ["1s^2", "1s 2p"], "1s(2,*);1s(1,*)2p(1,*)", "1s,2p",    "0,4"),
            ("Li-like  Z = 26", 26.0, ["1s^2 2s", "1s^2 2p"], "1s(2,*)2s(1,*);1s(2,*)2p(1,*)",
                                                              "1s,2s,2p", "1,3")]
 
@@ -640,9 +688,12 @@ function runTier1E1(cases, settings)
                 #  A DIFFERS row may have been attributed BY HAND to the partner;  nothing here infers it.
                 why      = dev > tol ? partnerLimited(quantity, system, oracle) : nothing
                 verdict  = dev <= tol ? "AGREES" : (isnothing(why) ? "DIFFERS" : "PARTNER-LIMITED")
+                mine     = dev > tol ? knownCause(quantity, system) : nothing
                 note     = dev <= tol ? "" :
-                           isnothing(why) ? "the CSF list and the Hamiltonian are identical by construction, " *
-                                            "so this is a defect in one of the two codes" : why
+                           !isnothing(why)  ? why  :
+                           !isnothing(mine) ? mine :
+                           "the CSF list and the Hamiltonian are identical by construction, " *
+                           "so this is a defect in one of the two codes"
                 push!(out, BenchmarkRow(1, quantity, system, Z,
                                         join(jacConfs, " + "), @sprintf("%.0f cm^-1", g.energy),
                                         "point nucleus; average-level Dirac-Fock; Coulomb; no Breit; no QED; one orbital set",
