@@ -1100,7 +1100,7 @@ claim worth making. The second closes the item with no `src/` work at all.
 **RUN THE REGISTER CHECK ON EVERY ONE BEFORE FILING IT** -- step 5 of `/priority`, and this command is where it
 matters most. A sweep re-derives symptoms from scratch and has no memory of what was decided; it will happily
 re-file something settled six weeks ago, in whatever words this run happens to produce. So for each candidate:
-write the symptom as the sweep reported it, grep `THE SETTLED REGISTER`, and then **read the register in full**,
+write the symptom as the sweep reported it, grep the register's section files, and then **read the section in full**,
 because the same thing returning under a different description is precisely what a grep cannot catch and is the
 failure this check exists for.
 
@@ -1209,8 +1209,17 @@ rewrites.
 4. Items carrying a `verify` or `memory only` marker have not been re-checked against `src/`. Do not remove
    one on the strength of the marker alone; either check it or leave it, and say which.
 5. **THE REGISTER CHECK -- NO ITEM IS ADDED TO THE PRIORITY LIST WITHOUT IT, AND IT FIRES EARLIER THAN THAT
-   AS WELL.** The list opens with a section called `THE SETTLED REGISTER`, one line per thing already decided,
-   held in lettered topic sections so that the one section a question belongs to can be read in seconds.
+   AS WELL.** `THE SETTLED REGISTER` holds one line per thing already decided, in lettered topic sections so that
+   the one section a question belongs to can be read in seconds. **SPLIT INTO ONE FILE PER SECTION 22-Nov-2026 on
+   the maintainer's instruction**, the register having reached 295 lines and outgrown its own promise that reading
+   all of it costs a minute; the priority list keeps the index and the discipline, the sections sit beside it.
+
+   **AND THE SPLIT CARRIES AN OBLIGATION, because it works against step (c) below.** A full read is what catches the
+   same thing returning in DIFFERENT WORDS, and eleven files make that harder rather than easier. So every section
+   file states its own SYMPTOM KEYS in its description -- the one field a memory list pass reads -- and the mitigation
+   is that one pass still shows every symptom in the register without opening a file. A section is opened only once a
+   key looks close. If a description ever goes stale against its own rows the split has broken, and the descriptions
+   are what to repair.
 
    **THE EARLIER TRIGGER, added 04-Nov-2026 because filing is too late: BEFORE BUILDING A DETECTOR, A
    DIAGNOSTIC, A GUARD OR A SCAN -- AND AGAIN BEFORE ACTING ON WHAT ONE REPORTS -- GREP THE REGISTER FOR THE
